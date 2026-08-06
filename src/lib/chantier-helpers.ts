@@ -29,7 +29,7 @@ export function hasOverdue(c: Chantier): boolean {
   return overdueActions(c).length > 0;
 }
 
-/** Retard > 5 jours → escalade Dirigeant */
+/** Retard > 5 jours → escalade Denis (dirigeant) */
 export function isEscalated(a: ActionItem, from = todayISO()): boolean {
   if (a.done) return false;
   return daysUntil(a.dueDate, from) < -ESCALADE_DAYS;
@@ -71,7 +71,7 @@ export function buildDashboardAlerts(
         alerts.push({
           id: `esc-${c.id}-${a.id}`,
           severity: 'escalate',
-          title: `Escalade Dirigeant — ${c.title} : ${a.label}`,
+          title: `Escalade Denis — ${c.title} : ${a.label}`,
           subtitle: `Retard de ${daysLate} j · Responsable : ${resp}`,
           href: `/chantiers/${c.id}`,
         });

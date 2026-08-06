@@ -9,6 +9,8 @@ import { USERS } from '@/lib/users';
 import type { UserId } from '@/lib/types';
 import { totalUnreadForUser } from '@/lib/messaging';
 import { myOpenActions } from '@/lib/chantier-helpers';
+import { SetrimFooter } from '@/components/SetrimFooter';
+import { NotificationsCenter } from '@/components/NotificationsCenter';
 
 const NAV = [
   { href: '/', label: 'Tableau de bord', icon: Home },
@@ -25,7 +27,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const myCount = myOpenActions(state.chantiers, activeUserId).length;
 
   return (
-    <div className="min-h-dvh">
+    <div className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white shadow-sm">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-2.5">
           <Link href="/" className="flex min-w-0 items-center gap-3">
@@ -46,6 +48,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </Link>
 
           <div className="flex flex-wrap items-center gap-2">
+            <NotificationsCenter />
             <label className="flex items-center gap-2 text-sm text-slate-700">
               <span className="hidden sm:inline">Je suis</span>
               <select
@@ -113,7 +116,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-5 pb-24">{children}</main>
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-5 pb-10">{children}</main>
+
+      <SetrimFooter />
 
       {/* Filigrane démo — ne bloque pas les clics */}
       <div

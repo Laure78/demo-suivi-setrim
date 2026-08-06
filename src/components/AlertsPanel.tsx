@@ -7,7 +7,7 @@ const STYLES = {
   escalate: {
     border: 'border-purple-300 bg-purple-50',
     title: 'text-purple-900',
-    badge: 'Escalade Dirigeant',
+    badge: 'Escalade Denis',
   },
   red: {
     border: 'border-red-200 bg-[var(--danger-bg)]',

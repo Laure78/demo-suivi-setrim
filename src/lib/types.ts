@@ -1,11 +1,6 @@
 /** Types — source de vérité unique SETRIM suivi chantier. */
 
-export type UserId =
-  | 'dirigeant'
-  | 'assistante-1'
-  | 'assistante-2'
-  | 'responsable'
-  | 'melissa';
+export type UserId = 'denis' | 'philippe' | 'melissa' | 'audrey' | 'valerie';
 
 export type TeamId = 'equipe-a' | 'equipe-b' | 'equipe-c';
 

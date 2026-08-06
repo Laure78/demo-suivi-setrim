@@ -1,11 +1,11 @@
 import type { AppUser, Team, TeamId } from './types';
 
 export const USERS: AppUser[] = [
-  { id: 'dirigeant', name: 'Dirigeant', role: 'Gérant' },
-  { id: 'assistante-1', name: 'Assistante 1', role: 'Admin' },
-  { id: 'assistante-2', name: 'Assistante 2', role: 'Admin' },
-  { id: 'responsable', name: 'Responsable', role: 'Chantier' },
-  { id: 'melissa', name: 'Mélissa', role: 'Terrain' },
+  { id: 'denis', name: 'Denis', role: 'Dirigeant' },
+  { id: 'philippe', name: 'Philippe', role: 'Conducteur de travaux' },
+  { id: 'melissa', name: 'Melissa', role: 'Assistante' },
+  { id: 'audrey', name: 'Audrey', role: 'Assistante' },
+  { id: 'valerie', name: 'Valérie', role: 'Responsable' },
 ];
 
 export function getUser(id: string): AppUser {

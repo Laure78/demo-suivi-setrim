@@ -74,7 +74,7 @@ export default function MesActionsPage() {
                     </p>
                     {esc ? (
                       <span className="mt-1 inline-block rounded-full bg-purple-700 px-2 py-0.5 text-[10px] font-bold uppercase text-white">
-                        Escalade Dirigeant
+                        Escalade Denis
                       </span>
                     ) : null}
                   </div>

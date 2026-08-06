@@ -3,8 +3,8 @@ import { addDays, todayISO } from './dates';
 import { emptyUnreadByUser } from './messaging';
 import { buildChecklistFromTemplate } from './checklist-template';
 
-const STORAGE_KEY = 'demo-suivi-etancheite-v6';
-export const STATE_VERSION = 6;
+const STORAGE_KEY = 'demo-suivi-etancheite-v7';
+export const STATE_VERSION = 7;
 
 export function createSeedState(): PersistedState {
   const t = todayISO();
@@ -26,8 +26,8 @@ export function createSeedState(): PersistedState {
           dueDate: addDays(t, -10),
           done: true,
           doneAt: new Date(addDays(t, -9) + 'T10:30:00').toISOString(),
-          doneBy: 'Assistante 1',
-          assigneeId: 'assistante-1',
+          doneBy: 'Melissa',
+          assigneeId: 'melissa',
           photos: [],
         },
         {
@@ -35,7 +35,7 @@ export function createSeedState(): PersistedState {
           label: 'Commande de benne',
           dueDate: addDays(t, -2),
           done: false,
-          assigneeId: 'responsable',
+          assigneeId: 'valerie',
           photos: [],
         },
         {
@@ -43,7 +43,7 @@ export function createSeedState(): PersistedState {
           label: 'Location roulotte',
           dueDate: addDays(t, 3),
           done: false,
-          assigneeId: 'responsable',
+          assigneeId: 'valerie',
           photos: [],
         },
         {
@@ -51,7 +51,7 @@ export function createSeedState(): PersistedState {
           label: 'Situation n°1',
           dueDate: addDays(t, 14),
           done: false,
-          assigneeId: 'assistante-1',
+          assigneeId: 'melissa',
           photos: [],
         },
         {
@@ -59,7 +59,7 @@ export function createSeedState(): PersistedState {
           label: 'DOE transmis',
           dueDate: addDays(t, 28),
           done: false,
-          assigneeId: 'assistante-2',
+          assigneeId: 'audrey',
           photos: [],
         },
       ],
@@ -80,8 +80,8 @@ export function createSeedState(): PersistedState {
           dueDate: addDays(t, -15),
           done: true,
           doneAt: new Date(addDays(t, -14) + 'T09:00:00').toISOString(),
-          doneBy: 'Assistante 2',
-          assigneeId: 'assistante-2',
+          doneBy: 'Audrey',
+          assigneeId: 'audrey',
           photos: [],
         },
         {
@@ -90,8 +90,8 @@ export function createSeedState(): PersistedState {
           dueDate: addDays(t, -11),
           done: true,
           doneAt: new Date(addDays(t, -11) + 'T14:00:00').toISOString(),
-          doneBy: 'Responsable',
-          assigneeId: 'responsable',
+          doneBy: 'Valérie',
+          assigneeId: 'valerie',
           photos: [],
         },
         {
@@ -100,7 +100,7 @@ export function createSeedState(): PersistedState {
           label: 'Situation n°1',
           dueDate: addDays(t, -8),
           done: false,
-          assigneeId: 'assistante-1',
+          assigneeId: 'melissa',
           photos: [],
         },
         {
@@ -108,7 +108,7 @@ export function createSeedState(): PersistedState {
           label: 'DOE transmis',
           dueDate: addDays(t, 12),
           done: false,
-          assigneeId: 'assistante-2',
+          assigneeId: 'audrey',
           photos: [],
         },
       ],
@@ -140,7 +140,7 @@ export function createSeedState(): PersistedState {
           label: 'Demande d’accès parties communes',
           dueDate: addDays(t, -3),
           done: false,
-          assigneeId: 'melissa',
+          assigneeId: 'philippe',
           photos: [],
         },
       ],
@@ -166,8 +166,8 @@ export function createSeedState(): PersistedState {
     {
       id: 'msg-1',
       threadId: 'general',
-      authorId: 'dirigeant',
-      authorName: 'Dirigeant',
+      authorId: 'denis',
+      authorName: 'Denis',
       text: 'Briefing du matin : on priorise la benne Dupont aujourd’hui.',
       createdAt: new Date(t + 'T07:45:00').toISOString(),
       isImportant: false,
@@ -175,8 +175,8 @@ export function createSeedState(): PersistedState {
     {
       id: 'msg-2',
       threadId: 'general',
-      authorId: 'melissa',
-      authorName: 'Mélissa',
+      authorId: 'philippe',
+      authorName: 'Philippe',
       text: 'OK, je suis sur Voltaire ce matin. Dispo après 14h pour Dupont.',
       createdAt: new Date(t + 'T07:52:00').toISOString(),
       isImportant: false,
@@ -184,8 +184,8 @@ export function createSeedState(): PersistedState {
     {
       id: 'msg-3',
       threadId: 'chantier-dupont',
-      authorId: 'assistante-1',
-      authorName: 'Assistante 1',
+      authorId: 'melissa',
+      authorName: 'Melissa',
       text: 'Acompte envoyé. J’attends le bon de commande benne.',
       createdAt: new Date(addDays(t, -1) + 'T16:20:00').toISOString(),
       isImportant: false,
@@ -193,8 +193,8 @@ export function createSeedState(): PersistedState {
     {
       id: 'msg-4',
       threadId: 'chantier-dupont',
-      authorId: 'responsable',
-      authorName: 'Responsable',
+      authorId: 'valerie',
+      authorName: 'Valérie',
       text: 'Pas de benne sur place demain matin — à traiter en urgence.',
       createdAt: new Date(t + 'T08:10:00').toISOString(),
       isImportant: true,
@@ -202,8 +202,8 @@ export function createSeedState(): PersistedState {
     {
       id: 'msg-5',
       threadId: 'chantier-voltaire',
-      authorId: 'assistante-2',
-      authorName: 'Assistante 2',
+      authorId: 'audrey',
+      authorName: 'Audrey',
       text: 'Situation n°1 à relancer — le client a demandé un devis complémentaire.',
       createdAt: new Date(addDays(t, -1) + 'T11:05:00').toISOString(),
       isImportant: false,
@@ -215,8 +215,8 @@ export function createSeedState(): PersistedState {
       id: 'j-1',
       chantierId: 'chantier-dupont',
       createdAt: new Date(addDays(t, -9) + 'T10:30:00').toISOString(),
-      userId: 'assistante-1',
-      userName: 'Assistante 1',
+      userId: 'melissa',
+      userName: 'Melissa',
       kind: 'check',
       text: "Action cochée : Facture d'acompte envoyée",
       actionId: 'dupont-1',
@@ -225,19 +225,19 @@ export function createSeedState(): PersistedState {
       id: 'j-2',
       chantierId: 'chantier-dupont',
       createdAt: new Date(t + 'T08:10:00').toISOString(),
-      userId: 'responsable',
-      userName: 'Responsable',
+      userId: 'valerie',
+      userName: 'Valérie',
       kind: 'message_important',
       text: 'Message important : Pas de benne sur place demain matin — à traiter en urgence.',
     },
   ];
 
   const unreadByUser = emptyUnreadByUser(chantiers);
-  unreadByUser.dirigeant['chantier-dupont'] = 1;
+  unreadByUser.denis['chantier-dupont'] = 1;
 
   return {
     version: STATE_VERSION,
-    activeUserId: 'dirigeant',
+    activeUserId: 'denis',
     chantiers,
     contrats,
     messages,
