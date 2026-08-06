@@ -13,9 +13,6 @@ export function SetrimFooter() {
             height={43}
             className="h-9 w-auto"
           />
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-            Logiciel de démonstration
-          </p>
         </div>
 
         <div className="grid gap-6 sm:grid-cols-2">
@@ -68,7 +65,9 @@ export function SetrimFooter() {
       <div className="border-t border-slate-100 bg-slate-50">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-3 text-xs text-slate-500">
           <span>© {new Date().getFullYear()} SETRIM étanchéité</span>
-          <span>Outil interne — suivi de chantier</span>
+          <span>
+            Logiciel de démo créé par BeWork — tous droits réservés
+          </span>
         </div>
       </div>
     </footer>

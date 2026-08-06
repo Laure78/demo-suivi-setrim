@@ -1,7 +1,13 @@
-# SETRIM — Suivi chantier (démo)
+# SETRIM — Plateforme interne (démo)
 
-Outil interne pour SETRIM étanchéité : check-lists chantier, alertes du jour,
-planning, messagerie et contrats d’entretien.
+Plateforme unique : alertes, portefeuille, planning, CE, check-lists, factures,
+commandes, messagerie. **Rien ne doit vivre ailleurs** (Excel / Outlook / papier).
+
+## Organisation SETRIM
+
+- **5** personnes au bureau (comptes de connexion)
+- **15** ouvriers / chefs de chantier (compagnons dans les équipes)
+- **2** prestataires (commandes externes)
 
 ## Lancer
 
@@ -10,39 +16,28 @@ npm install
 npm run dev
 ```
 
-Ouvrir [http://localhost:3000](http://localhost:3000).
+Connexion démo : n’importe quel compte listé, mot de passe `setrim2026`.
 
-## Scénario démo (2 minutes)
+## Modules livrés (v9)
 
-1. **Tableau de bord** — escalades violetes (retard > 5 j) en tête, puis retards / orange.
-2. **Mes actions** — filtre par utilisateur actif (changer le sélecteur en haut).
-3. Onglet **Planning** — choisir un modèle (Réfection / Neuf / Entretien) à la création.
-4. Fiche chantier — onglets Check-list / Journal ; joindre une photo sur une action.
-5. **Contrats** — marquer facturé → échéance N+1 « À venir » créée automatiquement.
-6. Bouton **Reset** pour revenir aux données de départ.
+1. Auth + rôles (dirigeant, responsable, assistante, suivi chantier)
+2. Accueil **Mes alertes du jour** (retard / aujourd’hui / semaine)
+3. **Portefeuille** + bandeau CA / jours / CA-jour
+4. **Fiche affaire** + check-list vivante (horodatage auto)
+5. **Planning CE** (exercice juil→juin, hors délai rouge)
+6. **Planning chantiers** (équipes × jours)
+7. Factures, commandes, demandes de prix
+8. Messagerie style WhatsApp
+9. Admin (délais d’alerte, modèles, équipes)
 
-## Import Batappli
+## Suite prévue
 
-Sur **Planning** : bouton « Importer un devis (Excel) ».
-
-Fichier d’exemple : [`public/examples/devis-exemple.xlsx`](public/examples/devis-exemple.xlsx)
-(ou `npm run generate:devis-exemple`).
-
-Le parsing est isolé dans `src/lib/batappli-import.ts` — à ajuster quand on aura
-la vraie structure de colonnes de l’export Batappli.
+- Glisser-déposer planning + passage PORTEFEUILLE → PLANIFIÉ
+- Notifications push paramétrables
+- Import Excel Batappli (historique 3 onglets)
+- Export PDF / Excel des vues
+- Archivage (pas de suppression définitive)
 
 ## Déploiement Railway
 
-Repo GitHub : https://github.com/Laure78/demo-suivi-setrim
-
-Build Docker (`Dockerfile` + `railway.toml`). Sur Railway : New Project → Deploy from GitHub → choisir ce dépôt.
-
-## Stack
-
-- Next.js (App Router) + TypeScript + Tailwind CSS
-- SheetJS (`xlsx`) pour l’import Batappli
-- Données seed en dur, état persisté dans `localStorage`
-- Pas d’authentification réelle (sélecteur d’utilisateur)
-- Hébergement : Railway (pas Vercel)
-
-Toutes les données sont **fictives**.
+Repo : https://github.com/Laure78/demo-suivi-setrim

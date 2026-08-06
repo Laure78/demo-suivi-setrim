@@ -1,67 +1,122 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo } from 'react';
 import { useApp } from '@/context/AppStateContext';
-import { AlertsPanel } from '@/components/AlertsPanel';
-import { ChantierCard } from '@/components/ChantierCard';
-import { buildDashboardAlerts, getChantierStatus } from '@/lib/chantier-helpers';
+import { buildMesAlertes, type DayAlert } from '@/lib/domain/alerts';
+import { roleHomeHint } from '@/lib/domain/permissions';
+import { CheckCircle2, ChevronRight } from 'lucide-react';
 
-export default function DashboardPage() {
-  const { state } = useApp();
-
-  const alerts = useMemo(
-    () => buildDashboardAlerts(state.chantiers, state.contrats, state.messages),
-    [state.chantiers, state.contrats, state.messages],
-  );
-
-  const { enCours, programmes } = useMemo(() => {
-    const en = state.chantiers.filter((c) => getChantierStatus(c) === 'en_cours');
-    const prog = state.chantiers.filter((c) => getChantierStatus(c) === 'programme');
-    return { enCours: en, programmes: prog };
-  }, [state.chantiers]);
+function AlertList({
+  title,
+  items,
+  empty,
+  tone,
+}: {
+  title: string;
+  items: DayAlert[];
+  empty: string;
+  tone: 'today' | 'late' | 'week';
+}) {
+  const styles = {
+    today: 'border-sky-200 bg-sky-50',
+    late: 'border-red-200 bg-red-50',
+    week: 'border-amber-200 bg-amber-50',
+  }[tone];
+  const badge = {
+    today: 'bg-sky-600',
+    late: 'bg-red-600',
+    week: 'bg-amber-600',
+  }[tone];
 
   return (
-    <div className="space-y-6">
+    <section className={`card border ${styles}`}>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h2 className="text-base font-bold text-slate-900 sm:text-lg">{title}</h2>
+        <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold text-white ${badge}`}>
+          {items.length}
+        </span>
+      </div>
+      {items.length === 0 ? (
+        <p className="flex items-center gap-2 text-sm text-slate-600">
+          <CheckCircle2 size={16} className="text-emerald-600" />
+          {empty}
+        </p>
+      ) : (
+        <ul className="divide-y divide-black/5">
+          {items.map((a) => (
+            <li key={a.id}>
+              <Link
+                href={a.href}
+                className="flex items-start gap-2 py-3 transition hover:opacity-80 active:opacity-70"
+              >
+                <span
+                  className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
+                    a.priorite === 'bloquante'
+                      ? 'bg-purple-700'
+                      : a.priorite === 'haute'
+                        ? 'bg-red-600'
+                        : 'bg-slate-400'
+                  }`}
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block font-semibold text-slate-900">{a.title}</span>
+                  <span className="block text-sm text-slate-600">{a.subtitle}</span>
+                </span>
+                <ChevronRight size={18} className="mt-1 shrink-0 text-slate-400" />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+export default function HomePage() {
+  const { user, state } = useApp();
+  const alerts = useMemo(
+    () => (user ? buildMesAlertes(state, user.id) : []),
+    [state, user],
+  );
+
+  const aujourdhui = alerts.filter((a) => a.bucket === 'aujourdhui');
+  const retard = alerts.filter((a) => a.bucket === 'retard');
+  const semaine = alerts.filter((a) => a.bucket === 'semaine');
+
+  if (!user) return null;
+
+  return (
+    <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-bold text-[var(--navy)] sm:text-2xl">
-          Tableau de bord
-        </h2>
+        <h1 className="text-xl font-bold text-[var(--navy)] sm:text-2xl">
+          Mes alertes du jour
+        </h1>
         <p className="mt-1 text-sm text-slate-600">
-          Ce qu’il ne faut pas oublier aujourd’hui — retards en rouge, échéances
-          sous 7 jours en orange.
+          Bonjour {user.nom}. {roleHomeHint(user.role)}
         </p>
       </div>
 
-      <AlertsPanel alerts={alerts} />
-
-      <section>
-        <h2 className="mb-3 text-lg font-bold text-[var(--navy)]">
-          Chantiers en cours
-          <span className="ml-2 text-sm font-medium text-slate-500">({enCours.length})</span>
-        </h2>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {enCours.map((c) => (
-            <ChantierCard key={c.id} chantier={c} />
-          ))}
-          {enCours.length === 0 ? (
-            <p className="text-sm text-slate-500">Aucun chantier en cours.</p>
-          ) : null}
-        </div>
-      </section>
-
-      {programmes.length > 0 ? (
-        <section>
-          <h2 className="mb-3 text-lg font-bold text-[var(--navy)]">
-            Programmés
-            <span className="ml-2 text-sm font-medium text-slate-500">({programmes.length})</span>
-          </h2>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {programmes.map((c) => (
-              <ChantierCard key={c.id} chantier={c} />
-            ))}
-          </div>
-        </section>
-      ) : null}
+      <div className="grid gap-4 lg:grid-cols-1">
+        <AlertList
+          title="En retard"
+          items={retard}
+          empty="Rien en retard — bravo."
+          tone="late"
+        />
+        <AlertList
+          title="À faire aujourd'hui"
+          items={aujourdhui}
+          empty="Rien de prévu pour aujourd'hui."
+          tone="today"
+        />
+        <AlertList
+          title="Cette semaine"
+          items={semaine}
+          empty="Rien d'autre cette semaine."
+          tone="week"
+        />
+      </div>
     </div>
   );
 }

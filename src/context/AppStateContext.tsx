@@ -10,80 +10,39 @@ import {
   type ReactNode,
 } from 'react';
 import type {
-  ActionItem,
-  ActionPhoto,
-  ChecklistTemplateId,
-  Chantier,
-  Contrat,
-  ContratStatus,
-  JournalEntry,
+  Affaire,
+  ChecklistItem,
+  Message,
+  Nota,
   PersistedState,
-  TeamId,
-  UserId,
-} from '@/lib/types';
-import { loadState, resetState, saveState } from '@/lib/storage';
-import { getUser } from '@/lib/users';
-import { uid } from '@/lib/chantier-helpers';
-import {
-  ensureThreadInUnread,
-  markThreadRead as markReadOp,
-  sendMessage as sendOp,
-} from '@/lib/messaging';
-import { buildChecklistFromTemplate } from '@/lib/checklist-template';
-import { addYears } from '@/lib/dates';
-
-export type NewChantierInput = {
-  title: string;
-  client: string;
-  address: string;
-  startDate: string;
-  endDate: string;
-  teamId: TeamId;
-  templateId: ChecklistTemplateId;
-  devisNumero?: string;
-  montantHT?: number;
-};
+  Utilisateur,
+} from '@/lib/domain/types';
+import { loadState, resetState, saveState } from '@/lib/domain/storage';
+import { getUser, uid } from '@/lib/domain/lookups';
+import { todayISO } from '@/lib/dates';
 
 type AppContextValue = {
   ready: boolean;
   state: PersistedState;
-  activeUserId: UserId;
-  activeUserName: string;
-  setActiveUser: (id: UserId) => void;
+  user: Utilisateur | null;
+  login: (email: string, password: string) => { ok: true } | { ok: false; error: string };
+  logout: () => void;
   resetDemo: () => void;
-  toggleAction: (chantierId: string, actionId: string) => void;
-  addAction: (
-    chantierId: string,
-    label: string,
-    dueDate: string,
-    assigneeId?: UserId,
-  ) => void;
-  addActionPhoto: (chantierId: string, actionId: string, dataUrl: string) => void;
-  removeActionPhoto: (chantierId: string, actionId: string, photoId: string) => void;
-  setContratStatus: (contratId: string, status: ContratStatus) => void;
-  getChantier: (id: string) => Chantier | undefined;
-  getJournal: (chantierId: string) => JournalEntry[];
-  sendMessage: (threadId: string, text: string, isImportant: boolean) => void;
-  markThreadRead: (threadId: string) => void;
-  createProgrammedChantier: (input: NewChantierInput) => string;
+  toggleChecklistItem: (itemId: string) => void;
+  closeNota: (notaId: string) => void;
+  createNota: (input: {
+    objet: string;
+    echeance: string;
+    responsableId: string;
+    priorite: Nota['priorite'];
+    entiteLiee: string;
+  }) => void;
+  updateAffaire: (id: string, patch: Partial<Affaire>) => void;
+  appendJournal: (entite: string, action: string, avant?: string, apres?: string) => void;
+  sendMessage: (threadId: string, corps: string, affaireId?: string) => void;
 };
 
 const AppContext = createContext<AppContextValue | null>(null);
-
-function appendJournal(
-  s: PersistedState,
-  entry: Omit<JournalEntry, 'id' | 'createdAt' | 'userId' | 'userName'>,
-): PersistedState {
-  const user = getUser(s.activeUserId);
-  const full: JournalEntry = {
-    ...entry,
-    id: uid('j'),
-    createdAt: new Date().toISOString(),
-    userId: s.activeUserId,
-    userName: user.name,
-  };
-  return { ...s, journal: [full, ...s.journal] };
-}
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<PersistedState | null>(null);
@@ -102,237 +61,157 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<AppContextValue | null>(() => {
     if (!state) return null;
+    const user = getUser(state, state.sessionUserId) ?? null;
 
     return {
       ready: true,
       state,
-      activeUserId: state.activeUserId,
-      activeUserName: getUser(state.activeUserId).name,
-      setActiveUser: (id) => update((s) => ({ ...s, activeUserId: id })),
+      user,
+
+      login: (email, password) => {
+        const found = state.utilisateurs.find(
+          (u) => u.email.toLowerCase() === email.trim().toLowerCase() && u.actif,
+        );
+        if (!found || found.password !== password) {
+          return { ok: false, error: 'Email ou mot de passe incorrect' };
+        }
+        update((s) => ({ ...s, sessionUserId: found.id }));
+        return { ok: true };
+      },
+
+      logout: () => update((s) => ({ ...s, sessionUserId: null })),
+
       resetDemo: () => setState(resetState()),
 
-      toggleAction: (chantierId, actionId) =>
+      appendJournal: (entite, action, avant, apres) =>
         update((s) => {
-          const user = getUser(s.activeUserId);
-          let label = '';
-          let wasDone = false;
-          const chantiers = s.chantiers.map((c) => {
-            if (c.id !== chantierId) return c;
-            return {
-              ...c,
-              actions: c.actions.map((a) => {
-                if (a.id !== actionId) return a;
-                label = a.label;
-                wasDone = a.done;
-                if (a.done) {
-                  return { ...a, done: false, doneAt: undefined, doneBy: undefined };
-                }
-                return {
-                  ...a,
-                  done: true,
-                  doneAt: new Date().toISOString(),
-                  doneBy: user.name,
-                };
-              }),
-            };
-          });
-          let next: PersistedState = { ...s, chantiers };
-          next = appendJournal(next, {
-            chantierId,
-            kind: wasDone ? 'uncheck' : 'check',
-            text: wasDone
-              ? `Action décochée : ${label}`
-              : `Action cochée : ${label}`,
-            actionId,
-          });
-          return next;
-        }),
-
-      addAction: (chantierId, label, dueDate, assigneeId) =>
-        update((s) => {
-          const action: ActionItem = {
-            id: uid('act'),
-            label: label.trim(),
-            dueDate,
-            done: false,
-            assigneeId: assigneeId ?? s.activeUserId,
-            photos: [],
-          };
-          let next: PersistedState = {
+          if (!s.sessionUserId) return s;
+          return {
             ...s,
-            chantiers: s.chantiers.map((c) =>
-              c.id === chantierId ? { ...c, actions: [...c.actions, action] } : c,
-            ),
+            journal: [
+              {
+                id: uid('j'),
+                utilisateurId: s.sessionUserId,
+                entite,
+                action,
+                valeurAvant: avant,
+                valeurApres: apres,
+                horodatage: new Date().toISOString(),
+              },
+              ...s.journal,
+            ],
           };
-          next = appendJournal(next, {
-            chantierId,
-            kind: 'add_action',
-            text: `Action ajoutée : ${action.label} (échéance ${action.dueDate})`,
-            actionId: action.id,
-          });
-          return next;
         }),
 
-      addActionPhoto: (chantierId, actionId, dataUrl) =>
+      toggleChecklistItem: (itemId) =>
         update((s) => {
-          const user = getUser(s.activeUserId);
-          const photo: ActionPhoto = {
-            id: uid('ph'),
-            dataUrl,
-            addedAt: new Date().toISOString(),
-            addedBy: user.name,
-          };
-          let actionLabel = '';
-          const chantiers = s.chantiers.map((c) => {
-            if (c.id !== chantierId) return c;
+          if (!s.sessionUserId) return s;
+          const u = getUser(s, s.sessionUserId);
+          const items = s.checklistItems.map((it): ChecklistItem => {
+            if (it.id !== itemId) return it;
+            if (it.fait) {
+              return {
+                ...it,
+                fait: false,
+                dateFait: undefined,
+                faitPar: undefined,
+              };
+            }
             return {
-              ...c,
-              actions: c.actions.map((a) => {
-                if (a.id !== actionId) return a;
-                actionLabel = a.label;
-                return { ...a, photos: [...(a.photos ?? []), photo] };
-              }),
+              ...it,
+              fait: true,
+              dateFait: new Date().toISOString(),
+              faitPar: u?.nom ?? '?',
             };
           });
-          let next: PersistedState = { ...s, chantiers };
-          next = appendJournal(next, {
-            chantierId,
-            kind: 'photo',
-            text: `Photo ajoutée sur : ${actionLabel}`,
-            actionId,
-            photoDataUrl: dataUrl,
-          });
-          return next;
+          const item = items.find((i) => i.id === itemId);
+          const cl = s.checklists.find((c) => c.id === item?.checklistId);
+          return {
+            ...s,
+            checklistItems: items,
+            affaires: s.affaires.map((a) =>
+              a.id === cl?.affaireId
+                ? { ...a, dateDerniereAction: todayISO() }
+                : a,
+            ),
+            journal: [
+              {
+                id: uid('j'),
+                utilisateurId: s.sessionUserId,
+                entite: cl ? `affaire:${cl.affaireId}` : `item:${itemId}`,
+                action: item?.fait ? 'check_item' : 'uncheck_item',
+                valeurApres: item?.libelle,
+                horodatage: new Date().toISOString(),
+              },
+              ...s.journal,
+            ],
+          };
         }),
 
-      removeActionPhoto: (chantierId, actionId, photoId) =>
+      closeNota: (notaId) =>
         update((s) => ({
           ...s,
-          chantiers: s.chantiers.map((c) => {
-            if (c.id !== chantierId) return c;
-            return {
-              ...c,
-              actions: c.actions.map((a) => {
-                if (a.id !== actionId) return a;
-                return {
-                  ...a,
-                  photos: (a.photos ?? []).filter((p) => p.id !== photoId),
-                };
-              }),
-            };
-          }),
+          notas: s.notas.map((n) =>
+            n.id === notaId
+              ? { ...n, statut: 'FAIT' as const, dateCloture: new Date().toISOString() }
+              : n,
+          ),
         })),
 
-      setContratStatus: (contratId, status) =>
+      createNota: (input) =>
         update((s) => {
-          const current = s.contrats.find((c) => c.id === contratId);
-          if (!current) return s;
-
-          // Marquer facturé → crée l'échéance N+1 « À venir »
-          if (status === 'fait' && current.status !== 'fait') {
-            const nextYear: Contrat = {
-              id: uid('contrat'),
-              client: current.client,
-              anniversaryDate: addYears(current.anniversaryDate, 1),
-              status: 'a_venir',
-            };
-            return {
-              ...s,
-              contrats: [
-                ...s.contrats.map((ct) =>
-                  ct.id === contratId ? { ...ct, status: 'fait' as const } : ct,
-                ),
-                nextYear,
-              ],
-            };
-          }
-
-          return {
-            ...s,
-            contrats: s.contrats.map((ct) =>
-              ct.id === contratId ? { ...ct, status } : ct,
-            ),
+          if (!s.sessionUserId) return s;
+          const nota: Nota = {
+            id: uid('nota'),
+            objet: input.objet,
+            type: 'MANUEL',
+            entiteLiee: input.entiteLiee,
+            echeance: input.echeance,
+            responsableId: input.responsableId,
+            priorite: input.priorite,
+            statut: 'OUVERT',
+            creePar: s.sessionUserId,
+            createdAt: new Date().toISOString(),
           };
+          return { ...s, notas: [nota, ...s.notas] };
         }),
 
-      getChantier: (id) => state.chantiers.find((c) => c.id === id),
+      updateAffaire: (id, patch) =>
+        update((s) => ({
+          ...s,
+          affaires: s.affaires.map((a) =>
+            a.id === id
+              ? { ...a, ...patch, dateDerniereAction: todayISO() }
+              : a,
+          ),
+        })),
 
-      getJournal: (chantierId) =>
-        state.journal
-          .filter((j) => j.chantierId === chantierId)
-          .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-
-      sendMessage: (threadId, text, isImportant) =>
+      sendMessage: (threadId, corps, affaireId) =>
         update((s) => {
-          const user = getUser(s.activeUserId);
-          const slice = sendOp(
-            { messages: s.messages, unreadByUser: s.unreadByUser },
-            {
-              threadId,
-              text,
-              isImportant,
-              authorId: s.activeUserId,
-              authorName: user.name,
-            },
-          );
-          let next: PersistedState = { ...s, ...slice };
-          // Message important rattaché à un chantier → journal
-          if (isImportant && threadId !== 'general') {
-            next = appendJournal(next, {
-              chantierId: threadId,
-              kind: 'message_important',
-              text: `Message important : ${text.trim()}`,
-            });
-          }
-          return next;
-        }),
-
-      markThreadRead: (threadId) =>
-        update((s) => {
-          const slice = markReadOp(
-            { messages: s.messages, unreadByUser: s.unreadByUser },
-            s.activeUserId,
+          if (!s.sessionUserId || !corps.trim()) return s;
+          const msg: Message = {
+            id: uid('msg'),
+            auteurId: s.sessionUserId,
+            destinataires: s.utilisateurs
+              .filter((u) => u.id !== s.sessionUserId)
+              .map((u) => u.id),
             threadId,
-          );
-          if (slice === s || slice.unreadByUser === s.unreadByUser) return s;
-          return { ...s, ...slice };
+            affaireId,
+            corps: corps.trim(),
+            piecesJointes: [],
+            luPar: [s.sessionUserId],
+            date: new Date().toISOString(),
+            isImportant: false,
+          };
+          return { ...s, messages: [...s.messages, msg] };
         }),
-
-      createProgrammedChantier: (input) => {
-        const id = uid('chantier');
-        update((s) => {
-          const chantier: Chantier = {
-            id,
-            title: input.title.trim(),
-            client: input.client.trim(),
-            address: input.address.trim(),
-            startDate: input.startDate,
-            endDate: input.endDate,
-            teamId: input.teamId,
-            templateId: input.templateId,
-            actions: buildChecklistFromTemplate(
-              input.templateId,
-              input.startDate,
-              id,
-            ),
-            devisNumero: input.devisNumero,
-            montantHT: input.montantHT,
-          };
-          return {
-            ...s,
-            chantiers: [...s.chantiers, chantier],
-            unreadByUser: ensureThreadInUnread(s.unreadByUser, id),
-          };
-        });
-        return id;
-      },
     };
   }, [state, update]);
 
   if (!value) {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-slate-100 text-slate-600">
-        Chargement de la démo…
+      <div className="flex min-h-dvh items-center justify-center text-sm text-slate-500">
+        Chargement…
       </div>
     );
   }
@@ -342,6 +221,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
 export function useApp(): AppContextValue {
   const ctx = useContext(AppContext);
-  if (!ctx) throw new Error('useApp doit être utilisé dans AppProvider');
+  if (!ctx) throw new Error('useApp hors AppProvider');
   return ctx;
 }

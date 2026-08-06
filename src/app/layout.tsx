@@ -4,9 +4,9 @@ import { AppShell } from '@/components/AppShell';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'SETRIM — Suivi chantier',
+  title: 'SETRIM — Plateforme interne',
   description:
-    'Outil interne SETRIM étanchéité : check-lists chantier, alertes, planning et contrats d’entretien.',
+    'Plateforme unique SETRIM : alertes, portefeuille, planning, CE, check-lists, factures, commandes, messagerie.',
 };
 
 export default function RootLayout({
