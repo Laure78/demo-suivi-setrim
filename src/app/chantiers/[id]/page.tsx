@@ -2,9 +2,11 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { useState } from 'react';
 import { ArrowLeft, MessageSquare } from 'lucide-react';
 import { useApp } from '@/context/AppStateContext';
 import { ActionChecklist } from '@/components/ActionChecklist';
+import { ChantierJournal } from '@/components/ChantierJournal';
 import { ProgressBar } from '@/components/ChantierCard';
 import {
   chantierProgress,
@@ -14,12 +16,16 @@ import {
 } from '@/lib/chantier-helpers';
 import { getTeam } from '@/lib/users';
 import { formatFR } from '@/lib/dates';
+import { getTemplate } from '@/lib/checklist-template';
+
+type Tab = 'checklist' | 'journal';
 
 export default function ChantierPage() {
   const params = useParams();
   const id = typeof params.id === 'string' ? params.id : '';
-  const { getChantier, state, activeUserId } = useApp();
+  const { getChantier, getJournal, state, activeUserId } = useApp();
   const chantier = getChantier(id);
+  const [tab, setTab] = useState<Tab>('checklist');
 
   if (!chantier) {
     return (
@@ -37,6 +43,8 @@ export default function ChantierPage() {
   const unread = state.unreadByUser[activeUserId]?.[chantier.id] ?? 0;
   const team = getTeam(chantier.teamId);
   const status = getChantierStatus(chantier);
+  const template = getTemplate(chantier.templateId);
+  const journal = getJournal(chantier.id);
 
   return (
     <div className="space-y-5">
@@ -83,6 +91,8 @@ export default function ChantierPage() {
             <p className="text-sm text-slate-500">{chantier.address}</p>
             <p className="mt-2 text-sm text-slate-600">
               {formatFR(chantier.startDate)} → {formatFR(chantier.endDate)}
+              {' · '}
+              Modèle : <strong>{template.label}</strong>
             </p>
             {chantier.devisNumero ? (
               <p className="mt-1 text-sm text-slate-600">
@@ -119,10 +129,37 @@ export default function ChantierPage() {
         </div>
       </header>
 
-      <section>
-        <h3 className="mb-3 text-lg font-bold text-[var(--navy)]">Check-list</h3>
-        <ActionChecklist chantierId={chantier.id} actions={chantier.actions} />
-      </section>
+      <div className="flex gap-1 rounded-xl border border-slate-200 bg-white p-1">
+        {(
+          [
+            { id: 'checklist' as const, label: 'Check-list' },
+            { id: 'journal' as const, label: `Journal (${journal.length})` },
+          ] as const
+        ).map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTab(t.id)}
+            className={`flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
+              tab === t.id
+                ? 'bg-[var(--navy)] text-white'
+                : 'text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'checklist' ? (
+        <section>
+          <ActionChecklist chantierId={chantier.id} actions={chantier.actions} />
+        </section>
+      ) : (
+        <section>
+          <ChantierJournal entries={journal} />
+        </section>
+      )}
     </div>
   );
 }

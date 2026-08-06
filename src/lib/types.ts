@@ -1,4 +1,4 @@
-/** Types de la démo suivi chantier / étanchéité — source de vérité unique. */
+/** Types — source de vérité unique SETRIM suivi chantier. */
 
 export type UserId =
   | 'dirigeant'
@@ -9,34 +9,43 @@ export type UserId =
 
 export type TeamId = 'equipe-a' | 'equipe-b' | 'equipe-c';
 
-/** Statut dérivé des dates (calculé, pas stocké séparément). */
+export type ChecklistTemplateId = 'refection' | 'neuf' | 'entretien';
+
+/** Statut dérivé des dates (calculé). */
 export type ChantierStatus = 'en_cours' | 'programme' | 'termine';
 
-export type ContratStatus = 'a_facturer' | 'fait';
+export type ContratStatus = 'a_facturer' | 'a_venir' | 'fait';
+
+export type ActionPhoto = {
+  id: string;
+  /** data URL base64 (démo localStorage) */
+  dataUrl: string;
+  addedAt: string;
+  addedBy: string;
+};
 
 export type ActionItem = {
   id: string;
   label: string;
   dueDate: string; // YYYY-MM-DD
   done: boolean;
-  doneAt?: string; // ISO datetime
-  doneBy?: string; // nom affiché
+  doneAt?: string;
+  doneBy?: string;
+  /** Responsable de l'action (pour Mes actions + escalade) */
+  assigneeId: UserId;
+  photos?: ActionPhoto[];
 };
 
-/**
- * Chantier — modèle unique partagé par :
- * tableau de bord, fiche, messagerie, planning.
- */
 export type Chantier = {
   id: string;
   title: string;
   client: string;
   address: string;
-  startDate: string; // YYYY-MM-DD
-  endDate: string; // YYYY-MM-DD
+  startDate: string;
+  endDate: string;
   teamId: TeamId;
+  templateId: ChecklistTemplateId;
   actions: ActionItem[];
-  /** Optionnel — issu d'un import Batappli */
   devisNumero?: string;
   montantHT?: number;
 };
@@ -44,7 +53,7 @@ export type Chantier = {
 export type Contrat = {
   id: string;
   client: string;
-  anniversaryDate: string; // YYYY-MM-DD
+  anniversaryDate: string;
   status: ContratStatus;
 };
 
@@ -62,28 +71,43 @@ export type Team = {
   bg: string;
 };
 
-/** Message interne — threadId = 'general' ou id chantier. */
 export type Message = {
   id: string;
   threadId: string;
   authorId: UserId;
   authorName: string;
   text: string;
-  createdAt: string; // ISO
-  /** Marqué « important » à l'envoi → pin + alerte dashboard */
+  createdAt: string;
   isImportant: boolean;
 };
 
-/** État persisté dans localStorage. */
+export type JournalKind =
+  | 'check'
+  | 'uncheck'
+  | 'add_action'
+  | 'photo'
+  | 'message_important';
+
+/** Journal horodaté par chantier. */
+export type JournalEntry = {
+  id: string;
+  chantierId: string;
+  createdAt: string;
+  userId: UserId;
+  userName: string;
+  kind: JournalKind;
+  text: string;
+  actionId?: string;
+  /** Miniature optionnelle (événement photo) */
+  photoDataUrl?: string;
+};
+
 export type PersistedState = {
   version: number;
   activeUserId: UserId;
   chantiers: Chantier[];
   contrats: Contrat[];
   messages: Message[];
-  /**
-   * Non-lus par utilisateur puis par thread.
-   * Prêt pour un back-end multi-utilisateur.
-   */
+  journal: JournalEntry[];
   unreadByUser: Record<string, Record<string, number>>;
 };

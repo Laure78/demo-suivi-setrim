@@ -3,14 +3,16 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { CalendarDays, ClipboardList, Home, MessageSquare, RotateCcw } from 'lucide-react';
+import { CalendarDays, CheckSquare, ClipboardList, Home, MessageSquare, RotateCcw } from 'lucide-react';
 import { useApp } from '@/context/AppStateContext';
 import { USERS } from '@/lib/users';
 import type { UserId } from '@/lib/types';
 import { totalUnreadForUser } from '@/lib/messaging';
+import { myOpenActions } from '@/lib/chantier-helpers';
 
 const NAV = [
   { href: '/', label: 'Tableau de bord', icon: Home },
+  { href: '/mes-actions', label: 'Mes actions', icon: CheckSquare },
   { href: '/planning', label: 'Planning', icon: CalendarDays },
   { href: '/messagerie', label: 'Messagerie', icon: MessageSquare },
   { href: '/contrats', label: 'Contrats d’entretien', icon: ClipboardList },
@@ -20,6 +22,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { activeUserId, setActiveUser, resetDemo, state } = useApp();
   const unread = totalUnreadForUser(state.unreadByUser, activeUserId);
+  const myCount = myOpenActions(state.chantiers, activeUserId).length;
 
   return (
     <div className="min-h-dvh">
@@ -80,6 +83,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   ? pathname === '/'
                   : pathname === href || pathname.startsWith(`${href}/`);
               const showBadge = href === '/messagerie' && unread > 0;
+              const showMyBadge = href === '/mes-actions' && myCount > 0;
               return (
                 <Link
                   key={href}
@@ -95,6 +99,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   {showBadge ? (
                     <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
                       {unread}
+                    </span>
+                  ) : null}
+                  {showMyBadge ? (
+                    <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-400 px-1 text-[10px] font-bold text-slate-900">
+                      {myCount}
                     </span>
                   ) : null}
                 </Link>

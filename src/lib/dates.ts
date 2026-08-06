@@ -17,6 +17,12 @@ export function addDays(isoDate: string, days: number): string {
   return toISODate(d);
 }
 
+export function addYears(isoDate: string, years: number): string {
+  const d = parseISODate(isoDate);
+  d.setFullYear(d.getFullYear() + years);
+  return toISODate(d);
+}
+
 export function parseISODate(iso: string): Date {
   const [y, m, d] = iso.split('-').map(Number);
   return new Date(y, m - 1, d);

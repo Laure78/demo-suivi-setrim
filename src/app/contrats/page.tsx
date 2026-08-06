@@ -2,13 +2,19 @@
 
 import { useApp } from '@/context/AppStateContext';
 import { daysUntil, formatFR, isOverdue, isSoon } from '@/lib/dates';
-import type { Contrat } from '@/lib/types';
+import type { Contrat, ContratStatus } from '@/lib/types';
 
 function contratAlert(ct: Contrat): 'red' | 'orange' | null {
   if (ct.status === 'fait') return null;
   if (isOverdue(ct.anniversaryDate)) return 'red';
   if (isSoon(ct.anniversaryDate, 7)) return 'orange';
   return null;
+}
+
+function statusLabel(s: ContratStatus): string {
+  if (s === 'fait') return 'Fait';
+  if (s === 'a_venir') return 'À venir';
+  return 'À facturer';
 }
 
 export default function ContratsPage() {
@@ -21,7 +27,7 @@ export default function ContratsPage() {
           Contrats d’entretien
         </h2>
         <p className="mt-1 text-sm text-slate-600">
-          Dates anniversaires à ne pas manquer — facturation en un clic.
+          Facturation en un clic — l’échéance N+1 se crée automatiquement.
         </p>
       </div>
 
@@ -38,7 +44,9 @@ export default function ContratsPage() {
                   ? 'border-red-200 bg-[var(--danger-bg)]'
                   : alert === 'orange'
                     ? 'border-orange-200 bg-[var(--warn-bg)]'
-                    : ''
+                    : ct.status === 'fait'
+                      ? 'opacity-75'
+                      : ''
               }`}
             >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -60,10 +68,10 @@ export default function ContratsPage() {
                   </div>
                   <p className="mt-1 text-sm text-slate-700">
                     Date anniversaire : <strong>{formatFR(ct.anniversaryDate)}</strong>
-                    {ct.status === 'a_facturer' && d < 0
+                    {ct.status !== 'fait' && d < 0
                       ? ` · en retard de ${Math.abs(d)} jour${Math.abs(d) > 1 ? 's' : ''}`
                       : null}
-                    {ct.status === 'a_facturer' && d >= 0 && d <= 7
+                    {ct.status !== 'fait' && d >= 0 && d <= 7
                       ? ` · dans ${d} jour${d > 1 ? 's' : ''}`
                       : null}
                   </p>
@@ -71,23 +79,38 @@ export default function ContratsPage() {
                     Statut :{' '}
                     <span
                       className={`font-semibold ${
-                        ct.status === 'fait' ? 'text-emerald-700' : 'text-slate-800'
+                        ct.status === 'fait'
+                          ? 'text-emerald-700'
+                          : ct.status === 'a_venir'
+                            ? 'text-[var(--navy)]'
+                            : 'text-slate-800'
                       }`}
                     >
-                      {ct.status === 'fait' ? 'Fait' : 'À facturer'}
+                      {statusLabel(ct.status)}
                     </span>
                   </p>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                  {ct.status === 'a_facturer' ? (
-                    <button
-                      type="button"
-                      className="btn-primary"
-                      onClick={() => setContratStatus(ct.id, 'fait')}
-                    >
-                      Marquer facturé
-                    </button>
+                  {ct.status === 'a_facturer' || ct.status === 'a_venir' ? (
+                    <>
+                      {ct.status === 'a_venir' ? (
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={() => setContratStatus(ct.id, 'a_facturer')}
+                        >
+                          Passer à facturer
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="btn-primary"
+                        onClick={() => setContratStatus(ct.id, 'fait')}
+                      >
+                        Marquer facturé
+                      </button>
+                    </>
                   ) : (
                     <button
                       type="button"

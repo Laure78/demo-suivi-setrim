@@ -1,17 +1,11 @@
-import type { Chantier, Contrat, Message, PersistedState } from './types';
+import type { Chantier, Contrat, JournalEntry, Message, PersistedState } from './types';
 import { addDays, todayISO } from './dates';
 import { emptyUnreadByUser } from './messaging';
-import { buildStandardChecklist } from './checklist-template';
+import { buildChecklistFromTemplate } from './checklist-template';
 
-const STORAGE_KEY = 'demo-suivi-etancheite-v5';
-export const STATE_VERSION = 5;
+const STORAGE_KEY = 'demo-suivi-etancheite-v6';
+export const STATE_VERSION = 6;
 
-/**
- * Données de départ fictives.
- * - Dupont / Voltaire : EN COURS
- * - Gymnase / Jaurès : PROGRAMMÉS (à venir)
- * Dates réparties sur ~8 semaines ; échéances Dupont restent parlantes (fait / retard / bientôt).
- */
 export function createSeedState(): PersistedState {
   const t = todayISO();
 
@@ -24,6 +18,7 @@ export function createSeedState(): PersistedState {
       startDate: addDays(t, -5),
       endDate: addDays(t, 16),
       teamId: 'equipe-a',
+      templateId: 'refection',
       actions: [
         {
           id: 'dupont-1',
@@ -32,30 +27,40 @@ export function createSeedState(): PersistedState {
           done: true,
           doneAt: new Date(addDays(t, -9) + 'T10:30:00').toISOString(),
           doneBy: 'Assistante 1',
+          assigneeId: 'assistante-1',
+          photos: [],
         },
         {
           id: 'dupont-2',
           label: 'Commande de benne',
           dueDate: addDays(t, -2),
           done: false,
+          assigneeId: 'responsable',
+          photos: [],
         },
         {
           id: 'dupont-3',
           label: 'Location roulotte',
           dueDate: addDays(t, 3),
           done: false,
+          assigneeId: 'responsable',
+          photos: [],
         },
         {
           id: 'dupont-4',
           label: 'Situation n°1',
           dueDate: addDays(t, 14),
           done: false,
+          assigneeId: 'assistante-1',
+          photos: [],
         },
         {
           id: 'dupont-5',
           label: 'DOE transmis',
           dueDate: addDays(t, 28),
           done: false,
+          assigneeId: 'assistante-2',
+          photos: [],
         },
       ],
     },
@@ -67,6 +72,7 @@ export function createSeedState(): PersistedState {
       startDate: addDays(t, -12),
       endDate: addDays(t, 10),
       teamId: 'equipe-b',
+      templateId: 'refection',
       actions: [
         {
           id: 'vol-1',
@@ -75,6 +81,8 @@ export function createSeedState(): PersistedState {
           done: true,
           doneAt: new Date(addDays(t, -14) + 'T09:00:00').toISOString(),
           doneBy: 'Assistante 2',
+          assigneeId: 'assistante-2',
+          photos: [],
         },
         {
           id: 'vol-2',
@@ -83,18 +91,25 @@ export function createSeedState(): PersistedState {
           done: true,
           doneAt: new Date(addDays(t, -11) + 'T14:00:00').toISOString(),
           doneBy: 'Responsable',
+          assigneeId: 'responsable',
+          photos: [],
         },
         {
+          // Escalade : retard > 5 j
           id: 'vol-3',
           label: 'Situation n°1',
-          dueDate: addDays(t, -1),
+          dueDate: addDays(t, -8),
           done: false,
+          assigneeId: 'assistante-1',
+          photos: [],
         },
         {
           id: 'vol-4',
           label: 'DOE transmis',
           dueDate: addDays(t, 12),
           done: false,
+          assigneeId: 'assistante-2',
+          photos: [],
         },
       ],
     },
@@ -106,7 +121,8 @@ export function createSeedState(): PersistedState {
       startDate: addDays(t, 21),
       endDate: addDays(t, 42),
       teamId: 'equipe-a',
-      actions: buildStandardChecklist(addDays(t, 21), addDays(t, 42), 'gym'),
+      templateId: 'neuf',
+      actions: buildChecklistFromTemplate('neuf', addDays(t, 21), 'gym'),
     },
     {
       id: 'chantier-jaures',
@@ -116,14 +132,16 @@ export function createSeedState(): PersistedState {
       startDate: addDays(t, 35),
       endDate: addDays(t, 56),
       teamId: 'equipe-c',
+      templateId: 'entretien',
       actions: [
-        ...buildStandardChecklist(addDays(t, 35), addDays(t, 56), 'jau'),
+        ...buildChecklistFromTemplate('entretien', addDays(t, 35), 'jau'),
         {
-          // Préparation en retard pour peupler le tableau de bord
           id: 'jau-retard-prep',
           label: 'Demande d’accès parties communes',
           dueDate: addDays(t, -3),
           done: false,
+          assigneeId: 'melissa',
+          photos: [],
         },
       ],
     },
@@ -140,7 +158,7 @@ export function createSeedState(): PersistedState {
       id: 'contrat-2',
       client: 'Mairie de Pantin — écoles',
       anniversaryDate: addDays(t, 20),
-      status: 'a_facturer',
+      status: 'a_venir',
     },
   ];
 
@@ -192,6 +210,28 @@ export function createSeedState(): PersistedState {
     },
   ];
 
+  const journal: JournalEntry[] = [
+    {
+      id: 'j-1',
+      chantierId: 'chantier-dupont',
+      createdAt: new Date(addDays(t, -9) + 'T10:30:00').toISOString(),
+      userId: 'assistante-1',
+      userName: 'Assistante 1',
+      kind: 'check',
+      text: "Action cochée : Facture d'acompte envoyée",
+      actionId: 'dupont-1',
+    },
+    {
+      id: 'j-2',
+      chantierId: 'chantier-dupont',
+      createdAt: new Date(t + 'T08:10:00').toISOString(),
+      userId: 'responsable',
+      userName: 'Responsable',
+      kind: 'message_important',
+      text: 'Message important : Pas de benne sur place demain matin — à traiter en urgence.',
+    },
+  ];
+
   const unreadByUser = emptyUnreadByUser(chantiers);
   unreadByUser.dirigeant['chantier-dupont'] = 1;
 
@@ -201,6 +241,7 @@ export function createSeedState(): PersistedState {
     chantiers,
     contrats,
     messages,
+    journal,
     unreadByUser,
   };
 }
@@ -216,8 +257,9 @@ export function loadState(): PersistedState {
       parsed.version !== STATE_VERSION ||
       !Array.isArray(parsed.chantiers) ||
       !Array.isArray(parsed.messages) ||
+      !Array.isArray(parsed.journal) ||
       !parsed.unreadByUser ||
-      !parsed.chantiers[0]?.startDate
+      !parsed.chantiers[0]?.templateId
     ) {
       return createSeedState();
     }
@@ -229,7 +271,12 @@ export function loadState(): PersistedState {
 
 export function saveState(state: PersistedState): void {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // Quota localStorage (photos) — on ignore pour la démo
+    console.warn('localStorage plein — état non sauvegardé');
+  }
 }
 
 export function resetState(): PersistedState {

@@ -8,8 +8,9 @@ import { ChantierCard } from '@/components/ChantierCard';
 import { ImportDevisPanel } from '@/components/ImportDevisPanel';
 import { getChantierStatus } from '@/lib/chantier-helpers';
 import { TEAMS } from '@/lib/users';
+import { CHECKLIST_TEMPLATES } from '@/lib/checklist-template';
 import { addDays, todayISO } from '@/lib/dates';
-import type { TeamId } from '@/lib/types';
+import type { ChecklistTemplateId, TeamId } from '@/lib/types';
 
 export default function PlanningPage() {
   const { state, createProgrammedChantier } = useApp();
@@ -21,6 +22,7 @@ export default function PlanningPage() {
   const [startDate, setStartDate] = useState(addDays(todayISO(), 14));
   const [endDate, setEndDate] = useState(addDays(todayISO(), 28));
   const [teamId, setTeamId] = useState<TeamId>('equipe-a');
+  const [templateId, setTemplateId] = useState<ChecklistTemplateId>('refection');
 
   const { enCours, programmes } = useMemo(() => {
     const en = state.chantiers.filter((c) => getChantierStatus(c) === 'en_cours');
@@ -42,6 +44,7 @@ export default function PlanningPage() {
       startDate,
       endDate,
       teamId,
+      templateId,
     });
     setOpen(false);
     setTitle('');
@@ -69,11 +72,31 @@ export default function PlanningPage() {
       <ImportDevisPanel />
 
       {open ? (
-        <form className="card space-y-3 border-[var(--navy)]/20 bg-[var(--navy-soft)]" onSubmit={handleCreate}>
+        <form
+          className="card space-y-3 border-[var(--navy)]/20 bg-[var(--navy-soft)]"
+          onSubmit={handleCreate}
+        >
           <p className="text-sm font-bold text-[var(--navy)]">
-            Nouveau chantier — la check-list standard se crée automatiquement
+            Nouveau chantier — choisissez un modèle de check-list
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block text-sm sm:col-span-2">
+              Modèle de check-list
+              <select
+                className="input mt-1"
+                value={templateId}
+                onChange={(e) => setTemplateId(e.target.value as ChecklistTemplateId)}
+              >
+                {CHECKLIST_TEMPLATES.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.label} ({t.actions.length} actions)
+                  </option>
+                ))}
+              </select>
+              <span className="mt-1 block text-xs text-slate-500">
+                {CHECKLIST_TEMPLATES.find((t) => t.id === templateId)?.description}
+              </span>
+            </label>
             <label className="block text-sm">
               Titre
               <input

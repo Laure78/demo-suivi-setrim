@@ -1,5 +1,15 @@
-import type { ActionItem, Chantier, ChantierStatus, Contrat, Message } from './types';
+import type {
+  ActionItem,
+  Chantier,
+  ChantierStatus,
+  Contrat,
+  Message,
+  UserId,
+} from './types';
 import { daysUntil, formatFR, isOverdue, isSoon, todayISO } from './dates';
+import { getUser } from './users';
+
+export const ESCALADE_DAYS = 5;
 
 export function chantierProgress(c: Chantier): { done: number; total: number; pct: number } {
   const total = c.actions.length;
@@ -19,7 +29,12 @@ export function hasOverdue(c: Chantier): boolean {
   return overdueActions(c).length > 0;
 }
 
-/** Statut dérivé des dates — une seule source de vérité. */
+/** Retard > 5 jours → escalade Dirigeant */
+export function isEscalated(a: ActionItem, from = todayISO()): boolean {
+  if (a.done) return false;
+  return daysUntil(a.dueDate, from) < -ESCALADE_DAYS;
+}
+
 export function getChantierStatus(c: Chantier, today = todayISO()): ChantierStatus {
   if (c.startDate > today) return 'programme';
   if (c.endDate < today) return 'termine';
@@ -34,13 +49,12 @@ export function statusLabel(status: ChantierStatus): string {
 
 export type DayAlert = {
   id: string;
-  severity: 'red' | 'orange';
+  severity: 'escalate' | 'red' | 'orange';
   title: string;
   subtitle: string;
   href: string;
 };
 
-/** Alertes tableau de bord : retards, échéances ≤ 7 j, messages importants. */
 export function buildDashboardAlerts(
   chantiers: Chantier[],
   contrats: Contrat[],
@@ -49,36 +63,50 @@ export function buildDashboardAlerts(
   const alerts: DayAlert[] = [];
 
   for (const c of chantiers) {
-    for (const a of overdueActions(c)) {
-      alerts.push({
-        id: `ov-${c.id}-${a.id}`,
-        severity: 'red',
-        title: `${c.title} — ${a.label}`,
-        subtitle: `Échéance dépassée (${formatFR(a.dueDate)})`,
-        href: `/chantiers/${c.id}`,
-      });
-    }
-    for (const a of soonActions(c)) {
-      const d = daysUntil(a.dueDate);
-      alerts.push({
-        id: `soon-${c.id}-${a.id}`,
-        severity: 'orange',
-        title: `${c.title} — ${a.label}`,
-        subtitle: d === 0 ? "Échéance aujourd'hui" : `Dans ${d} jour${d > 1 ? 's' : ''}`,
-        href: `/chantiers/${c.id}`,
-      });
+    for (const a of c.actions) {
+      if (a.done) continue;
+      if (isEscalated(a)) {
+        const resp = getUser(a.assigneeId).name;
+        const daysLate = Math.abs(daysUntil(a.dueDate));
+        alerts.push({
+          id: `esc-${c.id}-${a.id}`,
+          severity: 'escalate',
+          title: `Escalade Dirigeant — ${c.title} : ${a.label}`,
+          subtitle: `Retard de ${daysLate} j · Responsable : ${resp}`,
+          href: `/chantiers/${c.id}`,
+        });
+      } else if (isOverdue(a.dueDate)) {
+        alerts.push({
+          id: `ov-${c.id}-${a.id}`,
+          severity: 'red',
+          title: `${c.title} — ${a.label}`,
+          subtitle: `Échéance dépassée (${formatFR(a.dueDate)}) · ${getUser(a.assigneeId).name}`,
+          href: `/chantiers/${c.id}`,
+        });
+      } else if (isSoon(a.dueDate)) {
+        const d = daysUntil(a.dueDate);
+        alerts.push({
+          id: `soon-${c.id}-${a.id}`,
+          severity: 'orange',
+          title: `${c.title} — ${a.label}`,
+          subtitle: d === 0 ? "Échéance aujourd'hui" : `Dans ${d} jour${d > 1 ? 's' : ''}`,
+          href: `/chantiers/${c.id}`,
+        });
+      }
     }
   }
 
   for (const ct of contrats) {
-    if (ct.status !== 'a_facturer') continue;
+    if (ct.status === 'fait') continue;
     const d = daysUntil(ct.anniversaryDate);
+    const label =
+      ct.status === 'a_venir' ? 'À venir' : 'À facturer';
     if (d < 0) {
       alerts.push({
         id: `ct-${ct.id}`,
         severity: 'red',
         title: `Contrat — ${ct.client}`,
-        subtitle: `Anniversaire dépassé (${formatFR(ct.anniversaryDate)}) — à facturer`,
+        subtitle: `Anniversaire dépassé (${formatFR(ct.anniversaryDate)}) — ${label}`,
         href: '/contrats',
       });
     } else if (d <= 7) {
@@ -86,7 +114,7 @@ export function buildDashboardAlerts(
         id: `ct-${ct.id}`,
         severity: 'orange',
         title: `Contrat — ${ct.client}`,
-        subtitle: `Anniversaire dans ${d} j — à facturer`,
+        subtitle: `Anniversaire dans ${d} j — ${label}`,
         href: '/contrats',
       });
     }
@@ -108,10 +136,58 @@ export function buildDashboardAlerts(
     });
   }
 
-  const rank = { red: 0, orange: 1 };
+  const rank = { escalate: 0, red: 1, orange: 2 };
   return alerts.sort((a, b) => rank[a.severity] - rank[b.severity]);
+}
+
+/** Actions à faire pour un utilisateur, retards en tête puis échéance. */
+export function myOpenActions(
+  chantiers: Chantier[],
+  userId: UserId,
+): { chantier: Chantier; action: ActionItem }[] {
+  const rows: { chantier: Chantier; action: ActionItem }[] = [];
+  for (const c of chantiers) {
+    for (const a of c.actions) {
+      if (!a.done && a.assigneeId === userId) rows.push({ chantier: c, action: a });
+    }
+  }
+  return rows.sort((x, y) => {
+    const ox = isOverdue(x.action.dueDate) ? 0 : 1;
+    const oy = isOverdue(y.action.dueDate) ? 0 : 1;
+    if (ox !== oy) return ox - oy;
+    return x.action.dueDate.localeCompare(y.action.dueDate);
+  });
 }
 
 export function uid(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+/** Compresse une image File → data URL JPEG (démo localStorage). */
+export function fileToCompressedDataUrl(file: File, maxW = 900, quality = 0.72): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Lecture impossible'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Image invalide'));
+      img.onload = () => {
+        const scale = Math.min(1, maxW / img.width);
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(String(reader.result));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
 }

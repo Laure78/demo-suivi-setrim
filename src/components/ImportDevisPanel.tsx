@@ -13,15 +13,16 @@ import {
   type ParseFailure,
 } from '@/lib/batappli-import';
 import { TEAMS } from '@/lib/users';
+import { CHECKLIST_TEMPLATES } from '@/lib/checklist-template';
 import { formatFR } from '@/lib/dates';
-import type { TeamId } from '@/lib/types';
+import type { ChecklistTemplateId, TeamId } from '@/lib/types';
 
 type PreviewState = {
   rows: DevisRow[];
   sheetName: string;
-  /** Lignes cochées pour import */
   selected: Set<number>;
   teamId: TeamId;
+  templateId: ChecklistTemplateId;
 };
 
 export function ImportDevisPanel() {
@@ -58,6 +59,7 @@ export function ImportDevisPanel() {
         sheetName: result.sheetName,
         selected: new Set(result.rows.map((_, i) => i)),
         teamId: 'equipe-a',
+        templateId: 'refection',
       });
     } catch {
       setError({
@@ -94,6 +96,7 @@ export function ImportDevisPanel() {
         startDate,
         endDate,
         teamId: preview.teamId,
+        templateId: preview.templateId,
         devisNumero: row.numeroDevis,
         montantHT: row.montantHT ?? undefined,
       });
@@ -184,6 +187,26 @@ export function ImportDevisPanel() {
                 }
               >
                 {TEAMS.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-sm">
+              Modèle de check-list
+              <select
+                className="input mt-1 min-w-[12rem]"
+                value={preview.templateId}
+                onChange={(e) =>
+                  setPreview((p) =>
+                    p
+                      ? { ...p, templateId: e.target.value as ChecklistTemplateId }
+                      : p,
+                  )
+                }
+              >
+                {CHECKLIST_TEMPLATES.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.label}
                   </option>
