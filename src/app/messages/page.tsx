@@ -4,6 +4,11 @@ import { Shell } from '@/components/Shell';
 import { MessagesView } from '@/components/MessagesView';
 import { redirect } from 'next/navigation';
 import { formatDateShort, ROLE_LABEL } from '@/lib/format';
+import {
+  ensureBureauUsers,
+  ensureValerieMessageEquipe,
+  sortUsersBureauFirst,
+} from '@/lib/bureau-users';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,10 +16,14 @@ export default async function MessagesPage() {
   const session = await auth();
   if (!session?.user) redirect('/login');
 
-  const users = await prisma.user.findMany({
-    where: { actif: true },
-    orderBy: [{ terrain: 'asc' }, { nom: 'asc' }],
-  });
+  await ensureBureauUsers();
+  await ensureValerieMessageEquipe();
+
+  const users = sortUsersBureauFirst(
+    await prisma.user.findMany({
+      where: { actif: true },
+    }),
+  );
 
   // Supprimer les anciens fils chantier / CE de la messagerie
   const userIds = new Set(users.map((u) => u.id));
@@ -47,7 +56,7 @@ export default async function MessagesPage() {
     },
   });
 
-  // Uniquement : Équipe + collaborateurs (pas de fils chantier)
+  // Uniquement : Équipe + DM (pas de fils chantier)
   const people = users.filter((u) => u.id !== session.user.id);
 
   async function lastOf(threadKey: string) {

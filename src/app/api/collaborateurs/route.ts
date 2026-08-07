@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { Role } from '@prisma/client';
 import { ROLE_LABEL } from '@/lib/format';
+import { ensureBureauUsers, isBureauUser, sortUsersBureauFirst } from '@/lib/bureau-users';
 
 const DEMO_PASSWORD = 'setrim2026';
 
@@ -11,18 +12,21 @@ export async function GET() {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
 
-  const users = await prisma.user.findMany({
-    where: { actif: true },
-    orderBy: [{ terrain: 'asc' }, { nom: 'asc' }],
-    select: {
-      id: true,
-      initiales: true,
-      nom: true,
-      email: true,
-      role: true,
-      terrain: true,
-    },
-  });
+  await ensureBureauUsers();
+
+  const users = sortUsersBureauFirst(
+    await prisma.user.findMany({
+      where: { actif: true },
+      select: {
+        id: true,
+        initiales: true,
+        nom: true,
+        email: true,
+        role: true,
+        terrain: true,
+      },
+    }),
+  );
 
   return NextResponse.json(
     users.map((u) => ({
@@ -136,4 +140,56 @@ export async function POST(req: Request) {
     },
     password: DEMO_PASSWORD,
   });
+}
+
+export async function DELETE(req: Request) {
+  const session = await auth();
+  if (!session?.user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+
+  if (!['assistante', 'responsable', 'dirigeant'].includes(session.user.role)) {
+    return NextResponse.json(
+      { error: 'Seuls Audrey, Mélissa, Valérie ou Denis peuvent retirer un collaborateur.' },
+      { status: 403 },
+    );
+  }
+
+  const body = await req.json().catch(() => ({}));
+  const id = String(body.id ?? new URL(req.url).searchParams.get('id') ?? '').trim();
+  if (!id) return NextResponse.json({ error: 'Identifiant manquant' }, { status: 400 });
+
+  if (id === session.user.id) {
+    return NextResponse.json({ error: 'Vous ne pouvez pas vous supprimer vous-même.' }, { status: 400 });
+  }
+
+  if (isBureauUser(id)) {
+    return NextResponse.json(
+      {
+        error:
+          'Les 5 comptes bureau (Audrey, Mélissa, Valérie, Denis, Philippe) ne peuvent pas être supprimés.',
+      },
+      { status: 400 },
+    );
+  }
+
+  const user = await prisma.user.findUnique({ where: { id } });
+  if (!user || !user.actif) {
+    return NextResponse.json({ error: 'Collaborateur introuvable' }, { status: 404 });
+  }
+
+  // Soft delete — conserve l'historique des messages / tâches
+  await prisma.user.update({
+    where: { id },
+    data: { actif: false },
+  });
+
+  await prisma.threadMeta.deleteMany({ where: { id } });
+  await prisma.pushSubscription.deleteMany({ where: { userId: id } });
+
+  const all = await prisma.user.findMany({ where: { actif: true }, select: { nom: true } });
+  await prisma.threadMeta.updateMany({
+    where: { id: 'gen' },
+    data: { sousTitre: all.map((u) => u.nom).join(', ') },
+  });
+
+  return NextResponse.json({ ok: true, id, nom: user.nom });
 }

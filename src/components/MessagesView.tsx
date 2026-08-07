@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
+/** Comptes bureau protégés — non suppressibles */
+const BUREAU_IDS = new Set(['audrey', 'melissa', 'valerie', 'denis', 'philippe']);
+
 type Conv = {
   id: string;
   titre: string;
@@ -19,6 +22,7 @@ type Msg = {
   id: string;
   texte: string | null;
   photoLabel: string | null;
+  fichier?: string | null;
   systeme: boolean;
   createdAt: string;
   auteurId: string;
@@ -45,6 +49,7 @@ export function MessagesView({
   const [showAdd, setShowAdd] = useState(false);
   const [addErr, setAddErr] = useState('');
   const [adding, setAdding] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState({
     nom: '',
     initiales: '',
@@ -53,8 +58,15 @@ export function MessagesView({
     terrain: false,
   });
   const streamRef = useRef<HTMLDivElement>(null);
+  const pjRef = useRef<HTMLInputElement>(null);
+  const photoRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const c = convs.find((x) => x.id === conv) ?? convs[0];
+  const [uploading, setUploading] = useState(false);
+
+  function canDeleteConv(id: string) {
+    return canAdd && id !== 'gen' && id !== meId && !BUREAU_IDS.has(id);
+  }
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -100,6 +112,47 @@ export function MessagesView({
     router.refresh();
   }
 
+  async function sendFile(file: File, kind: 'photo' | 'pj') {
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const up = await fetch('/api/uploads', { method: 'POST', body: fd });
+      const j = await up.json();
+      if (!up.ok) {
+        alert(j.error ?? 'Échec de l’envoi');
+        return;
+      }
+      await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          threadKey: conv,
+          photoLabel: j.name,
+          fichier: j.url,
+          texte:
+            kind === 'photo'
+              ? text.trim() || null
+              : text.trim() || `Pièce jointe : ${j.name}`,
+        }),
+      });
+      setText('');
+      await load(conv);
+      router.refresh();
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function onPick(
+    e: React.ChangeEvent<HTMLInputElement>,
+    kind: 'photo' | 'pj',
+  ) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (file) void sendFile(file, kind);
+  }
+
   async function makeTask(m: Msg) {
     if (!m.texte) return;
     await fetch('/api/taches', {
@@ -133,8 +186,33 @@ export function MessagesView({
     setShowAdd(false);
     setForm({ nom: '', initiales: '', email: '', role: 'assistante', terrain: false });
     router.refresh();
-    // Ouvrir le fil du nouveau collaborateur
     if (j.user?.id) setConv(j.user.id);
+  }
+
+  async function deleteCollaborateur(id: string, nom: string) {
+    if (!canDeleteConv(id)) return;
+    if (
+      !confirm(
+        `Retirer ${nom} de l’équipe ?\nIl disparaîtra de Messages et du sélecteur AU · ME · VA…`,
+      )
+    ) {
+      return;
+    }
+    setDeleting(true);
+    const r = await fetch('/api/collaborateurs', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    });
+    const j = await r.json().catch(() => ({}));
+    setDeleting(false);
+    if (!r.ok) {
+      alert(j.error ?? 'Suppression impossible');
+      return;
+    }
+    setConvs((prev) => prev.filter((x) => x.id !== id));
+    if (conv === id) setConv('gen');
+    router.refresh();
   }
 
   return (
@@ -142,6 +220,12 @@ export function MessagesView({
       <p className="hint" style={{ marginBottom: 12 }}>
         Messagerie interne uniquement : le fil <b>Équipe SETRIM</b> et le direct entre collègues.
         Aucun fil chantier ici — les échanges de chantier restent dans la fiche affaire. Zéro mail.
+        {canAdd ? (
+          <>
+            {' '}
+            Survolez un collègue ajouté pour le <b>retirer</b> (les 5 du bureau restent).
+          </>
+        ) : null}
       </p>
       <div className="chat">
         <div className="conv-list">
@@ -160,7 +244,7 @@ export function MessagesView({
           {filtered.map((x) => (
             <div
               key={x.id}
-              className={`conv${conv === x.id ? ' on' : ''}`}
+              className={`conv${conv === x.id ? ' on' : ''}${canDeleteConv(x.id) ? ' conv-deletable' : ''}`}
               onClick={() => setConv(x.id)}
               role="button"
               tabIndex={0}
@@ -178,6 +262,20 @@ export function MessagesView({
                     <span className="nb">{x.nb}</span>
                   </>
                 ) : null}
+                {canDeleteConv(x.id) ? (
+                  <button
+                    type="button"
+                    className="conv-del"
+                    title={`Retirer ${x.titre}`}
+                    disabled={deleting}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void deleteCollaborateur(x.id, x.titre);
+                    }}
+                  >
+                    ✕
+                  </button>
+                ) : null}
               </span>
             </div>
           ))}
@@ -185,10 +283,20 @@ export function MessagesView({
         <div className="thread">
           <div className="th-head">
             <span className={`av ${c?.cls}`}>{c?.avatar}</span>
-            <span>
+            <span className="th-head-txt">
               <h4>{c?.titre}</h4>
               <p>{c?.sousTitre}</p>
             </span>
+            {c && canDeleteConv(c.id) ? (
+              <button
+                type="button"
+                className="btn-note conv-del-head"
+                disabled={deleting}
+                onClick={() => void deleteCollaborateur(c.id, c.titre)}
+              >
+                Retirer
+              </button>
+            ) : null}
           </div>
           {pin ? (
             <div className="pinned">
@@ -208,10 +316,29 @@ export function MessagesView({
                 );
               }
               const mine = m.auteurId === meId;
+              const isImg =
+                m.fichier &&
+                /\.(jpe?g|png|webp|gif|heic)$/i.test(m.fichier);
               return (
                 <div className={`bub${mine ? ' me' : ''}`} key={m.id}>
                   <div className="au">{m.auteur.nom}</div>
-                  {m.photoLabel ? <div className="photo">📷 {m.photoLabel}</div> : null}
+                  {m.fichier && isImg ? (
+                    <a href={m.fichier} target="_blank" rel="noreferrer" className="photo-link">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={m.fichier} alt={m.photoLabel ?? 'Photo'} className="photo-img" />
+                    </a>
+                  ) : m.fichier ? (
+                    <a
+                      href={m.fichier}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="photo pj"
+                    >
+                      📎 {m.photoLabel ?? 'Pièce jointe'}
+                    </a>
+                  ) : m.photoLabel ? (
+                    <div className="photo">📷 {m.photoLabel}</div>
+                  ) : null}
                   {m.texte ? <p>{m.texte}</p> : null}
                   <div className="hr">
                     {new Date(m.createdAt).toLocaleTimeString('fr-FR', {
@@ -230,15 +357,53 @@ export function MessagesView({
             })}
           </div>
           <div className="composer">
-            <span className="ic">📎</span>
-            <span className="ic">📷</span>
+            <input
+              ref={pjRef}
+              type="file"
+              hidden
+              accept=".pdf,.doc,.docx,.xls,.xlsx,application/pdf,image/*"
+              onChange={(e) => onPick(e, 'pj')}
+            />
+            <input
+              ref={photoRef}
+              type="file"
+              hidden
+              accept="image/*"
+              capture="environment"
+              onChange={(e) => onPick(e, 'photo')}
+            />
+            <button
+              type="button"
+              className="ic"
+              title="Joindre un document (PDF, Word…)"
+              aria-label="Pièce jointe"
+              disabled={uploading}
+              onClick={() => pjRef.current?.click()}
+            >
+              📎
+            </button>
+            <button
+              type="button"
+              className="ic"
+              title="Prendre ou envoyer une photo"
+              aria-label="Photo"
+              disabled={uploading}
+              onClick={() => photoRef.current?.click()}
+            >
+              📷
+            </button>
             <input
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder={`Écrire à ${c?.titre ?? ''}…`}
+              placeholder={
+                uploading
+                  ? 'Envoi en cours…'
+                  : `Écrire à ${c?.titre ?? ''}…`
+              }
+              disabled={uploading}
               onKeyDown={(e) => e.key === 'Enter' && send()}
             />
-            <button type="button" className="send" onClick={send}>
+            <button type="button" className="send" onClick={send} disabled={uploading}>
               Envoyer
             </button>
           </div>
