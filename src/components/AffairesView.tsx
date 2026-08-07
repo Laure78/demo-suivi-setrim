@@ -68,7 +68,7 @@ export function AffairesView({
           Importer les devis
           <input
             type="file"
-            accept=".xlsx,.xls,.csv"
+            accept=".xlsx,.xls,.csv,.pdf,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
             hidden
             onChange={async (e) => {
               const f = e.target.files?.[0];
@@ -84,7 +84,7 @@ export function AffairesView({
           />
         </label>
         <span className="hint" style={{ margin: 0 }}>
-          Export Excel Batappli — n° devis · date · client · adresse · montant HT · montant TTC
+          Excel Batappli (.xlsx) ou devis PDF — n° devis · date · client · adresse · montant HT
         </span>
       </div>
 
@@ -104,9 +104,9 @@ export function AffairesView({
       </div>
 
       <p className="hint" style={{ marginBottom: 12 }}>
-        Les trois premiers onglets sont vos trois bannettes. Une affaire naît du devis Batappli et
-        garde le même numéro jusqu&apos;à l&apos;encaissement. Les chantiers programmés et en cours
-        apparaissent automatiquement au planning.
+        Fil conducteur unique : le devis Batappli validé = l&apos;affaire. Elle porte le même numéro
+        jusqu&apos;à l&apos;encaissement. Programmer une date → planning + alertes Aujourd&apos;hui.
+        Contrats d&apos;entretien → mois anniversaire. Facturation → même fiche.
       </p>
       <div className="tabs">
         {TABS.map((k) => (
@@ -131,6 +131,7 @@ export function AffairesView({
             <th style={{ textAlign: 'right' }}>Jours</th>
             <th>Acompte · Solde · Encaissé</th>
             <th>Tâches ouvertes</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -170,6 +171,16 @@ export function AffairesView({
                 {a.tachesRetard > 0 ? (
                   <span className="pill no"> {a.tachesRetard} en retard</span>
                 ) : null}
+              </td>
+              <td onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  className="btn-edit"
+                  onClick={() => openSheet(a.id)}
+                  title="Modifier l'affaire"
+                >
+                  ✎ Modifier
+                </button>
               </td>
             </tr>
           ))}

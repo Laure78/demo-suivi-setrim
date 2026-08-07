@@ -185,7 +185,7 @@ export function parseBatappliDevisBuffer(buffer: ArrayBuffer): ParseResult {
   } catch {
     return {
       ok: false,
-      error: 'Impossible de lire ce fichier. Vérifiez qu’il s’agit bien d’un Excel (.xlsx).',
+      error: 'Impossible de lire ce fichier. Vérifiez qu’il s’agit bien d’un Excel (.xlsx) ou d’un PDF devis.',
     };
   }
 
@@ -268,3 +268,126 @@ export function formatMontantHT(n: number | null): string {
     currency: 'EUR',
   }).format(n);
 }
+
+function cleanPdfText(s: string) {
+  return s
+    .replace(/\r/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n');
+}
+
+function pickMontant(text: string, labels: RegExp[]): number | null {
+  for (const lab of labels) {
+    const m = text.match(lab);
+    if (!m?.[1]) continue;
+    const n = parseMontant(m[1]);
+    if (n != null) return n;
+  }
+  return null;
+}
+
+/**
+ * Import d’un devis PDF Batappli (un devis = un fichier).
+ * Extrait n° devis, client, adresse, montants si le texte est lisible.
+ */
+export async function parseBatappliPdf(
+  input: Buffer,
+  filename = 'devis.pdf',
+): Promise<ParseResult> {
+  let text = '';
+  try {
+    // pdf-parse v1 — CommonJS
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const pdfParse = require('pdf-parse') as (buf: Buffer) => Promise<{ text: string }>;
+    const data = await pdfParse(input);
+    text = cleanPdfText(data.text || '');
+  } catch {
+    return {
+      ok: false,
+      error:
+        'Impossible de lire ce PDF. Essayez un export Excel Batappli, ou un PDF texte (non scanné).',
+    };
+  }
+
+  if (!text.trim()) {
+    // Fallback : n° depuis le nom de fichier
+    const fromName = filename.replace(/\.pdf$/i, '').trim();
+    const numGuess =
+      fromName.match(/(\d{4,6}(?:-\d+[A-Z]?)?)/)?.[1] ??
+      fromName.slice(0, 24) ??
+      `PDF-${Date.now().toString(36)}`;
+    return {
+      ok: true,
+      sheetName: filename,
+      rows: [
+        {
+          numeroDevis: numGuess,
+          client: 'Client à préciser',
+          adresse: 'Adresse à préciser',
+          montantHT: null,
+          montantTTC: null,
+          date: null,
+          sourceRow: 1,
+        },
+      ],
+    };
+  }
+
+  const numero =
+    text.match(
+      /(?:n[°o]?\.?\s*de\s*devis|devis\s*n[°o]?\.?|num[ée]ro\s*de\s*devis)\s*[:\s]*([A-Z0-9][\w./-]{2,24})/i,
+    )?.[1] ??
+    text.match(/\b(\d{4,6}(?:-\d+[A-Za-z]?)?)\b/)?.[1] ??
+    filename.replace(/\.pdf$/i, '').slice(0, 24);
+
+  const client =
+    text.match(
+      /(?:client|syndic|raison\s*sociale|ma[iî]tre\s*d['’]ouvrage)\s*[:\s]+([^\n]{3,80})/i,
+    )?.[1]?.trim() ?? 'Client à préciser';
+
+  const adresse =
+    text.match(
+      /(?:adresse\s*(?:du\s*)?chantier|lieu\s*d['’]intervention|adresse)\s*[:\s]+([^\n]{5,120})/i,
+    )?.[1]?.trim() ?? 'Adresse à préciser';
+
+  const montantHT = pickMontant(text, [
+    /montant\s*h\.?\s*t\.?\s*[:\s]*([\d\s]+(?:[.,]\d{1,2})?)\s*€?/i,
+    /total\s*h\.?\s*t\.?\s*[:\s]*([\d\s]+(?:[.,]\d{1,2})?)/i,
+    /h\.?\s*t\.?\s*[:\s]*([\d\s]+(?:[.,]\d{1,2})?)\s*€/i,
+  ]);
+
+  const montantTTC = pickMontant(text, [
+    /montant\s*t\.?\s*t\.?\s*c\.?\s*[:\s]*([\d\s]+(?:[.,]\d{1,2})?)\s*€?/i,
+    /total\s*t\.?\s*t\.?\s*c\.?\s*[:\s]*([\d\s]+(?:[.,]\d{1,2})?)/i,
+  ]);
+
+  const dateRaw =
+    text.match(
+      /(?:date\s*(?:du\s*)?devis|fait\s*le|le)\s*[:\s]*(\d{1,2}[/.]\d{1,2}[/.]\d{2,4})/i,
+    )?.[1] ?? text.match(/\b(\d{1,2}\/\d{1,2}\/\d{4})\b/)?.[1];
+
+  const date = dateRaw ? parseExcelDate(dateRaw.replace(/\./g, '/')) : null;
+
+  return {
+    ok: true,
+    sheetName: filename,
+    rows: [
+      {
+        numeroDevis: String(numero).trim() || `PDF-${Date.now().toString(36)}`,
+        client: client.slice(0, 120),
+        adresse: adresse.slice(0, 200),
+        montantHT,
+        montantTTC,
+        date,
+        sourceRow: 1,
+      },
+    ],
+  };
+}
+
+/** Détecte Excel / CSV / PDF d’après le nom ou le contenu. */
+export function isPdfFile(filename: string, mime?: string | null) {
+  const n = filename.toLowerCase();
+  return n.endsWith('.pdf') || mime === 'application/pdf';
+}
+
