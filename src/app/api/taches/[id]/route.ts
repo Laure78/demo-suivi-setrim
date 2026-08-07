@@ -58,3 +58,18 @@ export async function PATCH(
 
   return NextResponse.json(updated);
 }
+
+export async function DELETE(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const session = await auth();
+  if (!session?.user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+
+  const { id } = await params;
+  const tache = await prisma.tache.findUnique({ where: { id } });
+  if (!tache) return NextResponse.json({ error: 'Introuvable' }, { status: 404 });
+
+  await prisma.tache.delete({ where: { id } });
+  return NextResponse.json({ ok: true });
+}

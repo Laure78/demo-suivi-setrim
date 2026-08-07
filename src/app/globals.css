@@ -256,6 +256,8 @@ td.num{text-align:right;font-family:"IBM Plex Mono",monospace}
 .urg-tag.n2{color:#B8860B}
 .urg-tag.n1{color:var(--zinc)}
 .task-line .btn-edit{flex:none;align-self:flex-start;margin-top:2px}
+.task-actions{display:flex;gap:4px;flex:none;align-self:flex-start}
+.task-del{color:var(--flamme) !important;border-color:transparent}
 .msg{padding:10px 0;border-bottom:1px solid #EDEFEB}
 .msg .a{font-weight:600;font-size:12.5px}
 .msg .a small{color:var(--zinc);font-weight:400;font-family:"IBM Plex Mono",monospace;margin-left:6px}

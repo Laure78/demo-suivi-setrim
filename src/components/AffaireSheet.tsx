@@ -246,6 +246,18 @@ export function AffaireSheet({
     onRefresh();
   }
 
+  async function deleteTask(id: string, titre: string) {
+    if (!confirm(`Supprimer la tâche « ${titre} » ?`)) return;
+    const r = await fetch(`/api/taches/${id}`, { method: 'DELETE' });
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      alert(j.error ?? 'Suppression impossible');
+      return;
+    }
+    if (editTaskId === id) setEditTaskId(null);
+    onRefresh();
+  }
+
   async function sendMsg() {
     const v = msg.trim();
     if (!v) return;
@@ -428,18 +440,31 @@ export function AffaireSheet({
                     </div>
                   ) : null}
                 </span>
-                {!t.fait ? (
+                <span className="task-actions">
+                  {!t.fait ? (
+                    <button
+                      type="button"
+                      className="btn-edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditTaskId(open ? null : t.id);
+                      }}
+                    >
+                      {open ? 'Fermer' : '✎'}
+                    </button>
+                  ) : null}
                   <button
                     type="button"
-                    className="btn-edit"
+                    className="btn-edit task-del"
+                    title="Supprimer la tâche"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setEditTaskId(open ? null : t.id);
+                      void deleteTask(t.id, t.titre);
                     }}
                   >
-                    {open ? 'Fermer' : '✎'}
+                    ✕
                   </button>
-                ) : null}
+                </span>
               </div>
             );
           })
