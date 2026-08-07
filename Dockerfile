@@ -20,20 +20,13 @@ ENV PORT=3000
 ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN addgroup --system --gid 1001 nodejs \
-  && adduser --system --uid 1001 nextjs \
-  && apk add --no-cache openssl
+  && adduser --system --uid 1001 nextjs
 
-# Standalone Next
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-
-# Prisma CLI + client pour db push au démarrage
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY scripts/railway-start.sh ./railway-start.sh
 RUN chmod +x railway-start.sh
 
