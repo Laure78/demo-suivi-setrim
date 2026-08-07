@@ -365,6 +365,9 @@ td.num{text-align:right;font-family:"IBM Plex Mono",monospace}
   .btn-note{padding:5px 8px;font-size:11.5px}
   .btn-install{padding:5px 8px;font-size:11.5px}
   .who-block{gap:6px}
+  .setrim-footer-inner{padding:20px 14px 16px;gap:20px}
+  .setrim-footer-cols{gap:16px 24px}
+  .setrim-footer-legal{padding:10px 14px 12px}
   .mobile-tabbar{
     display:flex;position:fixed;left:0;right:0;bottom:0;z-index:30;
     background:var(--rail);border-top:1px solid rgba(255,255,255,.14);
@@ -418,7 +421,8 @@ a { color: inherit; text-decoration: none; }
 .rail a.nav-link .badge{margin-left:auto;background:var(--flamme);color:#fff;font-size:10.5px;
   font-family:"IBM Plex Mono",monospace;border-radius:9px;padding:1px 6px}
 .login-wrap{
-  min-height:100vh;display:grid;place-items:center;padding:24px;
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:24px 24px 0;gap:32px;
   background:linear-gradient(160deg, #0B3A57 0%, #1B1E1C 55%, #0B3A57 100%);
 }
 .login-card{
@@ -444,6 +448,39 @@ a { color: inherit; text-decoration: none; }
   background:var(--bleu);color:#fff;border-radius:3px;padding:7px 14px;font-size:12.5px;font-weight:500;
 }
 .btn-primary:hover{background:var(--bleu-fonce)}
+
+/* ---------- footer SETRIM ---------- */
+.setrim-footer{
+  margin-top:auto;
+  background:var(--bleu-fonce);
+  color:#E6E8E3;
+  border-top:3px solid var(--bleu);
+}
+.setrim-footer-inner{
+  display:flex;flex-wrap:wrap;gap:28px 40px;align-items:flex-start;
+  padding:28px 24px 20px;max-width:1240px;
+}
+.setrim-footer-brand{flex:0 0 auto;max-width:200px}
+.setrim-footer-logo{
+  display:block;width:100%;max-width:140px;height:auto;
+  background:#fff;padding:8px 10px;border-radius:2px;
+}
+.setrim-footer-tag{
+  font-family:"Archivo",sans-serif;font-size:9px;letter-spacing:.1em;
+  text-transform:uppercase;color:#7EC4EC;margin-top:10px;line-height:1.5;
+}
+.setrim-footer-cols{display:flex;flex-wrap:wrap;gap:22px 36px;flex:1;min-width:0}
+.setrim-footer-col{min-width:140px}
+.setrim-footer-col .eyebrow{color:#7EA8C2;margin-bottom:6px;display:block}
+.setrim-footer-col p{font-size:13px;line-height:1.55;margin:0;color:#D5E4ED}
+.setrim-footer-col a{color:#fff;text-decoration:none;border-bottom:1px solid rgba(255,255,255,.25)}
+.setrim-footer-col a:hover{border-bottom-color:#fff}
+.setrim-footer-legal{
+  display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;
+  padding:10px 24px 14px;border-top:1px solid rgba(255,255,255,.12);
+  font-size:11px;color:#8FB2C6;max-width:1240px;
+}
+.login-wrap .setrim-footer{width:100%;margin-top:auto}
 .conv-add{
   display:block;width:100%;text-align:left;padding:10px 13px;font-size:12.5px;font-weight:600;
   color:var(--bleu);border-bottom:1px solid #E9EBE6;background:#fff;

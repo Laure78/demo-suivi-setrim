@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { COLLABORATEURS } from '@/components/WhoSwitcher';
 import { InstallAppButton } from '@/components/InstallAppButton';
+import { SetrimFooter } from '@/components/SetrimFooter';
 
 const DEMO_PASSWORD = 'setrim2026';
 
@@ -97,6 +98,7 @@ export function LoginForm() {
           <InstallAppButton />
         </div>
       </form>
+      <SetrimFooter />
     </div>
   );
 }

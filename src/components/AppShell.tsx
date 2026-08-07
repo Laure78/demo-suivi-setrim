@@ -8,6 +8,7 @@ import { SCREENS } from '@/lib/format';
 import { RemarquesDrawer } from '@/components/RemarquesDrawer';
 import { WhoSwitcher } from '@/components/WhoSwitcher';
 import { InstallAppButton } from '@/components/InstallAppButton';
+import { SetrimFooter } from '@/components/SetrimFooter';
 import { useEffect, useState } from 'react';
 import { enableWebPush } from '@/lib/web-push-client';
 
@@ -120,6 +121,7 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
           </button>
         </header>
         <div className="content">{children}</div>
+        <SetrimFooter />
       </div>
 
       {/* Nav mobile bas d'écran */}
