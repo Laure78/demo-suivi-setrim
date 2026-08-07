@@ -3,6 +3,7 @@ import { headers } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { Role, AffaireStatut, AffaireType, FactureType, PieceType } from '@prisma/client';
+import { ensureBureauUsers, ensureValerieMessageEquipe } from '@/lib/bureau-users';
 
 function d(day: number, month: number, year = 2026) {
   return new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
@@ -34,8 +35,22 @@ export async function POST() {
       { status: 503 },
     );
   }
+
+  // Toujours réactiver les 5 du bureau (dont Valérie) + message Équipe si vide
+  await ensureBureauUsers();
+  await ensureValerieMessageEquipe();
+
   if (existing > 0) {
-    return NextResponse.json({ ok: true, message: 'Déjà peuplé', users: existing });
+    const users = await prisma.user.findMany({
+      where: { actif: true },
+      select: { id: true, nom: true },
+      orderBy: { nom: 'asc' },
+    });
+    return NextResponse.json({
+      ok: true,
+      message: 'Bureau synchronisé (Valérie incluse)',
+      users: users.map((u) => u.nom),
+    });
   }
 
   // Inline minimal seed (même données que prisma/seed.ts)

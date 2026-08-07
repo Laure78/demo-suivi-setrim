@@ -202,6 +202,20 @@ export function MessagesView({
     await load(conv);
   }
 
+  async function deleteMessage(m: Msg) {
+    const mine = m.auteurId === meId;
+    if (!mine && !canAdd) return;
+    if (!confirm('Supprimer ce message ?')) return;
+    const r = await fetch(`/api/messages/${m.id}`, { method: 'DELETE' });
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      alert(j.error ?? 'Suppression impossible');
+      return;
+    }
+    setMsgs((prev) => prev.filter((x) => x.id !== m.id));
+    router.refresh();
+  }
+
   async function addCollaborateur(e: React.FormEvent) {
     e.preventDefault();
     setAdding(true);
@@ -296,16 +310,6 @@ export function MessagesView({
 
   return (
     <>
-      <p className="hint" style={{ marginBottom: 12 }}>
-        Messagerie interne : le fil <b>Équipe SETRIM</b> et le direct entre collègues. Les échanges
-        de chantier restent dans la fiche affaire (onglet Fil). Zéro mail.
-        {canAdd ? (
-          <>
-            {' '}
-            Survolez un collègue ajouté pour le <b>retirer</b> (les 5 du bureau restent).
-          </>
-        ) : null}
-      </p>
       <button type="button" className="profil-btn" onClick={() => setShowProfil(true)}>
         <AvatarBubble label={meInitiales} photo={meAvatarUrl} size={28} />
         <span>
@@ -401,6 +405,7 @@ export function MessagesView({
                 );
               }
               const mine = m.auteurId === meId;
+              const canDel = mine || canAdd;
               const isImg =
                 m.fichier &&
                 /\.(jpe?g|png|webp|gif|heic)$/i.test(m.fichier);
@@ -440,11 +445,23 @@ export function MessagesView({
                     })}
                     {mine ? ' ✓✓' : ''}
                   </div>
-                  {m.texte ? (
-                    <button type="button" className="mk-task" onClick={() => makeTask(m)}>
-                      + en faire une tâche
-                    </button>
-                  ) : null}
+                  <div className="bub-actions">
+                    {m.texte ? (
+                      <button type="button" className="mk-task" onClick={() => makeTask(m)}>
+                        + tâche
+                      </button>
+                    ) : null}
+                    {canDel ? (
+                      <button
+                        type="button"
+                        className="msg-del"
+                        title="Supprimer le message"
+                        onClick={() => void deleteMessage(m)}
+                      >
+                        Supprimer
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
               );
             })}
@@ -503,8 +520,8 @@ export function MessagesView({
         </div>
       </div>
       <p className="hint">
-        Survolez un message pour en faire une tâche datée, avec alerte. Les décisions d’équipe se
-        prennent ici — pas dans la boîte mail.
+        Survolez un message pour en faire une tâche, ou le <b>supprimer</b>. Les décisions
+        d’équipe se prennent ici — pas dans la boîte mail.
       </p>
 
       {showAdd ? (
