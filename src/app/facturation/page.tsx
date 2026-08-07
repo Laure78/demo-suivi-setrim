@@ -1,56 +1,138 @@
-'use client';
+import { Shell } from '@/components/Shell';
+import { prisma } from '@/lib/prisma';
+import { eur, eur0, daysLate } from '@/lib/format';
+import { AffaireStatut } from '@prisma/client';
 
-import Link from 'next/link';
-import { useApp } from '@/context/AppStateContext';
-import { formatFR } from '@/lib/dates';
-import { getDevis } from '@/lib/domain/lookups';
+export const dynamic = 'force-dynamic';
 
-export default function FacturationPage() {
-  const { state } = useApp();
+export default async function FacturationPage() {
+  const affaires = await prisma.affaire.findMany({
+    include: { factures: true },
+  });
+
+  const portefeuille = affaires.filter(
+    (a) => a.statut === AffaireStatut.commande || a.statut === AffaireStatut.programme,
+  );
+  const portefeuilleHt = portefeuille.reduce((s, a) => s + Number(a.montantHt), 0);
+  const portefeuilleJ = portefeuille.reduce((s, a) => s + a.joursCharge, 0);
+
+  const acomptesEncaisse = affaires
+    .flatMap((a) => a.factures)
+    .filter((f) => f.type === 'acompte' && f.dateEncaissement)
+    .reduce((s, f) => s + Number(f.montant), 0);
+
+  const aFacturer = affaires.filter(
+    (a) => a.statut === AffaireStatut.solde && !a.factures.some((f) => f.type === 'solde'),
+  );
+  const acompteDu = affaires.filter(
+    (a) => a.statut !== AffaireStatut.solde && !a.factures.some((f) => f.type === 'acompte'),
+  );
+
+  const impayesCe = await prisma.contratEntretien.findMany({
+    where: { note: { contains: 'non régl' } },
+  });
+  const impayesTotal = impayesCe.reduce((s, c) => s + Number(c.montantHt), 0);
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-bold text-[var(--navy)] sm:text-2xl">Facturation</h1>
-        <p className="mt-1 text-sm text-slate-600">
-          Acomptes, situations, soldes, CE — qui a fait quoi, quand.
-        </p>
+    <Shell title="Facturation">
+      <div className="fact-grid">
+        <div className="card stat">
+          <span className="eyebrow">Portefeuille</span>
+          <span className="v">{eur0(portefeuilleHt)}</span>
+          <span className="hint">{portefeuilleJ} jours de charge</span>
+        </div>
+        <div className="card stat">
+          <span className="eyebrow">Acomptes encaissés</span>
+          <span className="v">{eur0(acomptesEncaisse)}</span>
+        </div>
+        <div className="card stat alarm">
+          <span className="eyebrow">Reste à facturer</span>
+          <span className="v">
+            {eur0(aFacturer.reduce((s, a) => s + Number(a.montantHt), 0))}
+          </span>
+          <span className="hint">
+            {aFacturer.length} chantier{aFacturer.length > 1 ? 's' : ''} terminé
+            {aFacturer.length > 1 ? 's' : ''} sans facture de solde
+          </span>
+        </div>
+        <div className="card stat alarm">
+          <span className="eyebrow">Impayés contrats d&apos;entretien</span>
+          <span className="v">{eur0(impayesTotal)}</span>
+          <span className="hint">{impayesCe.length} factures</span>
+        </div>
       </div>
-      <ul className="space-y-2">
-        {state.factures.map((f) => {
-          const aff = f.affaireId
-            ? state.affaires.find((a) => a.id === f.affaireId)
-            : undefined;
-          const devis = aff ? getDevis(state, aff.devisId) : undefined;
-          return (
-            <li key={f.id} className="card flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <p className="font-bold">
-                  {f.numero} · {f.type} ·{' '}
-                  <span
-                    className={
-                      f.statut === 'EMISE' || f.statut === 'RELANCEE'
-                        ? 'text-red-700'
-                        : 'text-emerald-700'
-                    }
-                  >
-                    {f.statut}
-                  </span>
-                </p>
-                <p className="text-sm text-slate-600">
-                  {formatFR(f.dateEmission)} · {f.montant.toLocaleString('fr-FR')} €
-                  {devis ? ` · ${devis.numeroBatappli}` : ''}
-                </p>
-              </div>
-              {f.affaireId ? (
-                <Link href={`/affaires/${f.affaireId}`} className="btn-secondary py-2 text-xs">
-                  Affaire
-                </Link>
-              ) : null}
-            </li>
-          );
-        })}
-      </ul>
-    </div>
+
+      <div className="sec-head">
+        <span className="eyebrow">Chantiers terminés sans facture de solde</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Devis</th>
+            <th>Client</th>
+            <th style={{ textAlign: 'right' }}>Montant HT</th>
+            <th>Fin d&apos;intervention</th>
+            <th>Responsable</th>
+          </tr>
+        </thead>
+        <tbody>
+          {aFacturer.map((a) => {
+            const late = a.dateFin ? daysLate(a.dateFin) : 0;
+            return (
+              <tr key={a.id} className="row">
+                <td className="mono">{a.numeroDevis}</td>
+                <td>
+                  <span className="cli">{a.client}</span>
+                  <div className="adr">{a.adresse}</div>
+                </td>
+                <td className="num">{eur(Number(a.montantHt))}</td>
+                <td className="mono">
+                  {a.dateFin
+                    ? a.dateFin.toLocaleDateString('fr-FR')
+                    : '—'}
+                </td>
+                <td>
+                  Valérie{' '}
+                  {late > 0 ? <span className="pill no">{late} j de retard</span> : null}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+
+      <div className="sec-head">
+        <span className="eyebrow">Acomptes à établir</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Devis</th>
+            <th>Client</th>
+            <th style={{ textAlign: 'right' }}>Montant HT</th>
+            <th>Statut</th>
+          </tr>
+        </thead>
+        <tbody>
+          {acompteDu.map((a) => (
+            <tr key={a.id} className="row">
+              <td className="mono">{a.numeroDevis}</td>
+              <td>
+                <span className="cli">{a.client}</span>
+                <div className="adr">{a.adresse}</div>
+              </td>
+              <td className="num">{eur(Number(a.montantHt))}</td>
+              <td>
+                <span className="pill wait">Acompte non émis</span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="hint">
+        Réponse à « est-ce que le chantier est facturé ? » : les trois pastilles sur l&apos;affaire,
+        et ces deux listes.
+      </p>
+    </Shell>
   );
 }

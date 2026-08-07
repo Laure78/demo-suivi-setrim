@@ -1,5 +1,5 @@
-/* Service worker — notifications push SETRIM / BeWork */
-self.addEventListener('install', (event) => {
+/* Service worker — notifications push SETRIM */
+self.addEventListener('install', () => {
   self.skipWaiting();
 });
 
@@ -8,7 +8,7 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('push', (event) => {
-  let data = { title: 'SETRIM', body: 'Nouveau message', url: '/messagerie' };
+  let data = { title: 'SETRIM', body: 'Nouvelle alerte', url: '/aujourdhui' };
   try {
     if (event.data) data = { ...data, ...event.data.json() };
   } catch {
@@ -17,8 +17,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(data.title, {
       body: data.body,
-      icon: '/logo-bework-mark.png',
-      badge: '/logo-bework-mark.png',
+      icon: '/logo-setrim.png',
+      badge: '/logo-setrim.png',
       data: { url: data.url },
       vibrate: [120, 60, 120],
     }),
@@ -27,7 +27,7 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = event.notification.data?.url || '/messagerie';
+  const url = event.notification.data?.url || '/aujourdhui';
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
       for (const c of clients) {

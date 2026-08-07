@@ -44,33 +44,3 @@ export async function enableWebPush(userId: string): Promise<{ ok: boolean; erro
   });
   return { ok: true };
 }
-
-export async function disableWebPush(userId: string): Promise<void> {
-  const reg = await navigator.serviceWorker.getRegistration();
-  const sub = await reg?.pushManager.getSubscription();
-  if (sub) {
-    await fetch('/api/push/subscribe', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, endpoint: sub.endpoint }),
-    });
-    await sub.unsubscribe();
-  }
-}
-
-export async function notifyUsers(input: {
-  userIds: string[];
-  title: string;
-  body: string;
-  url?: string;
-}): Promise<void> {
-  try {
-    await fetch('/api/push/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
-    });
-  } catch {
-    /* ignore réseau */
-  }
-}

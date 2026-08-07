@@ -1,0 +1,224 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  assistante
+  responsable
+  dirigeant
+  conducteur
+}
+
+enum AffaireStatut {
+  commande
+  programme
+  encours
+  solde
+}
+
+enum AffaireType {
+  travaux
+  contrat_entretien
+}
+
+enum FactureType {
+  acompte
+  solde
+}
+
+enum PieceType {
+  devis
+  os
+  photo
+  autorisation
+  facture
+  autre
+}
+
+model User {
+  id           String   @id
+  initiales    String   @unique
+  nom          String
+  email        String   @unique
+  passwordHash String
+  role         Role
+  terrain      Boolean  @default(false)
+  actif        Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  taches          Tache[]            @relation("TacheResponsable")
+  messages        Message[]
+  pushSubs        PushSubscription[]
+  notifications   NotificationLog[]
+  piecesUploadees Piece[]            @relation("PieceAuteur")
+  remarques       Remarque[]
+}
+
+model Affaire {
+  id          String        @id @default(cuid())
+  numeroDevis String        @unique
+  client      String
+  adresse     String
+  montantHt   Decimal       @db.Decimal(12, 2)
+  montantTtc  Decimal?      @db.Decimal(12, 2)
+  joursCharge Int           @default(0)
+  statut      AffaireStatut @default(commande)
+  type        AffaireType   @default(travaux)
+  dateDevis   DateTime?
+  note        String        @default("")
+  acompteHt   Decimal       @default(0) @db.Decimal(12, 2)
+  dateDebut   DateTime?
+  dateFin     DateTime?
+  equipeId    String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  equipe   Equipe?         @relation(fields: [equipeId], references: [id])
+  taches   Tache[]
+  messages Message[]
+  pieces   Piece[]
+  factures Facture[]
+  slots    PlanningSlot[]
+}
+
+model Tache {
+  id             String    @id @default(cuid())
+  titre          String
+  affaireId      String?
+  responsableId  String
+  dateEcheance   DateTime
+  niveau         Int       @default(2)
+  fait           Boolean   @default(false)
+  faitAt         DateTime?
+  libelleAffaire String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  affaire     Affaire? @relation(fields: [affaireId], references: [id], onDelete: SetNull)
+  responsable User     @relation("TacheResponsable", fields: [responsableId], references: [id])
+}
+
+model Message {
+  id         String   @id @default(cuid())
+  affaireId  String?
+  threadKey  String   @default("gen")
+  auteurId   String
+  texte      String?
+  photoLabel String?
+  systeme    Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  affaire Affaire? @relation(fields: [affaireId], references: [id], onDelete: Cascade)
+  auteur  User     @relation(fields: [auteurId], references: [id])
+}
+
+model Piece {
+  id        String    @id @default(cuid())
+  affaireId String
+  type      PieceType @default(autre)
+  titre     String
+  fichier   String?
+  auteurId  String?
+  createdAt DateTime  @default(now())
+
+  affaire Affaire @relation(fields: [affaireId], references: [id], onDelete: Cascade)
+  auteur  User?   @relation("PieceAuteur", fields: [auteurId], references: [id])
+}
+
+model Facture {
+  id               String      @id @default(cuid())
+  affaireId        String
+  type             FactureType
+  montant          Decimal     @db.Decimal(12, 2)
+  dateEmission     DateTime?
+  dateEncaissement DateTime?
+  numero           String?
+  createdAt        DateTime    @default(now())
+
+  affaire Affaire @relation(fields: [affaireId], references: [id], onDelete: Cascade)
+}
+
+model ContratEntretien {
+  id              String    @id @default(cuid())
+  immeuble        String
+  syndic          String
+  montantHt       Decimal   @db.Decimal(12, 2)
+  nbCompagnons    Int       @default(1)
+  moisContractuel Int
+  exercice        String    @default("2026-2027")
+  note            String    @default("")
+  etat            String    @default("contract")
+  datePosee       DateTime?
+  createdAt       DateTime  @default(now())
+}
+
+model Equipe {
+  id       String @id @default(cuid())
+  nom      String
+  chef     String
+  ordre    Int    @default(0)
+  affaires Affaire[]
+  slots    PlanningSlot[]
+}
+
+model PlanningSlot {
+  id        String   @id @default(cuid())
+  equipeId  String
+  date      DateTime @db.Date
+  affaireId String?
+  type      String   @default("chantier")
+  label     String?
+  tacheId   String?
+  createdAt DateTime @default(now())
+
+  equipe  Equipe   @relation(fields: [equipeId], references: [id], onDelete: Cascade)
+  affaire Affaire? @relation(fields: [affaireId], references: [id], onDelete: SetNull)
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model NotificationLog {
+  id      String   @id @default(cuid())
+  userId  String
+  tacheId String
+  kind    String
+  sentAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tacheId, kind, sentAt])
+}
+
+model Remarque {
+  id        String   @id @default(cuid())
+  userId    String
+  ecran     String
+  texte     String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ThreadMeta {
+  id        String @id
+  titre     String
+  sousTitre String @default("")
+  avatar    String @default("")
+  cls       String @default("")
+  pin       String @default("")
+  ordre     Int    @default(0)
+}

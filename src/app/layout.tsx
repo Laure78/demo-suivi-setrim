@@ -1,25 +1,17 @@
 import type { Metadata } from 'next';
-import { AppProvider } from '@/context/AppStateContext';
-import { AppShell } from '@/components/AppShell';
+import { SessionProvider } from '@/components/SessionProvider';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'SETRIM — Plateforme interne',
-  description:
-    'Plateforme unique SETRIM : alertes, portefeuille, planning, CE, check-lists, factures, commandes, messagerie.',
+  title: 'SETRIM — Suivi d\'affaires',
+  description: 'Aujourd\'hui, affaires, planning, contrats d\'entretien, facturation.',
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr">
-      <body className="antialiased">
-        <AppProvider>
-          <AppShell>{children}</AppShell>
-        </AppProvider>
+      <body>
+        <SessionProvider>{children}</SessionProvider>
       </body>
     </html>
   );

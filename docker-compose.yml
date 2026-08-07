@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: setrim-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: setrim
+      POSTGRES_PASSWORD: setrim
+      POSTGRES_DB: setrim
+    ports:
+      - "5432:5432"
+    volumes:
+      - setrim_pg_data:/var/lib/postgresql/data
+
+volumes:
+  setrim_pg_data:

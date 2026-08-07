@@ -1,44 +1,49 @@
-# SETRIM — Plateforme interne (démo)
+# SETRIM — Suivi d'affaires (v2)
 
-Plateforme unique : alertes, portefeuille, planning, CE, check-lists, factures,
-commandes, messagerie. **Rien ne doit vivre ailleurs** (Excel / Outlook / papier).
+Refonte autour d'un seul objet : l'**Affaire** (issue d'un devis Batappli).
 
-## Organisation SETRIM
+## Six écrans (maquette validée)
 
-- **5** personnes au bureau (comptes de connexion)
-- **15** ouvriers / chefs de chantier (compagnons dans les équipes)
-- **2** prestataires (commandes externes)
+1. **Aujourd'hui** — post-its / alertes + chantiers du jour  
+2. **Messages** — fil général + fils chantier  
+3. **Affaires** — bannettes Commandes / Programmés / En cours / Soldés + fiche  
+4. **Planning** — équipes × jours, glisser-déposer  
+5. **Contrats d'entretien** — exercice 01/07 → 30/06  
+6. **Facturation** — portefeuille, reste à facturer, acomptes  
 
-## Lancer
+## Stack
+
+- Next.js 15 (App Router) · Prisma · PostgreSQL  
+- Auth (5 utilisateurs) · Web Push · Import Excel Batappli  
+
+## Lancer en local
 
 ```bash
+docker compose up -d          # PostgreSQL
+cp .env.example .env          # si besoin
 npm install
+npx prisma db push
+npm run db:seed
 npm run dev
 ```
 
-Connexion démo (accès unique) : identifiant `setrim`, mot de passe `setrim2026`.
-Puis choisir « Je suis » dans le bandeau pour changer de profil.
+Connexion démo (mot de passe `setrim2026`) :
 
-## Modules livrés (v9)
+| Email | Rôle |
+|---|---|
+| audrey@setrim.fr | Assistante travaux |
+| melissa@setrim.fr | Assistante travaux |
+| valerie@setrim.fr | Resp. administrative |
+| denis@setrim.fr | Dirigeant |
+| philippe@setrim.fr | Conducteur de travaux |
 
-1. Auth + rôles (dirigeant, responsable, assistante, suivi chantier)
-2. Accueil **Mes alertes du jour** (retard / aujourd’hui / semaine)
-3. **Portefeuille** + bandeau CA / jours / CA-jour
-4. **Fiche affaire** + check-list vivante (horodatage auto)
-5. **Planning CE** (exercice juil→juin, hors délai rouge)
-6. **Planning chantiers** (équipes × jours)
-7. Factures, commandes, demandes de prix
-8. Messagerie style WhatsApp
-9. Admin (délais d’alerte, modèles, équipes)
+## Alertes push
 
-## Suite prévue
+Le moteur (`/api/alerts/run`) notifie selon le niveau de tâche.  
+À brancher sur un cron quotidien (ex. Railway Cron).
 
-- Glisser-déposer planning + passage PORTEFEUILLE → PLANIFIÉ
-- Notifications push paramétrables
-- Import Excel Batappli (historique 3 onglets)
-- Export PDF / Excel des vues
-- Archivage (pas de suppression définitive)
+## Import Batappli
 
-## Déploiement Railway
-
-Repo : https://github.com/Laure78/demo-suivi-setrim
+Bouton **Importer les devis** sur l'écran Affaires.  
+Colonnes : n° devis · date · client · adresse · montant HT · montant TTC (optionnel).  
+Clé = n° de devis — les tâches / fils existants ne sont jamais écrasés.

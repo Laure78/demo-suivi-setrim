@@ -17,13 +17,16 @@ export const EXPECTED_COLUMNS = [
   'Date',
 ] as const;
 
+/** Colonnes optionnelles (présentes dans le cadrage, non bloquantes). */
+const OPTIONAL_COLUMNS = ['Montant TTC', 'Client/syndic'] as const;
+
 export type ExpectedColumn = (typeof EXPECTED_COLUMNS)[number];
 
 /**
  * Alias acceptés pour chaque colonne (normalisés en minuscules, sans accents).
  * Point d'ajustement principal quand le vrai export Batappli arrivera.
  */
-const HEADER_ALIASES: Record<ExpectedColumn, string[]> = {
+const HEADER_ALIASES: Record<ExpectedColumn | 'Montant TTC' | 'Client/syndic', string[]> = {
   'Numéro de devis': [
     'numero de devis',
     'n de devis',
@@ -33,7 +36,7 @@ const HEADER_ALIASES: Record<ExpectedColumn, string[]> = {
     'devis',
     'numero devis',
   ],
-  Client: ['client', 'nom client', 'raison sociale'],
+  Client: ['client', 'nom client', 'raison sociale', 'client syndic', 'syndic'],
   'Adresse du chantier': [
     'adresse du chantier',
     'adresse chantier',
@@ -41,6 +44,8 @@ const HEADER_ALIASES: Record<ExpectedColumn, string[]> = {
     'lieu',
   ],
   'Montant HT': ['montant ht', 'montant', 'ht', 'total ht', 'montantht'],
+  'Montant TTC': ['montant ttc', 'ttc', 'total ttc', 'montantttc'],
+  'Client/syndic': ['client syndic', 'syndic', 'client/syndic'],
   Date: ['date', 'date devis', 'date du devis'],
 };
 
@@ -49,6 +54,7 @@ export type DevisRow = {
   client: string;
   adresse: string;
   montantHT: number | null;
+  montantTTC: number | null;
   /** YYYY-MM-DD si parsable, sinon null */
   date: string | null;
   /** Ligne Excel d'origine (1-based, en-tête = 1) */
@@ -84,9 +90,11 @@ export function normalizeHeader(h: unknown): string {
 
 function resolveColumnMap(
   headers: string[],
-): { map: Record<ExpectedColumn, number> } | { missing: string[]; found: string[] } {
+): {
+  map: Record<ExpectedColumn, number> & Partial<Record<'Montant TTC', number>>;
+} | { missing: string[]; found: string[] } {
   const normalized = headers.map(normalizeHeader);
-  const map = {} as Record<ExpectedColumn, number>;
+  const map = {} as Record<ExpectedColumn, number> & Partial<Record<'Montant TTC', number>>;
   const missing: string[] = [];
 
   for (const col of EXPECTED_COLUMNS) {
@@ -94,6 +102,13 @@ function resolveColumnMap(
     const idx = normalized.findIndex((h) => aliases.includes(h));
     if (idx === -1) missing.push(col);
     else map[col] = idx;
+  }
+
+  for (const col of OPTIONAL_COLUMNS) {
+    if (col === 'Client/syndic') continue;
+    const aliases = HEADER_ALIASES[col].map(normalizeHeader);
+    const idx = normalized.findIndex((h) => aliases.includes(h));
+    if (idx !== -1) map[col as 'Montant TTC'] = idx;
   }
 
   if (missing.length) {
@@ -152,6 +167,17 @@ function parseExcelDate(v: unknown): string | null {
  * Parse un ArrayBuffer .xlsx Batappli.
  * Point d'entrée unique — à brancher plus tard sur un vrai export sans toucher l'UI.
  */
+export function parseBatappliExcel(input: ArrayBuffer | Buffer): ParseResult {
+  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(input)) {
+    const ab = input.buffer.slice(
+      input.byteOffset,
+      input.byteOffset + input.byteLength,
+    ) as ArrayBuffer;
+    return parseBatappliDevisBuffer(ab);
+  }
+  return parseBatappliDevisBuffer(input as ArrayBuffer);
+}
+
 export function parseBatappliDevisBuffer(buffer: ArrayBuffer): ParseResult {
   let workbook: XLSX.WorkBook;
   try {
@@ -207,6 +233,8 @@ export function parseBatappliDevisBuffer(buffer: ArrayBuffer): ParseResult {
       client: client || 'Client non renseigné',
       adresse: adresse || 'Adresse à préciser',
       montantHT: parseMontant(line[map['Montant HT']]),
+      montantTTC:
+        map['Montant TTC'] != null ? parseMontant(line[map['Montant TTC']]) : null,
       date: parseExcelDate(line[map.Date]),
       sourceRow: i + 1,
     });

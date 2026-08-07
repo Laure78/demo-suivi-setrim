@@ -1,33 +1,42 @@
+import { auth } from '@/auth';
+import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
-import { getSharedStore } from '@/lib/server-store';
-
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
-  const body = (await req.json()) as {
-    userId?: string;
-    subscription?: PushSubscriptionJSON;
-  };
-  if (!body.userId || !body.subscription?.endpoint) {
+  const session = await auth();
+  if (!session?.user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+
+  const { userId, subscription } = await req.json();
+  const uid = userId ?? session.user.id;
+  if (!subscription?.endpoint || !subscription?.keys) {
     return NextResponse.json({ error: 'Subscription invalide' }, { status: 400 });
   }
-  const store = getSharedStore();
-  store.pushSubs = store.pushSubs.filter(
-    (s) =>
-      s.subscription.endpoint !== body.subscription!.endpoint || s.userId !== body.userId,
-  );
-  store.pushSubs.push({ userId: body.userId, subscription: body.subscription });
-  return NextResponse.json({ ok: true, count: store.pushSubs.length });
+
+  await prisma.pushSubscription.upsert({
+    where: { endpoint: subscription.endpoint },
+    create: {
+      userId: uid,
+      endpoint: subscription.endpoint,
+      p256dh: subscription.keys.p256dh,
+      auth: subscription.keys.auth,
+    },
+    update: {
+      userId: uid,
+      p256dh: subscription.keys.p256dh,
+      auth: subscription.keys.auth,
+    },
+  });
+
+  return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(req: Request) {
-  const body = (await req.json()) as { userId?: string; endpoint?: string };
-  const store = getSharedStore();
-  store.pushSubs = store.pushSubs.filter((s) => {
-    if (body.endpoint) return s.subscription.endpoint !== body.endpoint;
-    if (body.userId) return s.userId !== body.userId;
-    return true;
-  });
+  const session = await auth();
+  if (!session?.user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+
+  const { endpoint } = await req.json();
+  if (endpoint) {
+    await prisma.pushSubscription.deleteMany({ where: { endpoint } });
+  }
   return NextResponse.json({ ok: true });
 }
