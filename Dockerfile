@@ -9,8 +9,12 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV DATABASE_URL="postgresql://setrim:setrim@localhost:5432/setrim"
-RUN npx prisma generate && npx next build
+# Railway injecte DATABASE_URL au build — on pousse le schéma ici
+ARG DATABASE_URL
+ENV DATABASE_URL=${DATABASE_URL:-postgresql://setrim:setrim@localhost:5432/setrim}
+RUN npx prisma generate \
+  && (npx prisma db push --skip-generate || echo "db push skip — pas de Postgres joignable au build") \
+  && npx next build
 
 FROM node:20-alpine AS runner
 WORKDIR /app
