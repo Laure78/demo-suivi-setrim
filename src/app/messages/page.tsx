@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { Shell } from '@/components/Shell';
 import { MessagesView } from '@/components/MessagesView';
 import { redirect } from 'next/navigation';
-import { formatDateShort } from '@/lib/format';
+import { formatDateShort, ROLE_LABEL } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,37 +11,105 @@ export default async function MessagesPage() {
   const session = await auth();
   if (!session?.user) redirect('/login');
 
-  const threads = await prisma.threadMeta.findMany({ orderBy: { ordre: 'asc' } });
-  const lastByThread = await prisma.message.groupBy({
-    by: ['threadKey'],
-    _max: { createdAt: true },
+  const users = await prisma.user.findMany({
+    where: { actif: true },
+    orderBy: [{ terrain: 'asc' }, { nom: 'asc' }],
   });
-  const lastMap = Object.fromEntries(
-    lastByThread.map((x) => [x.threadKey, x._max.createdAt]),
-  );
 
-  const convs = await Promise.all(
-    threads.map(async (t) => {
-      const last = await prisma.message.findFirst({
-        where: { threadKey: t.id, systeme: false },
-        orderBy: { createdAt: 'desc' },
-        include: { auteur: true },
-      });
-      return {
-        id: t.id,
-        titre: t.titre,
-        sousTitre: t.sousTitre,
-        avatar: t.avatar,
-        cls: t.cls,
-        pin: t.pin,
-        last: last
-          ? `${last.auteur.nom} : ${last.texte ?? last.photoLabel ?? ''}`
-          : 'Aucun message',
-        hr: lastMap[t.id] ? formatDateShort(lastMap[t.id]!) : '',
-        nb: 0,
-      };
-    }),
-  );
+  // Supprimer les anciens fils chantier / CE de la messagerie
+  const userIds = new Set(users.map((u) => u.id));
+  const allThreads = await prisma.threadMeta.findMany({ select: { id: true } });
+  const toDelete = allThreads
+    .map((t) => t.id)
+    .filter((id) => id !== 'gen' && !userIds.has(id));
+  if (toDelete.length) {
+    await prisma.threadMeta.deleteMany({ where: { id: { in: toDelete } } });
+  }
+
+  // Garantir le fil Équipe SETRIM
+  const genMeta = await prisma.threadMeta.upsert({
+    where: { id: 'gen' },
+    create: {
+      id: 'gen',
+      titre: 'Équipe SETRIM',
+      sousTitre: users.map((u) => u.nom).join(', '),
+      avatar: 'ST',
+      cls: 'grp',
+      pin: '',
+      ordre: 0,
+    },
+    update: {
+      titre: 'Équipe SETRIM',
+      sousTitre: users.map((u) => u.nom).join(', '),
+      avatar: 'ST',
+      cls: 'grp',
+      ordre: 0,
+    },
+  });
+
+  // Uniquement : Équipe + collaborateurs (pas de fils chantier)
+  const people = users.filter((u) => u.id !== session.user.id);
+
+  async function lastOf(threadKey: string) {
+    return prisma.message.findFirst({
+      where: { threadKey, systeme: false },
+      orderBy: { createdAt: 'desc' },
+      include: { auteur: true },
+    });
+  }
+
+  const genLast = await lastOf('gen');
+  const convs = [
+    {
+      id: 'gen',
+      titre: genMeta.titre,
+      sousTitre: genMeta.sousTitre,
+      avatar: genMeta.avatar,
+      cls: 'grp',
+      pin: genMeta.pin,
+      last: genLast
+        ? `${genLast.auteur.nom} : ${genLast.texte ?? genLast.photoLabel ?? ''}`
+        : 'Aucun message',
+      hr: genLast ? formatDateShort(genLast.createdAt) : '',
+      nb: 0,
+    },
+    ...(await Promise.all(
+      people.map(async (u) => {
+        await prisma.threadMeta.upsert({
+          where: { id: u.id },
+          create: {
+            id: u.id,
+            titre: u.nom,
+            sousTitre: ROLE_LABEL[u.role] ?? u.role,
+            avatar: u.initiales,
+            cls: '',
+            ordre: 10,
+          },
+          update: {
+            titre: u.nom,
+            sousTitre: ROLE_LABEL[u.role] ?? u.role,
+            avatar: u.initiales,
+          },
+        });
+        const last = await lastOf(u.id);
+        return {
+          id: u.id,
+          titre: u.nom,
+          sousTitre: u.terrain
+            ? `Sur chantier — ${ROLE_LABEL[u.role] ?? u.role}`
+            : ROLE_LABEL[u.role] ?? u.role,
+          avatar: u.initiales,
+          cls: '',
+          pin: '',
+          last: last
+            ? `${last.auteur.nom} : ${last.texte ?? last.photoLabel ?? ''}`
+            : 'Aucun message',
+          hr: last ? formatDateShort(last.createdAt) : '',
+          nb: 0,
+        };
+      }),
+    )),
+  ];
 
   return (
     <Shell title="Messages">
@@ -49,6 +117,7 @@ export default async function MessagesPage() {
         convs={convs}
         initialThread={convs[0]?.id ?? 'gen'}
         meId={session.user.id}
+        canAdd={['assistante', 'responsable', 'dirigeant'].includes(session.user.role)}
       />
     </Shell>
   );

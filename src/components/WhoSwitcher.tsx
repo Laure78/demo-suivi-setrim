@@ -1,58 +1,42 @@
 'use client';
 
 import { signIn, useSession } from 'next-auth/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
-/** Les 5 collaborateurs — comme sur la maquette validée. */
-export const COLLABORATEURS = [
-  {
-    id: 'audrey',
-    initiales: 'AU',
-    nom: 'Audrey',
-    email: 'audrey@setrim.fr',
-    role: 'Assistante travaux',
-    terrain: false,
-  },
-  {
-    id: 'melissa',
-    initiales: 'ME',
-    nom: 'Mélissa',
-    email: 'melissa@setrim.fr',
-    role: 'Assistante travaux',
-    terrain: false,
-  },
-  {
-    id: 'valerie',
-    initiales: 'VA',
-    nom: 'Valérie',
-    email: 'valerie@setrim.fr',
-    role: 'Resp. administrative et financière',
-    terrain: false,
-  },
-  {
-    id: 'denis',
-    initiales: 'DE',
-    nom: 'Denis',
-    email: 'denis@setrim.fr',
-    role: 'Dirigeant · conducteur de travaux',
-    terrain: true,
-  },
-  {
-    id: 'philippe',
-    initiales: 'PH',
-    nom: 'Philippe',
-    email: 'philippe@setrim.fr',
-    role: 'Conducteur de travaux',
-    terrain: true,
-  },
-] as const;
+export type Collaborateur = {
+  id: string;
+  initiales: string;
+  nom: string;
+  email: string;
+  role: string;
+  terrain: boolean;
+  roleLabel?: string;
+};
 
 const DEMO_PASSWORD = 'setrim2026';
 
+const FALLBACK: Collaborateur[] = [
+  { id: 'audrey', initiales: 'AU', nom: 'Audrey', email: 'audrey@setrim.fr', role: 'assistante', terrain: false },
+  { id: 'melissa', initiales: 'ME', nom: 'Mélissa', email: 'melissa@setrim.fr', role: 'assistante', terrain: false },
+  { id: 'valerie', initiales: 'VA', nom: 'Valérie', email: 'valerie@setrim.fr', role: 'responsable', terrain: false },
+  { id: 'denis', initiales: 'DE', nom: 'Denis', email: 'denis@setrim.fr', role: 'dirigeant', terrain: true },
+  { id: 'philippe', initiales: 'PH', nom: 'Philippe', email: 'philippe@setrim.fr', role: 'conducteur', terrain: true },
+];
+
 export function WhoSwitcher() {
   const { data } = useSession();
+  const [users, setUsers] = useState<Collaborateur[]>(FALLBACK);
   const [switching, setSwitching] = useState<string | null>(null);
   const me = data?.user?.initiales;
+
+  useEffect(() => {
+    fetch('/api/collaborateurs')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((list) => {
+        if (Array.isArray(list) && list.length) setUsers(list);
+      })
+      .catch(() => undefined);
+  }, [data?.user?.id]);
 
   async function switchTo(email: string, initiales: string) {
     if (initiales === me || switching) return;
@@ -64,7 +48,6 @@ export function WhoSwitcher() {
     });
     setSwitching(null);
     if (res?.error) return;
-    // Recharge pour que Aujourd'hui / tâches suivent le nouveau collaborateur
     window.location.reload();
   }
 
@@ -77,7 +60,7 @@ export function WhoSwitcher() {
         Tout le monde peut modifier
       </div>
       <div className="who" role="group" aria-label="Changer de collaborateur">
-        {COLLABORATEURS.map((u) => {
+        {users.map((u) => {
           const on = me === u.initiales;
           const busy = switching === u.initiales;
           return (
@@ -87,7 +70,7 @@ export function WhoSwitcher() {
               data-u={u.initiales}
               data-terrain={u.terrain ? '1' : '0'}
               className={on ? 'on' : ''}
-              title={`${u.nom} — ${u.role}`}
+              title={`${u.nom} — ${u.roleLabel ?? u.role}`}
               aria-pressed={on}
               disabled={!!switching}
               onClick={() => switchTo(u.email, u.initiales)}
@@ -100,3 +83,6 @@ export function WhoSwitcher() {
     </div>
   );
 }
+
+/** Export pour le login (5 comptes de base). */
+export const COLLABORATEURS = FALLBACK;
