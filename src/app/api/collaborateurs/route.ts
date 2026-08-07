@@ -43,12 +43,44 @@ export async function POST(req: Request) {
   // Bureau uniquement
   if (!['assistante', 'responsable', 'dirigeant'].includes(session.user.role)) {
     return NextResponse.json(
-      { error: 'Seuls Audrey, Mélissa, Valérie ou Denis peuvent ajouter un collaborateur.' },
+      { error: 'Seuls Audrey, Mélissa, Valérie ou Denis peuvent gérer les collaborateurs.' },
       { status: 403 },
     );
   }
 
   const body = await req.json();
+
+  // Suppression via POST (compatible si DELETE n’est pas encore routé)
+  if (body.action === 'delete') {
+    const id = String(body.id ?? '').trim();
+    if (!id) return NextResponse.json({ error: 'Identifiant manquant' }, { status: 400 });
+    if (id === session.user.id) {
+      return NextResponse.json({ error: 'Vous ne pouvez pas vous supprimer vous-même.' }, { status: 400 });
+    }
+    if (isBureauUser(id)) {
+      return NextResponse.json(
+        {
+          error:
+            'Les 5 comptes bureau (Audrey, Mélissa, Valérie, Denis, Philippe) ne peuvent pas être supprimés.',
+        },
+        { status: 400 },
+      );
+    }
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user || !user.actif) {
+      return NextResponse.json({ error: 'Collaborateur introuvable' }, { status: 404 });
+    }
+    await prisma.user.update({ where: { id }, data: { actif: false } });
+    await prisma.threadMeta.deleteMany({ where: { id } });
+    await prisma.pushSubscription.deleteMany({ where: { userId: id } });
+    const all = await prisma.user.findMany({ where: { actif: true }, select: { nom: true } });
+    await prisma.threadMeta.updateMany({
+      where: { id: 'gen' },
+      data: { sousTitre: all.map((u) => u.nom).join(', ') },
+    });
+    return NextResponse.json({ ok: true, id, nom: user.nom });
+  }
+
   const nom = String(body.nom ?? '').trim();
   let initiales = String(body.initiales ?? '')
     .trim()

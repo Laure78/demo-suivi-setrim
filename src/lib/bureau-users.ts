@@ -71,6 +71,17 @@ export async function ensureBureauUsers() {
       },
     });
   }
+
+  // Retirer le compte démo « Stagiaire » s’il existe encore
+  const stagiaire = await prisma.user.findUnique({ where: { id: 'stagiaire' } });
+  if (stagiaire?.actif) {
+    await prisma.user.update({
+      where: { id: 'stagiaire' },
+      data: { actif: false },
+    });
+    await prisma.threadMeta.deleteMany({ where: { id: 'stagiaire' } });
+    await prisma.pushSubscription.deleteMany({ where: { userId: 'stagiaire' } });
+  }
 }
 
 /** Si le fil Équipe est vide, pose le message type de Valérie. */

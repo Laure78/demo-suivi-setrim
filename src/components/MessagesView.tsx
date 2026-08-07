@@ -199,11 +199,18 @@ export function MessagesView({
       return;
     }
     setDeleting(true);
-    const r = await fetch('/api/collaborateurs', {
+    let r = await fetch('/api/collaborateurs', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id }),
     });
+    if (r.status === 405) {
+      r = await fetch('/api/collaborateurs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', id }),
+      });
+    }
     const j = await r.json().catch(() => ({}));
     setDeleting(false);
     if (!r.ok) {
