@@ -262,10 +262,7 @@ export function PlanningView({
             {equipes.map((e) => (
               <tr key={e.id} className={e.categorie === 'prestataire' ? 'presta' : ''}>
                 <td className="eq">
-                  {e.categorie === 'prestataire' ? (
-                    <span className="presta-tag">Prestataire</span>
-                  ) : null}
-                  {e.nom.replace(/^Prestataire — /, '')}
+                  {e.nom}
                 </td>
                 {e.days.map((day) => (
                   <td

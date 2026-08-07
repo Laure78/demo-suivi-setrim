@@ -1,18 +1,18 @@
 import { prisma } from '@/lib/prisma';
 
-/** Garantit les 2 prestataires externes SETRIM (échafaudage, bennes). */
+/** Garantit les 2 prestataires externes SETRIM. */
 export async function ensurePrestataires() {
   await prisma.equipe.upsert({
     where: { id: 'presta-echafaudage' },
     create: {
       id: 'presta-echafaudage',
-      nom: 'Prestataire — Échafaudage',
+      nom: 'Prestataire 1',
       chef: 'Externe',
       ordre: 20,
       categorie: 'prestataire',
     },
     update: {
-      nom: 'Prestataire — Échafaudage',
+      nom: 'Prestataire 1',
       categorie: 'prestataire',
       ordre: 20,
     },
@@ -21,13 +21,13 @@ export async function ensurePrestataires() {
     where: { id: 'presta-bennes' },
     create: {
       id: 'presta-bennes',
-      nom: 'Prestataire — Bennes / roulottes',
+      nom: 'Prestataire 2',
       chef: 'Externe',
       ordre: 21,
       categorie: 'prestataire',
     },
     update: {
-      nom: 'Prestataire — Bennes / roulottes',
+      nom: 'Prestataire 2',
       categorie: 'prestataire',
       ordre: 21,
     },

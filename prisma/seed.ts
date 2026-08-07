@@ -206,8 +206,8 @@ async function main() {
     { id: 'eq2', nom: 'Équipe 2 — Rui', chef: 'Rui', ordre: 2, categorie: 'equipe' },
     { id: 'eq3', nom: 'Équipe 3 — Mickaël', chef: 'Mickaël', ordre: 3, categorie: 'equipe' },
     { id: 'eq4', nom: 'Équipe 4 — Sofiane', chef: 'Sofiane', ordre: 4, categorie: 'equipe' },
-    { id: 'presta-echafaudage', nom: 'Prestataire — Échafaudage', chef: 'Externe', ordre: 20, categorie: 'prestataire' },
-    { id: 'presta-bennes', nom: 'Prestataire — Bennes / roulottes', chef: 'Externe', ordre: 21, categorie: 'prestataire' },
+    { id: 'presta-echafaudage', nom: 'Prestataire 1', chef: 'Externe', ordre: 20, categorie: 'prestataire' },
+    { id: 'presta-bennes', nom: 'Prestataire 2', chef: 'Externe', ordre: 21, categorie: 'prestataire' },
   ];
   for (const e of equipes) await prisma.equipe.create({ data: e });
 
