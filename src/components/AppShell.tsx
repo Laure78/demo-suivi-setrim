@@ -4,8 +4,10 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
-import { SCREENS, ROLE_LABEL } from '@/lib/format';
+import { SCREENS } from '@/lib/format';
 import { RemarquesDrawer } from '@/components/RemarquesDrawer';
+import { WhoSwitcher } from '@/components/WhoSwitcher';
+import { InstallAppButton } from '@/components/InstallAppButton';
 import { useEffect, useState } from 'react';
 import { enableWebPush } from '@/lib/web-push-client';
 
@@ -74,7 +76,7 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
             return (
               <Link key={s.id} href={s.href} className={`nav-link${on ? ' on' : ''}`}>
                 <span className="k">{s.k}</span>
-                {s.label}
+                <span className="nav-label">{s.label}</span>
                 {s.id === 'aujourdhui' && lateCount > 0 ? (
                   <span className="badge">{lateCount}</span>
                 ) : null}
@@ -106,22 +108,43 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
 
       <div className="main">
         <header className="bar">
-          <div>
+          <div className="bar-title">
             <h2 id="screenTitle">{screenTitle}</h2>
             <div className="date">{today}</div>
           </div>
           <div className="spacer" />
-          {user ? (
-            <div className="chip-edit" title={ROLE_LABEL[user.role] ?? user.role}>
-              {user.initiales} · {user.name}
-            </div>
-          ) : null}
+          <WhoSwitcher />
+          <InstallAppButton />
           <button type="button" className="btn-note" onClick={() => setNotesOpen(true)}>
             Remarques <span className="mono">({noteCount})</span>
           </button>
         </header>
         <div className="content">{children}</div>
       </div>
+
+      {/* Nav mobile bas d'écran */}
+      <nav className="mobile-tabbar" aria-label="Navigation">
+        {SCREENS.map((s) => {
+          const on = pathname === s.href || pathname.startsWith(s.href + '/');
+          const short =
+            s.id === 'aujourdhui'
+              ? "Aujourd'hui"
+              : s.id === 'contrats'
+                ? 'Contrats'
+                : s.id === 'facturation'
+                  ? 'Factures'
+                  : s.label;
+          return (
+            <Link key={s.id} href={s.href} className={on ? 'on' : ''}>
+              <span className="mt-k">{s.k}</span>
+              <span className="mt-l">{short}</span>
+              {s.id === 'aujourdhui' && lateCount > 0 ? (
+                <span className="mt-badge">{lateCount}</span>
+              ) : null}
+            </Link>
+          );
+        })}
+      </nav>
 
       <RemarquesDrawer
         open={notesOpen}

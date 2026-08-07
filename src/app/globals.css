@@ -76,19 +76,30 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .chip-edit{
   display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--vert);
   border:1px solid #BCD6C6;background:#EEF6F1;border-radius:3px;padding:4px 9px;
+  white-space:nowrap;
 }
+.chip-edit .chip-pen{font-size:12px;line-height:1}
+.who-block{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .who{display:flex;align-items:center;gap:5px}
 .who button{
   width:31px;height:31px;border-radius:50%;font-family:"Archivo",sans-serif;font-size:11.5px;
   font-weight:700;background:#DBDFD9;color:#5E6862;border:2px solid transparent;
 }
+.who button:hover{border-color:var(--bleu)}
+.who button:disabled{opacity:.7;cursor:wait}
 .who button.on{background:var(--bleu);color:#fff}
 .who button[data-terrain="1"].on{background:var(--bleu-fonce)}
 .btn-note{
   border:1px solid var(--bitume);border-radius:3px;padding:6px 12px;font-size:12.5px;font-weight:500;
 }
 .btn-note:hover{background:var(--bleu);border-color:var(--bleu);color:#fff}
+.btn-install{
+  border:1px solid var(--bleu);color:var(--bleu);border-radius:3px;padding:6px 12px;
+  font-size:12.5px;font-weight:500;white-space:nowrap;
+}
+.btn-install:hover{background:var(--bleu);color:#fff}
 .content{padding:22px 24px 60px;max-width:1240px}
+.mobile-tabbar{display:none}
 
 /* ---------- generic bits ---------- */
 .card{background:var(--papier);border:1px solid var(--trait);border-radius:4px}
@@ -333,18 +344,61 @@ td.num{text-align:right;font-family:"IBM Plex Mono",monospace}
 
 /* ---------- responsive ---------- */
 @media(max-width:860px){
-  .app{flex-direction:column}
-  .rail{width:100%;height:auto;position:static;flex-direction:row;align-items:center;overflow-x:auto}
-  .brand{border:none;border-bottom:none;padding:10px 12px;flex:none}
-  .brand img.logo{max-width:126px}
+  .app{flex-direction:column;padding-bottom:64px}
+  .rail{
+    width:100%;height:auto;position:sticky;top:0;z-index:30;
+    flex-direction:row;align-items:center;overflow:hidden;
+  }
+  .brand{border:none;padding:8px 12px;flex:none;min-width:0}
+  .brand img.logo{max-width:110px}
   .motif{display:none}
   .brand p{display:none}
-  .nav{flex-direction:row;padding:8px}
-  .nav button{white-space:nowrap;padding:8px 10px}
-  .nav button .k{display:none}
+  .nav{display:none}
   .rail-foot{display:none}
-  .content{padding:16px 14px 60px}
-  .bar{padding:12px 14px}
+  .content{padding:14px 12px 24px}
+  .bar{padding:10px 12px;gap:8px}
+  .bar-title h2{font-size:15px}
+  .bar .date{font-size:11px}
+  .chip-edit{font-size:10.5px;padding:3px 7px}
+  .chip-edit .chip-label-long{display:none}
+  .who button{width:28px;height:28px;font-size:10.5px}
+  .btn-note{padding:5px 8px;font-size:11.5px}
+  .btn-install{padding:5px 8px;font-size:11.5px}
+  .who-block{gap:6px}
+  .mobile-tabbar{
+    display:flex;position:fixed;left:0;right:0;bottom:0;z-index:30;
+    background:var(--rail);border-top:1px solid rgba(255,255,255,.14);
+    padding:4px 2px calc(4px + env(safe-area-inset-bottom));
+    justify-content:space-around;gap:2px;
+  }
+  .mobile-tabbar a{
+    flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;
+    gap:2px;padding:6px 2px;color:#C3D9E6;font-size:9.5px;position:relative;
+    border-radius:3px;
+  }
+  .mobile-tabbar a.on{background:var(--chape);color:var(--bitume);font-weight:600}
+  .mobile-tabbar .mt-k{
+    font-family:"IBM Plex Mono",monospace;font-size:9px;opacity:.75;
+  }
+  .mobile-tabbar a.on .mt-k{opacity:1}
+  .mobile-tabbar .mt-l{
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;
+  }
+  .mobile-tabbar .mt-badge{
+    position:absolute;top:2px;right:calc(50% - 18px);
+    background:var(--flamme);color:#fff;font-size:9px;
+    font-family:"IBM Plex Mono",monospace;border-radius:8px;padding:0 4px;
+  }
+  .chat{height:auto;min-height:420px}
+  .plan-wrap,.fact-grid{margin-left:-4px;margin-right:-4px}
+}
+
+@media(max-width:520px){
+  .chip-edit{display:none}
+  .btn-note .mono{display:none}
+  .bar{flex-wrap:nowrap}
+  .bar-title{min-width:0;flex:1}
+  .bar-title .date{display:none}
 }
 
 
@@ -383,6 +437,8 @@ a { color: inherit; text-decoration: none; }
 }
 .login-card .err{color:var(--flamme);font-size:12.5px;margin-top:10px}
 .login-users{margin-top:16px;font-size:11.5px;color:var(--zinc);line-height:1.6}
+.login-who{justify-content:center;margin:14px 0 4px}
+.login-who button{width:36px;height:36px;font-size:12px}
 .import-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .btn-primary{
   background:var(--bleu);color:#fff;border-radius:3px;padding:7px 14px;font-size:12.5px;font-weight:500;

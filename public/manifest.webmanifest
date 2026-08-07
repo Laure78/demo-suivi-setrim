@@ -1,0 +1,26 @@
+{
+  "name": "SETRIM — Suivi d'affaires",
+  "short_name": "SETRIM",
+  "description": "Aujourd'hui, affaires, planning, contrats d'entretien, facturation.",
+  "start_url": "/aujourdhui",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0B3A57",
+  "theme_color": "#0B3A57",
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
