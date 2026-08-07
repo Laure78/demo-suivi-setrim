@@ -54,12 +54,6 @@ export function WhoSwitcher() {
 
   return (
     <div className="who-block">
-      <div className="chip-edit" title="Chacun peut corriger une fiche — comme sur le papier">
-        <span className="chip-pen" aria-hidden>
-          ✎
-        </span>
-        Tout le monde peut modifier
-      </div>
       <div className="who" role="group" aria-label="Changer de collaborateur">
         {users.map((u) => {
           const on = me === u.initiales;

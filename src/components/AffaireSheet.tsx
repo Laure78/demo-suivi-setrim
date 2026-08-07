@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   eur,
   formatDateFr,
@@ -8,6 +8,12 @@ import {
   daysLate,
   STATUT_LABEL,
   MODELES_TACHES,
+  NIVEAU_LABEL,
+  PIECE_TYPE_LABEL,
+  PIECE_TYPES,
+  FACTURE_TRAITEMENT,
+  factureTraitement,
+  type FactureTraitement,
 } from '@/lib/format';
 
 export type AffaireDetail = {
@@ -19,25 +25,45 @@ export type AffaireDetail = {
   acompteHt: number;
   joursCharge: number;
   statut: string;
+  type?: string;
   dateDevis: string | null;
+  dateDebut?: string | null;
+  dateFin?: string | null;
   note: string;
+  equipe?: { id: string; nom: string } | null;
+  contratEntretien?: {
+    id: string;
+    moisContractuel: number;
+    exercice: string;
+    datePosee: string | null;
+    etat: string;
+  } | null;
+  planning?: {
+    id: string;
+    date: string;
+    type: string;
+    label: string | null;
+    equipe: string;
+  }[];
   taches: {
     id: string;
     titre: string;
     niveau: number;
     fait: boolean;
     dateEcheance: string;
-    responsable: { nom: string };
+    responsableId?: string;
+    responsable: { nom: string; id?: string };
   }[];
   messages: {
     id: string;
     texte: string | null;
     photoLabel: string | null;
+    fichier?: string | null;
     systeme: boolean;
     createdAt: string;
     auteur: { nom: string };
   }[];
-  pieces: { id: string; titre: string; createdAt: string }[];
+  pieces: { id: string; titre: string; createdAt: string; fichier?: string | null; type?: string }[];
   factures: {
     id: string;
     type: string;
@@ -46,6 +72,21 @@ export type AffaireDetail = {
     dateEncaissement: string | null;
   }[];
 };
+
+const MOIS_CE = [
+  'Juil.',
+  'Août',
+  'Sept.',
+  'Oct.',
+  'Nov.',
+  'Déc.',
+  'Janv.',
+  'Févr.',
+  'Mars',
+  'Avr.',
+  'Mai',
+  'Juin',
+];
 
 export function AffaireSheet({
   detail,
@@ -56,9 +97,47 @@ export function AffaireSheet({
   onClose: () => void;
   onRefresh: () => void;
 }) {
-  const [tab, setTab] = useState<'taches' | 'fil' | 'pieces' | 'fact'>('taches');
+  const [tab, setTab] = useState<'taches' | 'fil' | 'pieces' | 'plan' | 'fact'>('taches');
   const [newTask, setNewTask] = useState('');
+  const [taskNiveau, setTaskNiveau] = useState(2);
+  const [taskEcheance, setTaskEcheance] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().slice(0, 10);
+  });
+  const [taskResp, setTaskResp] = useState('');
+  const [bureau, setBureau] = useState<{ id: string; nom: string }[]>([]);
+  const [editTaskId, setEditTaskId] = useState<string | null>(null);
+  const [pieceType, setPieceType] = useState<string>('os');
+  const [pieceFilter, setPieceFilter] = useState<string>('');
   const [msg, setMsg] = useState('');
+  const [dateDebut, setDateDebut] = useState('');
+  const [jours, setJours] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({
+    client: '',
+    adresse: '',
+    montantHt: '',
+    acompteHt: '',
+    joursCharge: '',
+    statut: '',
+    note: '',
+    dateDevis: '',
+  });
+
+  useEffect(() => {
+    void fetch('/api/collaborateurs')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list: { id: string; nom: string; terrain?: boolean }[]) => {
+        const bureauOnly = list.filter((u) => !u.terrain);
+        setBureau(bureauOnly.length ? bureauOnly : list);
+        if (!taskResp && list[0]) setTaskResp(list[0].id);
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!detail) {
     return (
@@ -75,6 +154,42 @@ export function AffaireSheet({
 
   const a = detail;
   const st = STATUT_LABEL[a.statut] ?? a.statut;
+  const isCe = a.type === 'contrat_entretien';
+
+  function startEdit() {
+    setForm({
+      client: a.client,
+      adresse: a.adresse,
+      montantHt: String(a.montantHt),
+      acompteHt: String(a.acompteHt || ''),
+      joursCharge: String(a.joursCharge),
+      statut: a.statut,
+      note: a.note ?? '',
+      dateDevis: a.dateDevis ? a.dateDevis.slice(0, 10) : '',
+    });
+    setEditing(true);
+  }
+
+  async function saveEdit() {
+    setBusy(true);
+    await fetch(`/api/affaires/${a.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client: form.client,
+        adresse: form.adresse,
+        montantHt: Number(form.montantHt) || 0,
+        acompteHt: form.acompteHt === '' ? 0 : Number(form.acompteHt),
+        joursCharge: Number(form.joursCharge) || 0,
+        statut: form.statut,
+        note: form.note,
+        dateDevis: form.dateDevis || undefined,
+      }),
+    });
+    setBusy(false);
+    setEditing(false);
+    onRefresh();
+  }
 
   async function toggleTask(id: string) {
     await fetch(`/api/taches/${id}/toggle`, { method: 'POST' });
@@ -87,17 +202,46 @@ export function AffaireSheet({
     await fetch('/api/taches', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ titre: v, affaireId: a.id, niveau: 2 }),
+      body: JSON.stringify({
+        titre: v,
+        affaireId: a.id,
+        niveau: taskNiveau,
+        dateEcheance: taskEcheance,
+        responsableId: taskResp || undefined,
+        libelleAffaire: `${a.client} · ${a.adresse.split(',')[0]}`,
+      }),
     });
     setNewTask('');
+    setTaskNiveau(2);
     onRefresh();
   }
 
-  async function addModele(titre: string, niveau: number) {
+  async function addModele(titre: string, niveau: number, offsetDays = 1) {
+    const d = new Date();
+    d.setDate(d.getDate() + offsetDays);
     await fetch('/api/taches', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ titre, affaireId: a.id, niveau }),
+      body: JSON.stringify({
+        titre,
+        affaireId: a.id,
+        niveau,
+        dateEcheance: d.toISOString().slice(0, 10),
+        responsableId: taskResp || undefined,
+        libelleAffaire: `${a.client} · ${a.adresse.split(',')[0]}`,
+      }),
+    });
+    onRefresh();
+  }
+
+  async function patchTask(
+    id: string,
+    patch: { niveau?: number; dateEcheance?: string; responsableId?: string },
+  ) {
+    await fetch(`/api/taches/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
     });
     onRefresh();
   }
@@ -118,56 +262,241 @@ export function AffaireSheet({
     onRefresh();
   }
 
+  async function uploadToAffaire(file: File, kind: 'photo' | 'pj') {
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const up = await fetch('/api/uploads', { method: 'POST', body: fd });
+      const j = await up.json();
+      if (!up.ok) {
+        alert(j.error ?? 'Échec de l’envoi');
+        return;
+      }
+
+      if (tab === 'pieces') {
+        const type = kind === 'photo' ? 'photo' : pieceType || 'autre';
+        const label = PIECE_TYPE_LABEL[type] ?? 'Document';
+        await fetch('/api/pieces', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            affaireId: a.id,
+            titre: `${label} — ${j.name}`,
+            fichier: j.url,
+            type,
+          }),
+        });
+      } else {
+        await fetch('/api/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            threadKey: a.numeroDevis,
+            affaireId: a.id,
+            photoLabel: j.name,
+            fichier: j.url,
+            texte:
+              kind === 'photo'
+                ? msg.trim() || null
+                : msg.trim() || `Pièce jointe : ${j.name}`,
+          }),
+        });
+        setMsg('');
+      }
+      onRefresh();
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function onFilePick(
+    e: React.ChangeEvent<HTMLInputElement>,
+    kind: 'photo' | 'pj',
+  ) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (file) void uploadToAffaire(file, kind);
+  }
+
+  async function programmer() {
+    if (!dateDebut) return;
+    setBusy(true);
+    await fetch(`/api/affaires/${a.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'programmer',
+        dateDebut,
+        joursCharge: jours ? Number(jours) : undefined,
+      }),
+    });
+    setBusy(false);
+    onRefresh();
+  }
+
+  async function setTraitementFacture(
+    type: 'acompte' | 'solde',
+    statut: FactureTraitement,
+  ) {
+    setBusy(true);
+    await fetch(`/api/affaires/${a.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'facture-traitement', type, statut }),
+    });
+    setBusy(false);
+    onRefresh();
+  }
+
   let body: React.ReactNode = null;
   if (tab === 'taches') {
     body = (
       <>
+        <p className="hint" style={{ marginBottom: 10 }}>
+          Urgence + échéance → la tâche apparaît dans{' '}
+          <a href="/aujourdhui">Aujourd&apos;hui</a> chez le responsable (post-it à cocher).
+        </p>
         {a.taches.length === 0 ? (
           <p className="hint">Aucune tâche. Ajoutez-en une, ou partez d&apos;un modèle.</p>
         ) : (
           a.taches.map((t) => {
             const late = !t.fait ? daysLate(new Date(t.dateEcheance)) : 0;
+            const open = editTaskId === t.id;
             return (
-              <div
-                key={t.id}
-                className={`task-line${t.fait ? ' done' : ''}`}
-                onClick={() => toggleTask(t.id)}
-                role="button"
-                tabIndex={0}
-              >
-                <span className={`lvl n${t.niveau}`} />
-                <span className="box" />
-                <span>
+              <div key={t.id} className={`task-line${t.fait ? ' done' : ''}`}>
+                <span className={`lvl n${t.niveau}`} title={NIVEAU_LABEL[t.niveau]} />
+                <span
+                  className="box"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => toggleTask(t.id)}
+                  onKeyDown={(e) => e.key === 'Enter' && toggleTask(t.id)}
+                />
+                <span style={{ flex: 1, minWidth: 0 }}>
                   <span className="t">{t.titre}</span>
                   <div className="m mono">
-                    {formatDateShort(t.dateEcheance)} · {t.responsable.nom}
+                    <span className={`urg-tag n${t.niveau}`}>
+                      {NIVEAU_LABEL[t.niveau] ?? 'À faire'}
+                    </span>
+                    {' · '}
+                    échéance {formatDateShort(t.dateEcheance)} · {t.responsable.nom}
                     {late > 0 ? ` · en retard de ${late} j` : ''}
                   </div>
+                  {open && !t.fait ? (
+                    <div className="task-edit" onClick={(e) => e.stopPropagation()}>
+                      <label>
+                        Échéance
+                        <input
+                          type="date"
+                          defaultValue={t.dateEcheance.slice(0, 10)}
+                          onChange={(e) => {
+                            if (e.target.value) void patchTask(t.id, { dateEcheance: e.target.value });
+                          }}
+                        />
+                      </label>
+                      <label>
+                        Urgence
+                        <select
+                          defaultValue={t.niveau}
+                          onChange={(e) =>
+                            void patchTask(t.id, { niveau: Number(e.target.value) })
+                          }
+                        >
+                          <option value={3}>Urgent</option>
+                          <option value={2}>À faire</option>
+                          <option value={1}>Info</option>
+                        </select>
+                      </label>
+                      {bureau.length ? (
+                        <label>
+                          Responsable
+                          <select
+                            defaultValue={t.responsableId ?? ''}
+                            onChange={(e) =>
+                              void patchTask(t.id, { responsableId: e.target.value })
+                            }
+                          >
+                            {bureau.map((u) => (
+                              <option key={u.id} value={u.id}>
+                                {u.nom}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </span>
+                {!t.fait ? (
+                  <button
+                    type="button"
+                    className="btn-edit"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditTaskId(open ? null : t.id);
+                    }}
+                  >
+                    {open ? 'Fermer' : '✎'}
+                  </button>
+                ) : null}
               </div>
             );
           })
         )}
-        <div className="add-task">
+        <div className="add-task-form">
           <input
             value={newTask}
             onChange={(e) => setNewTask(e.target.value)}
             placeholder="Nouvelle tâche — ex. commander la benne"
             onKeyDown={(e) => e.key === 'Enter' && addTask()}
           />
-          <button type="button" onClick={addTask}>
-            Ajouter
-          </button>
+          <div className="add-task-meta">
+            <label>
+              Échéance
+              <input
+                type="date"
+                value={taskEcheance}
+                onChange={(e) => setTaskEcheance(e.target.value)}
+              />
+            </label>
+            <label>
+              Urgence
+              <select
+                value={taskNiveau}
+                onChange={(e) => setTaskNiveau(Number(e.target.value))}
+              >
+                <option value={3}>Urgent (rouge)</option>
+                <option value={2}>À faire (jaune)</option>
+                <option value={1}>Info (gris)</option>
+              </select>
+            </label>
+            {bureau.length ? (
+              <label>
+                Responsable
+                <select value={taskResp} onChange={(e) => setTaskResp(e.target.value)}>
+                  {bureau.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.nom}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            <button type="button" onClick={addTask}>
+              Ajouter
+            </button>
+          </div>
         </div>
         <p className="hint">
-          Modèles proposés à la création :{' '}
+          Modèles proposés :{' '}
           {MODELES_TACHES.map((m, i) => (
             <button
               key={m.titre}
               type="button"
               className="edit-mark"
               style={{ marginRight: 6 }}
-              onClick={() => addModele(m.titre, m.niveau)}
+              onClick={() => addModele(m.titre, m.niveau, m.offsetDays)}
             >
               {m.titre.split('—')[0].trim()}
               {i < MODELES_TACHES.length - 1 ? ',' : '.'}
@@ -193,41 +522,243 @@ export function AffaireSheet({
                 {m.auteur.nom}
                 <small>{formatDateFr(m.createdAt)}</small>
               </div>
-              {m.photoLabel ? <p>📷 {m.photoLabel}</p> : null}
+              {m.fichier && /\.(jpe?g|png|webp|gif|heic)$/i.test(m.fichier) ? (
+                <a href={m.fichier} target="_blank" rel="noreferrer">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={m.fichier}
+                    alt={m.photoLabel ?? 'Photo'}
+                    style={{
+                      maxWidth: '100%',
+                      maxHeight: 180,
+                      borderRadius: 6,
+                      margin: '6px 0',
+                    }}
+                  />
+                </a>
+              ) : m.fichier ? (
+                <p>
+                  <a href={m.fichier} target="_blank" rel="noreferrer">
+                    📎 {m.photoLabel ?? 'Pièce jointe'}
+                  </a>
+                </p>
+              ) : m.photoLabel ? (
+                <p>📷 {m.photoLabel}</p>
+              ) : null}
               {m.texte ? <p>{m.texte}</p> : null}
             </div>
           ),
         )}
-        <div className="add-task">
+        <div className="add-task" style={{ alignItems: 'center' }}>
+          <label className="ic" title="Pièce jointe" style={{ cursor: 'pointer' }}>
+            📎
+            <input
+              type="file"
+              hidden
+              accept=".pdf,.doc,.docx,.xls,.xlsx,application/pdf,image/*"
+              onChange={(e) => onFilePick(e, 'pj')}
+            />
+          </label>
+          <label className="ic" title="Photo" style={{ cursor: 'pointer' }}>
+            📷
+            <input
+              type="file"
+              hidden
+              accept="image/*"
+              capture="environment"
+              onChange={(e) => onFilePick(e, 'photo')}
+            />
+          </label>
           <input
             value={msg}
             onChange={(e) => setMsg(e.target.value)}
-            placeholder="Écrire à l'équipe…"
+            placeholder={uploading ? 'Envoi…' : "Écrire à l'équipe…"}
+            disabled={uploading}
             onKeyDown={(e) => e.key === 'Enter' && sendMsg()}
           />
-          <button type="button" onClick={sendMsg}>
+          <button type="button" onClick={sendMsg} disabled={uploading}>
             Envoyer
           </button>
         </div>
         <p className="hint">
-          Tout se dit ici, pas par mail. Denis et Philippe répondent depuis le chantier, photos
-          comprises.
+          Tout se dit ici, pas par mail — le même fil apparaît aussi dans{' '}
+          <a href={`/messages?thread=${encodeURIComponent(a.numeroDevis)}`}>Messages</a>. Denis et
+          Philippe répondent depuis le chantier, photos comprises.
         </p>
       </>
     );
   }
 
   if (tab === 'pieces') {
+    const filteredPieces = pieceFilter
+      ? a.pieces.filter((p) => p.type === pieceFilter)
+      : a.pieces;
     body = (
       <>
-        {a.pieces.map((p) => (
-          <div className="piece" key={p.id}>
-            <span>{p.titre}</span>
-            <small>PDF · {formatDateFr(p.createdAt)}</small>
-          </div>
-        ))}
+        <div className="piece-toolbar">
+          <label>
+            Type de document
+            <select
+              value={pieceType}
+              onChange={(e) => setPieceType(e.target.value)}
+              aria-label="Sélectionner le type de document"
+            >
+              {PIECE_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {PIECE_TYPE_LABEL[t]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Afficher
+            <select
+              value={pieceFilter}
+              onChange={(e) => setPieceFilter(e.target.value)}
+              aria-label="Filtrer les documents"
+            >
+              <option value="">Tous les documents ({a.pieces.length})</option>
+              {PIECE_TYPES.map((t) => {
+                const n = a.pieces.filter((p) => p.type === t).length;
+                return (
+                  <option key={t} value={t}>
+                    {PIECE_TYPE_LABEL[t]}
+                    {n ? ` (${n})` : ''}
+                  </option>
+                );
+              })}
+            </select>
+          </label>
+        </div>
+
+        {filteredPieces.length === 0 ? (
+          <p className="hint">
+            {pieceFilter
+              ? `Aucun document « ${PIECE_TYPE_LABEL[pieceFilter] ?? pieceFilter} » pour l’instant.`
+              : 'Aucun document. Choisissez le type puis joignez le fichier.'}
+          </p>
+        ) : (
+          filteredPieces.map((p) => (
+            <div className="piece" key={p.id}>
+              <span>
+                {p.fichier ? (
+                  <a href={p.fichier} target="_blank" rel="noreferrer">
+                    {p.titre}
+                  </a>
+                ) : (
+                  p.titre
+                )}
+              </span>
+              <small>
+                {PIECE_TYPE_LABEL[p.type ?? 'autre'] ?? p.type ?? 'Document'} ·{' '}
+                {formatDateFr(p.createdAt)}
+              </small>
+            </div>
+          ))
+        )}
+
+        <div className="add-task" style={{ marginTop: 12, alignItems: 'center' }}>
+          <label className="ic" title="Ajouter une PJ" style={{ cursor: 'pointer' }}>
+            📎
+            <input
+              type="file"
+              hidden
+              accept=".pdf,.doc,.docx,.xls,.xlsx,application/pdf,image/*"
+              onChange={(e) => onFilePick(e, 'pj')}
+            />
+          </label>
+          <label className="ic" title="Ajouter une photo" style={{ cursor: 'pointer' }}>
+            📷
+            <input
+              type="file"
+              hidden
+              accept="image/*"
+              capture="environment"
+              onChange={(e) => onFilePick(e, 'photo')}
+            />
+          </label>
+          <span className="hint" style={{ margin: 0 }}>
+            {uploading
+              ? 'Envoi en cours…'
+              : `Joindre : ${PIECE_TYPE_LABEL[pieceType] ?? 'document'}`}
+          </span>
+        </div>
         <p className="hint">
-          Le dossier physique devient cette liste. Photographiable depuis le téléphone.
+          Sélectionnez le type (devis, OS, autorisation…), puis joignez le fichier. Le dossier
+          physique devient cette liste — photographiable depuis le téléphone.
+        </p>
+      </>
+    );
+  }
+
+  if (tab === 'plan') {
+    const slots = a.planning ?? [];
+    body = (
+      <>
+        <p className="hint" style={{ marginBottom: 12 }}>
+          Le devis validé devient une intervention au planning. Même adresse, même équipe, mêmes
+          dates — les alertes Aujourd&apos;hui se recalent dessus.
+        </p>
+        <dl className="kv">
+          <dt>Début</dt>
+          <dd>{formatDateFr(a.dateDebut ?? null)}</dd>
+          <dt>Fin</dt>
+          <dd>{formatDateFr(a.dateFin ?? null)}</dd>
+          <dt>Charge</dt>
+          <dd>{a.joursCharge} j</dd>
+          <dt>Équipe</dt>
+          <dd>{a.equipe?.nom ?? '—'}</dd>
+          {a.contratEntretien ? (
+            <>
+              <dt>Mois CE</dt>
+              <dd>
+                {MOIS_CE[a.contratEntretien.moisContractuel] ?? '—'} ·{' '}
+                {a.contratEntretien.exercice}
+              </dd>
+            </>
+          ) : null}
+        </dl>
+
+        {slots.length > 0 ? (
+          <div style={{ marginTop: 14 }}>
+            <span className="eyebrow">Créneaux planning</span>
+            {slots.map((s) => (
+              <div className="piece" key={s.id}>
+                <span>
+                  {formatDateShort(s.date)} · {s.equipe}
+                </span>
+                <small>{s.type === 'ce' ? 'Contrat entretien' : 'Chantier'}</small>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="hint" style={{ marginTop: 12 }}>
+            Pas encore de créneau. Posez la date ci-dessous.
+          </p>
+        )}
+
+        <div className="add-task" style={{ marginTop: 16, flexWrap: 'wrap' }}>
+          <input
+            type="date"
+            value={dateDebut}
+            onChange={(e) => setDateDebut(e.target.value)}
+            style={{ flex: '1 1 140px' }}
+          />
+          <input
+            type="number"
+            min={1}
+            placeholder="Jours"
+            value={jours}
+            onChange={(e) => setJours(e.target.value)}
+            style={{ width: 72 }}
+          />
+          <button type="button" onClick={programmer} disabled={busy || !dateDebut}>
+            Programmer
+          </button>
+        </div>
+        <p className="hint">
+          Programmer = statut PROGRAMMÉ + créneaux + tâches (benne, autorisation, factures)
+          recalées sur la date d&apos;intervention.
         </p>
       </>
     );
@@ -236,27 +767,66 @@ export function AffaireSheet({
   if (tab === 'fact') {
     const acompte = a.factures.find((f) => f.type === 'acompte');
     const solde = a.factures.find((f) => f.type === 'solde');
+    const factureRows: {
+      type: 'acompte' | 'solde';
+      label: string;
+      f: typeof acompte;
+    }[] = [
+      { type: 'acompte', label: "Facture d'acompte", f: acompte },
+      { type: 'solde', label: 'Facture de solde', f: solde },
+    ];
     body = (
       <>
-        <div className="piece">
-          <span>Facture d&apos;acompte</span>
-          <small>
-            {acompte
-              ? `${eur(acompte.montant)}${acompte.dateEncaissement ? ' · encaissée' : ''}`
-              : 'non émise'}
-          </small>
-        </div>
-        <div className="piece">
-          <span>Facture de solde</span>
-          <small>{solde ? 'émise' : 'non émise'}</small>
-        </div>
+        <p className="hint" style={{ marginBottom: 10 }}>
+          Cochez le traitement de chaque facture : non émise → émise → encaissée. Ça met à jour le
+          portefeuille et les alertes Aujourd&apos;hui.
+        </p>
+        {factureRows.map(({ type, label, f }) => (
+          <div className="piece fact-row" key={type}>
+            <span>
+              {label}
+              {f ? (
+                <small className="fact-mt" style={{ display: 'block', marginTop: 2 }}>
+                  {eur(f.montant)}
+                </small>
+              ) : null}
+            </span>
+            <select
+              className="fact-select"
+              disabled={busy}
+              value={factureTraitement(f)}
+              onChange={(e) =>
+                void setTraitementFacture(type, e.target.value as FactureTraitement)
+              }
+              aria-label={`Traitement ${label}`}
+            >
+              {FACTURE_TRAITEMENT.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        ))}
         <div className="piece">
           <span>Reste à facturer</span>
-          <small>{eur(a.montantHt - a.acompteHt)}</small>
+          <small>
+            {eur(
+              Math.max(
+                0,
+                a.montantHt -
+                  (acompte?.dateEncaissement || acompte?.dateEmission
+                    ? acompte.montant
+                    : a.acompteHt || 0) -
+                  (solde?.dateEncaissement || solde?.dateEmission ? solde.montant : 0),
+              ),
+            )}
+          </small>
         </div>
         <p className="hint">
-          Traçabilité complète : devis, acompte, solde, encaissement, sur la même fiche que le
-          chantier.
+          Traçabilité complète : devis, acompte, solde, encaissement — sur la même fiche que le
+          chantier. L&apos;émission coche l&apos;alerte facture ; l&apos;encaissement éteint la
+          relance impayé.
         </p>
       </>
     );
@@ -270,33 +840,148 @@ export function AffaireSheet({
           <button type="button" className="sheet-close" onClick={onClose}>
             ✕
           </button>
+          <div className="sheet-head-actions">
+            {!editing ? (
+              <button type="button" className="btn-edit" onClick={startEdit}>
+                ✎ Modifier
+              </button>
+            ) : (
+              <>
+                <button type="button" className="btn-note" onClick={() => setEditing(false)}>
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={saveEdit}
+                  disabled={busy}
+                >
+                  Enregistrer
+                </button>
+              </>
+            )}
+          </div>
           <span className="eyebrow">
-            Affaire {a.numeroDevis} · {st}
+            {isCe ? 'Contrat d’entretien' : 'Affaire'} {a.numeroDevis} · {st}
           </span>
-          <h3>{a.client}</h3>
-          <div className="adr">{a.adresse}</div>
-          <dl className="kv">
-            <dt>Montant HT</dt>
-            <dd>{eur(a.montantHt)}</dd>
-            <dt>Jours de charge</dt>
-            <dd>{a.joursCharge} j</dd>
-            <dt>Devis du</dt>
-            <dd>{formatDateFr(a.dateDevis)}</dd>
-            <dt>Acompte</dt>
-            <dd>{a.acompteHt ? eur(a.acompteHt) : '—'}</dd>
-          </dl>
-          {a.note ? (
-            <p className="hint" style={{ marginTop: 10, color: 'var(--flamme)' }}>
-              ▲ {a.note}
-            </p>
-          ) : null}
+          {editing ? (
+            <form
+              className="edit-affaire-form"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void saveEdit();
+              }}
+            >
+              <label>
+                Client
+                <input
+                  value={form.client}
+                  onChange={(e) => setForm({ ...form, client: e.target.value })}
+                  required
+                />
+              </label>
+              <label>
+                Adresse du chantier
+                <input
+                  value={form.adresse}
+                  onChange={(e) => setForm({ ...form, adresse: e.target.value })}
+                  required
+                />
+              </label>
+              <div className="edit-row">
+                <label>
+                  Montant HT
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={form.montantHt}
+                    onChange={(e) => setForm({ ...form, montantHt: e.target.value })}
+                  />
+                </label>
+                <label>
+                  Acompte HT
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={form.acompteHt}
+                    onChange={(e) => setForm({ ...form, acompteHt: e.target.value })}
+                  />
+                </label>
+                <label>
+                  Jours
+                  <input
+                    type="number"
+                    min={0}
+                    value={form.joursCharge}
+                    onChange={(e) => setForm({ ...form, joursCharge: e.target.value })}
+                  />
+                </label>
+              </div>
+              <div className="edit-row">
+                <label>
+                  Statut
+                  <select
+                    value={form.statut}
+                    onChange={(e) => setForm({ ...form, statut: e.target.value })}
+                  >
+                    <option value="commande">Commande</option>
+                    <option value="programme">Programmé</option>
+                    <option value="encours">En cours</option>
+                    <option value="solde">Soldé</option>
+                  </select>
+                </label>
+                <label>
+                  Date devis
+                  <input
+                    type="date"
+                    value={form.dateDevis}
+                    onChange={(e) => setForm({ ...form, dateDevis: e.target.value })}
+                  />
+                </label>
+              </div>
+              <label>
+                Note / alerte
+                <input
+                  value={form.note}
+                  onChange={(e) => setForm({ ...form, note: e.target.value })}
+                  placeholder="ex. acompte non réglé"
+                />
+              </label>
+            </form>
+          ) : (
+            <>
+              <h3>{a.client}</h3>
+              <div className="adr">{a.adresse}</div>
+              <dl className="kv">
+                <dt>Montant HT</dt>
+                <dd>{eur(a.montantHt)}</dd>
+                <dt>Jours de charge</dt>
+                <dd>{a.joursCharge} j</dd>
+                <dt>Devis du</dt>
+                <dd>{formatDateFr(a.dateDevis)}</dd>
+                <dt>Acompte</dt>
+                <dd>{a.acompteHt ? eur(a.acompteHt) : '—'}</dd>
+              </dl>
+              <p className="hint" style={{ marginTop: 10 }}>
+                Fil conducteur : devis validé → planning →{' '}
+                {isCe ? 'anniversaire CE → ' : ''}
+                alertes Aujourd&apos;hui → facturation.
+              </p>
+              {a.note ? (
+                <p className="hint" style={{ marginTop: 6, color: 'var(--flamme)' }}>
+                  ▲ {a.note}
+                </p>
+              ) : null}
+            </>
+          )}
         </div>
         <div className="sheet-tabs">
           {(
             [
               ['taches', 'Tâches'],
-              ['fil', 'Fil de discussion'],
+              ['fil', 'Fil'],
               ['pieces', 'Pièces'],
+              ['plan', 'Planning'],
               ['fact', 'Facturation'],
             ] as const
           ).map(([k, v]) => (

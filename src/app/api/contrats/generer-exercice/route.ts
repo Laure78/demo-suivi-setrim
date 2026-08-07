@@ -5,8 +5,8 @@ import { NextResponse } from 'next/server';
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
-  if (session.user.role !== 'responsable' && session.user.role !== 'dirigeant') {
-    return NextResponse.json({ error: 'Réservé à Valérie / Denis' }, { status: 403 });
+  if (session.user.role !== 'responsable' && session.user.role !== 'dirigeant' && session.user.role !== 'assistante') {
+    return NextResponse.json({ error: 'Droits insuffisants' }, { status: 403 });
   }
 
   const body = await req.json().catch(() => ({}));

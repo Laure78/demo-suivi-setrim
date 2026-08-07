@@ -7,15 +7,29 @@ export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
 
-  const thread = new URL(req.url).searchParams.get('thread') ?? 'gen';
+  const url = new URL(req.url);
+  const thread = url.searchParams.get('thread') ?? 'gen';
+  const affaireIdParam = url.searchParams.get('affaireId');
   const meta = await prisma.threadMeta.findUnique({ where: { id: thread } });
+
+  const affaire =
+    affaireIdParam
+      ? await prisma.affaire.findUnique({ where: { id: affaireIdParam } })
+      : await prisma.affaire.findFirst({ where: { numeroDevis: thread } });
+
   const messages = await prisma.message.findMany({
-    where: { threadKey: thread },
+    where: affaire
+      ? { OR: [{ threadKey: thread }, { affaireId: affaire.id }] }
+      : { threadKey: thread },
     include: { auteur: { select: { nom: true, initiales: true, avatarUrl: true } } },
     orderBy: { createdAt: 'asc' },
   });
 
-  return NextResponse.json({ messages, pin: meta?.pin ?? '' });
+  return NextResponse.json({
+    messages,
+    pin: meta?.pin ?? '',
+    affaireId: affaire?.id ?? null,
+  });
 }
 
 export async function POST(req: Request) {
@@ -31,18 +45,18 @@ export async function POST(req: Request) {
   }
 
   const threadKey = String(body.threadKey ?? 'gen');
-  const affaireId = body.affaireId ? String(body.affaireId) : null;
+  let affaireId = body.affaireId ? String(body.affaireId) : null;
 
   // Messagerie interne (Équipe / DM) OU fil chantier (affaire)
+  let affaire = affaireId
+    ? await prisma.affaire.findUnique({ where: { id: affaireId } })
+    : null;
+
   if (threadKey !== 'gen') {
     const user = await prisma.user.findUnique({ where: { id: threadKey } });
-    const affaire =
-      !user &&
-      (await prisma.affaire.findFirst({
-        where: affaireId
-          ? { id: affaireId }
-          : { numeroDevis: threadKey },
-      }));
+    if (!user && !affaire) {
+      affaire = await prisma.affaire.findFirst({ where: { numeroDevis: threadKey } });
+    }
     if (!user && !affaire) {
       return NextResponse.json(
         {
@@ -52,12 +66,13 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
+    if (affaire) affaireId = affaire.id;
   }
 
   const msg = await prisma.message.create({
     data: {
       threadKey,
-      affaireId: affaireId ?? null,
+      affaireId,
       auteurId: session.user.id,
       texte: texte || null,
       photoLabel,

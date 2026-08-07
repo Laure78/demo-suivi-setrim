@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { daysLate, formatDateShort, NIVEAU_LABEL } from '@/lib/format';
@@ -11,6 +12,16 @@ export type PostitTache = {
   dateEcheance: string;
   fait: boolean;
   libelle: string;
+  affaireId?: string | null;
+};
+
+export type ChantierDuJour = {
+  id: string;
+  titre: string;
+  detail: string;
+  ce?: boolean;
+  affaireId?: string | null;
+  numeroDevis?: string | null;
 };
 
 export function TodayWall({
@@ -22,11 +33,16 @@ export function TodayWall({
   taches: PostitTache[];
   userName: string;
   userRole: string;
-  chantiers: { titre: string; detail: string; ce?: boolean }[];
+  chantiers: ChantierDuJour[];
 }) {
   const router = useRouter();
   const [gone, setGone] = useState<Record<string, boolean>>({});
-  const mine = taches.filter((t) => !t.fait && !gone[t.id]);
+  const mine = taches
+    .filter((t) => !t.fait && !gone[t.id])
+    .sort((a, b) => {
+      if (b.niveau !== a.niveau) return b.niveau - a.niveau;
+      return new Date(a.dateEcheance).getTime() - new Date(b.dateEcheance).getTime();
+    });
   const done = taches.filter((t) => t.fait);
 
   async function check(id: string) {
@@ -35,23 +51,29 @@ export function TodayWall({
     setTimeout(() => router.refresh(), 340);
   }
 
+  function portefeuilleHref(c: ChantierDuJour) {
+    if (c.affaireId) return `/portefeuille?affaire=${encodeURIComponent(c.affaireId)}`;
+    if (c.numeroDevis) return `/portefeuille?devis=${encodeURIComponent(c.numeroDevis)}`;
+    return '/portefeuille';
+  }
+
   return (
     <>
       <div className="sec-head">
         <span className="eyebrow">
-          Vos alertes — {userName}, {userRole}
+          Tâches à faire — {userName}, {userRole}
         </span>
       </div>
       <p className="hint">
-        Un post-it = une tâche. Tant que la case n&apos;est pas cochée, la notification revient tous
-        les jours sur le téléphone et sur l&apos;ordinateur. Rouge = urgent, jaune = à faire, gris =
-        information.
+        Les tâches créées sur une affaire (urgence + échéance) arrivent ici. Rouge = urgent, jaune =
+        à faire, gris = info. Tant que la case n&apos;est pas cochée, l&apos;alerte revient chaque
+        jour.
       </p>
       <div className="wall" style={{ marginTop: 14 }}>
         {mine.length === 0 ? (
           <div className="card" style={{ padding: 26, gridColumn: '1 / -1' }}>
             <div className="eyebrow">Rien en attente</div>
-            <p style={{ marginTop: 6 }}>Aucune alerte pour {userName}. Tout est coché.</p>
+            <p style={{ marginTop: 6 }}>Aucune tâche à faire pour {userName}. Tout est coché.</p>
           </div>
         ) : (
           mine.map((t) => {
@@ -62,9 +84,7 @@ export function TodayWall({
                 className={`postit n${t.niveau}${gone[t.id] ? ' gone' : ''}`}
               >
                 {late > 0 ? (
-                  <span className="pi-late">
-                    EN RETARD · {late} j
-                  </span>
+                  <span className="pi-late">EN RETARD · {late} j</span>
                 ) : null}
                 <div className="pi-aff">{t.libelle}</div>
                 <div className="pi-title">{t.titre}</div>
@@ -93,12 +113,20 @@ export function TodayWall({
       <div className="sec-head">
         <span className="eyebrow">Les chantiers du jour</span>
       </div>
+      <p className="hint" style={{ marginBottom: 10 }}>
+        Cliquez un chantier pour ouvrir l&apos;affaire dans le portefeuille.
+      </p>
       <div className="today-jobs">
         {chantiers.map((c) => (
-          <div key={c.titre} className={`card job${c.ce ? ' ce' : ''}`}>
+          <Link
+            key={c.id}
+            href={portefeuilleHref(c)}
+            className={`card job job-link${c.ce ? ' ce' : ''}`}
+          >
             <h4>{c.titre}</h4>
             <p>{c.detail}</p>
-          </div>
+            <span className="job-go">Voir dans le portefeuille →</span>
+          </Link>
         ))}
       </div>
     </>

@@ -9,6 +9,8 @@ const BUREAU_IDS = new Set(['audrey', 'melissa', 'valerie', 'denis', 'philippe']
 
 type Conv = {
   id: string;
+  kind?: 'gen' | 'user' | 'affaire';
+  affaireId?: string | null;
   titre: string;
   sousTitre: string;
   avatar: string;
@@ -77,6 +79,8 @@ export function MessagesView({
   const [uploading, setUploading] = useState(false);
 
   function canDeleteConv(id: string) {
+    const c0 = convs.find((x) => x.id === id);
+    if (c0?.kind === 'affaire' || c0?.kind === 'gen') return false;
     return canAdd && id !== 'gen' && id !== meId && !BUREAU_IDS.has(id);
   }
 
@@ -87,12 +91,16 @@ export function MessagesView({
       (x) =>
         x.titre.toLowerCase().includes(s) ||
         x.sousTitre.toLowerCase().includes(s) ||
-        x.avatar.toLowerCase().includes(s),
+        x.avatar.toLowerCase().includes(s) ||
+        (x.affaireId ?? '').toLowerCase().includes(s),
     );
   }, [convs, q]);
 
   async function load(id: string) {
-    const r = await fetch(`/api/messages?thread=${encodeURIComponent(id)}`);
+    const c0 = convs.find((x) => x.id === id);
+    const qs = new URLSearchParams({ thread: id });
+    if (c0?.affaireId) qs.set('affaireId', c0.affaireId);
+    const r = await fetch(`/api/messages?${qs}`);
     if (!r.ok) return;
     const j = await r.json();
     setMsgs(j.messages);
@@ -102,6 +110,10 @@ export function MessagesView({
   useEffect(() => {
     setConvs(initialConvs);
   }, [initialConvs]);
+
+  useEffect(() => {
+    setConv(initialThread);
+  }, [initialThread]);
 
   useEffect(() => {
     setMeAvatarUrl(meAvatarInitial);
@@ -121,7 +133,11 @@ export function MessagesView({
     await fetch('/api/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ threadKey: conv, texte: v }),
+      body: JSON.stringify({
+        threadKey: conv,
+        affaireId: c?.affaireId ?? null,
+        texte: v,
+      }),
     });
     setText('');
     await load(conv);
@@ -144,6 +160,7 @@ export function MessagesView({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           threadKey: conv,
+          affaireId: c?.affaireId ?? null,
           photoLabel: j.name,
           fichier: j.url,
           texte:
@@ -178,6 +195,7 @@ export function MessagesView({
         titre: m.texte.slice(0, 64),
         niveau: 2,
         threadKey: conv,
+        affaireId: c?.affaireId ?? null,
         fromMessage: true,
       }),
     });
@@ -279,8 +297,8 @@ export function MessagesView({
   return (
     <>
       <p className="hint" style={{ marginBottom: 12 }}>
-        Messagerie interne uniquement : le fil <b>Équipe SETRIM</b> et le direct entre collègues.
-        Aucun fil chantier ici — les échanges de chantier restent dans la fiche affaire. Zéro mail.
+        Même fil partout : <b>Équipe SETRIM</b>, collègues en direct, et les <b>fils chantier</b> (aussi
+        dans la fiche affaire). Zéro mail.
         {canAdd ? (
           <>
             {' '}
@@ -300,7 +318,7 @@ export function MessagesView({
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Rechercher un collègue…"
+              placeholder="Rechercher collègue ou chantier…"
             />
           </div>
           {canAdd ? (

@@ -4,6 +4,7 @@ import { Shell } from '@/components/Shell';
 import { TodayWall } from '@/components/TodayWall';
 import { ROLE_LABEL } from '@/lib/format';
 import { redirect } from 'next/navigation';
+import { assurerLiensGlobaux } from '@/lib/affaire-lifecycle';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,16 +12,24 @@ export default async function AujourdhuiPage() {
   const session = await auth();
   if (!session?.user) redirect('/login');
 
-  const taches = await prisma.tache.findMany({
-    where: { responsableId: session.user.id },
-    include: { affaire: true },
-    orderBy: [{ fait: 'asc' }, { dateEcheance: 'asc' }],
-  });
+  await assurerLiensGlobaux();
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const taches = await prisma.tache.findMany({
+    where: {
+      responsableId: session.user.id,
+      OR: [
+        { fait: false },
+        { fait: true, faitAt: { gte: today } },
+      ],
+    },
+    include: { affaire: true },
+    orderBy: [{ fait: 'asc' }, { niveau: 'desc' }, { dateEcheance: 'asc' }],
+  });
 
   const slots = await prisma.planningSlot.findMany({
     where: {
@@ -30,24 +39,56 @@ export default async function AujourdhuiPage() {
     include: { affaire: true, equipe: true },
   });
 
-  const chantiers =
+  let chantiers =
     slots.length > 0
-      ? slots.map((s) => ({
-          titre: s.affaire?.client ?? (s.label?.split('·')[0]?.trim() || 'Chantier'),
-          detail:
+      ? slots.map((s) => {
+          const titre =
+            s.affaire?.client ?? (s.label?.split('·')[0]?.trim() || 'Chantier');
+          const detail =
             s.label ??
-            `${s.affaire?.adresse ?? ''} — ${s.equipe.nom}`,
-          ce: s.type === 'ce',
-        }))
-      : [
-          { titre: 'SIMMONET', detail: '66 Bd Jean Jaurès, Clichy — équipes 1 et 2' },
-          { titre: 'SAB IMMOBILIER', detail: '4 Rue du Dr Paquelin, Paris 20 — équipe 2' },
-          {
-            titre: "CPAB — contrat d'entretien",
-            detail: '13/15 Rue Benjamin Franklin, Courbevoie',
-            ce: true,
-          },
-        ];
+            (s.affaire
+              ? `${s.affaire.client} · ${s.affaire.adresse}`
+              : `${titre} — ${s.equipe.nom}`);
+          return {
+            id: s.id,
+            titre,
+            detail,
+            ce: s.type === 'ce',
+            affaireId: s.affaireId ?? s.affaire?.id ?? null,
+            numeroDevis: s.affaire?.numeroDevis ?? null,
+          };
+        })
+      : [];
+
+  // Fallback démo : retrouver les affaires réelles pour le lien portefeuille
+  if (chantiers.length === 0) {
+    const fallbacks = [
+      { client: 'SAB IMMOBILIER', ce: false },
+      { client: 'SIMMONET', ce: false },
+      { client: 'CPAB', ce: true },
+    ];
+    const found = await Promise.all(
+      fallbacks.map(async (f) => {
+        const a = await prisma.affaire.findFirst({
+          where: { client: { contains: f.client, mode: 'insensitive' } },
+          orderBy: { dateDevis: 'desc' },
+        });
+        return {
+          id: a?.id ?? f.client,
+          titre: a?.client ?? f.client,
+          detail: a
+            ? `${a.client} · ${a.adresse}`
+            : f.ce
+              ? "Contrat d'entretien"
+              : 'Voir le portefeuille',
+          ce: f.ce,
+          affaireId: a?.id ?? null,
+          numeroDevis: a?.numeroDevis ?? null,
+        };
+      }),
+    );
+    chantiers = found;
+  }
 
   return (
     <Shell title="Aujourd'hui">
@@ -66,6 +107,7 @@ export default async function AujourdhuiPage() {
             (t.affaire
               ? `${t.affaire.client} · ${t.affaire.adresse.split(',')[0]}`
               : 'Sans affaire'),
+          affaireId: t.affaireId ?? t.affaire?.id ?? null,
         }))}
       />
     </Shell>

@@ -9,6 +9,7 @@ import {
   isWeekendUTC,
   syncChantiersAuPlanning,
 } from '@/lib/planning';
+import { assurerLiensGlobaux } from '@/lib/affaire-lifecycle';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,6 +26,7 @@ export default async function PlanningPage({ searchParams }: Props) {
       : now.getMonth();
 
   await ensurePrestataires();
+  await assurerLiensGlobaux();
   await syncChantiersAuPlanning(year, month);
 
   // Enrichir quelques créneaux démo pour le mois affiché (prestataires + absences)
@@ -93,8 +95,10 @@ export default async function PlanningPage({ searchParams }: Props) {
                   id: s.id,
                   type: s.type,
                   label: s.label,
+                  affaireId: s.affaireId,
                   affaire: s.affaire
                     ? {
+                        id: s.affaire.id,
                         client: s.affaire.client,
                         numeroDevis: s.affaire.numeroDevis,
                         adresse: s.affaire.adresse,

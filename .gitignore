@@ -43,3 +43,8 @@ next-env.d.ts
 
 !.env.example
 .env.local
+
+# fichiers uploadés (photos / PJ)
+/public/uploads/*
+!/public/uploads/.gitkeep
+

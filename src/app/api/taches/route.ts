@@ -2,6 +2,7 @@ import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { addDays } from 'date-fns';
+import { notifyUsers } from '@/lib/push-server';
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -15,6 +16,9 @@ export async function POST(req: Request) {
   const dateEcheance = body.dateEcheance
     ? new Date(body.dateEcheance)
     : addDays(new Date(), 1);
+  if (Number.isNaN(dateEcheance.getTime())) {
+    return NextResponse.json({ error: 'Échéance invalide' }, { status: 400 });
+  }
 
   let affaireId: string | null = body.affaireId ?? null;
   if (!affaireId && body.threadKey) {
@@ -24,14 +28,22 @@ export async function POST(req: Request) {
     affaireId = aff?.id ?? null;
   }
 
+  let libelleAffaire: string | null = body.libelleAffaire ?? null;
+  if (!libelleAffaire && affaireId) {
+    const aff = await prisma.affaire.findUnique({ where: { id: affaireId } });
+    if (aff) libelleAffaire = `${aff.client} · ${aff.adresse.split(',')[0]}`;
+  }
+
+  const responsableId = String(body.responsableId ?? session.user.id);
+
   const tache = await prisma.tache.create({
     data: {
       titre,
       niveau: Math.min(3, Math.max(1, niveau)),
       dateEcheance,
-      responsableId: body.responsableId ?? session.user.id,
+      responsableId,
       affaireId,
-      libelleAffaire: body.libelleAffaire ?? null,
+      libelleAffaire,
     },
   });
 
@@ -42,8 +54,20 @@ export async function POST(req: Request) {
         affaireId,
         auteurId: session.user.id,
         systeme: true,
-        texte: `${session.user.name} a créé une tâche depuis ce message — à faire, échéance ${dateEcheance.toLocaleDateString('fr-FR')}`,
+        texte: `${session.user.name} a créé une tâche depuis ce message — ${
+          niveau >= 3 ? 'urgent' : 'à faire'
+        }, échéance ${dateEcheance.toLocaleDateString('fr-FR')}`,
       },
+    });
+  }
+
+  // Remonte dans Aujourd'hui chez le responsable
+  if (responsableId !== session.user.id || niveau >= 2) {
+    await notifyUsers({
+      userIds: [responsableId],
+      title: niveau >= 3 ? 'Tâche urgente' : 'Tâche à faire',
+      body: `${titre} — échéance ${dateEcheance.toLocaleDateString('fr-FR')}`,
+      url: '/aujourdhui',
     });
   }
 

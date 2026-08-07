@@ -68,6 +68,44 @@ export const NIVEAU_LABEL: Record<number, string> = {
   3: 'Urgent',
 };
 
+/** Types de pièces du dossier affaire */
+export const PIECE_TYPE_LABEL: Record<string, string> = {
+  devis: 'Devis',
+  os: 'Ordre de service',
+  autorisation: 'Autorisation travaux / stationnement',
+  facture: 'Facture',
+  photo: 'Photo chantier',
+  autre: 'Autre document',
+};
+
+export const PIECE_TYPES = [
+  'devis',
+  'os',
+  'autorisation',
+  'facture',
+  'photo',
+  'autre',
+] as const;
+
+/** Traitement d'une facture (acompte / solde) */
+export const FACTURE_TRAITEMENT = [
+  { value: 'non_emise', label: 'Non émise' },
+  { value: 'emise', label: 'Émise' },
+  { value: 'encaissee', label: 'Encaissée' },
+] as const;
+
+export type FactureTraitement = (typeof FACTURE_TRAITEMENT)[number]['value'];
+
+export function factureTraitement(f: {
+  dateEmission: string | null;
+  dateEncaissement: string | null;
+} | null | undefined): FactureTraitement {
+  if (!f) return 'non_emise';
+  if (f.dateEncaissement) return 'encaissee';
+  if (f.dateEmission) return 'emise';
+  return 'non_emise';
+}
+
 export const ROLE_LABEL: Record<string, string> = {
   assistante: 'Assistante travaux',
   responsable: 'Resp. administrative et financière',

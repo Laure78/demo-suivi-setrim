@@ -2,10 +2,27 @@ import { Shell } from '@/components/Shell';
 import { AffairesView } from '@/components/AffairesView';
 import { prisma } from '@/lib/prisma';
 import { daysLate } from '@/lib/format';
+import { assurerLiensGlobaux } from '@/lib/affaire-lifecycle';
 
 export const dynamic = 'force-dynamic';
 
-export default async function PortefeuillePage() {
+export default async function PortefeuillePage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ affaire?: string; devis?: string }>;
+}) {
+  await assurerLiensGlobaux();
+
+  const sp = searchParams ? await searchParams : {};
+  let initialAffaireId = sp.affaire?.trim() || null;
+  if (!initialAffaireId && sp.devis?.trim()) {
+    const byDevis = await prisma.affaire.findUnique({
+      where: { numeroDevis: sp.devis.trim() },
+      select: { id: true },
+    });
+    initialAffaireId = byDevis?.id ?? null;
+  }
+
   const affaires = await prisma.affaire.findMany({
     include: {
       factures: true,
@@ -26,6 +43,7 @@ export default async function PortefeuillePage() {
     <Shell title="Portefeuille">
       <AffairesView
         counts={counts}
+        initialAffaireId={initialAffaireId}
         affaires={affaires.map((a) => {
           const hasAcompte = a.factures.some((f) => f.type === 'acompte');
           const hasSolde = a.factures.some((f) => f.type === 'solde');
