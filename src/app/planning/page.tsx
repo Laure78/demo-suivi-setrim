@@ -62,7 +62,7 @@ export default async function PlanningPage({ searchParams }: Props) {
       weekend: isWeekendUTC(year, month, day),
       ferie: isFerieUTC(year, month, day),
     };
-  });
+  }).filter((d) => !d.weekend);
 
   return (
     <Shell title="Planning">

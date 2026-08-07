@@ -220,9 +220,9 @@ export function PlanningView({
       </div>
 
       <p className="hint" style={{ marginBottom: 12 }}>
-        Cliquez <b>✎</b> sur un créneau pour le modifier, ou <b>+</b> dans une case pour en ajouter
-        un. Glisser-déposer pour déplacer. Les chantiers du portefeuille (programmés / en cours)
-        s&apos;y posent aussi automatiquement.
+        Semaine ouvrée uniquement (lundi → vendredi). Cliquez <b>✎</b> sur un créneau pour le
+        modifier, ou <b>+</b> dans une case pour en ajouter un. Glisser-déposer pour déplacer. Les
+        chantiers du portefeuille (programmés / en cours) s&apos;y posent aussi automatiquement.
       </p>
 
       <div className="plan-mois-tabs">
