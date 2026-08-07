@@ -1,69 +1,91 @@
 import { Shell } from '@/components/Shell';
 import { PlanningView } from '@/components/PlanningView';
 import { prisma } from '@/lib/prisma';
+import {
+  daysInMonth,
+  ensurePrestataires,
+  isoDateUTC,
+  isFerieUTC,
+  isWeekendUTC,
+} from '@/lib/planning';
 
 export const dynamic = 'force-dynamic';
 
-export default async function PlanningPage() {
-  const start = new Date(Date.UTC(2026, 7, 10));
-  const days = Array.from({ length: 5 }, (_, i) => {
-    const d = new Date(start);
-    d.setUTCDate(start.getUTCDate() + i);
-    return d;
-  });
+type Props = { searchParams: Promise<{ annee?: string; mois?: string }> };
 
-  const jours = days.map((d) =>
-    d.toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: '2-digit', timeZone: 'UTC' }),
-  );
+export default async function PlanningPage({ searchParams }: Props) {
+  const sp = await searchParams;
+  const now = new Date();
+  const year = Number(sp.annee) || now.getFullYear();
+  const monthParam = Number(sp.mois);
+  const month =
+    Number.isFinite(monthParam) && monthParam >= 1 && monthParam <= 12
+      ? monthParam - 1
+      : now.getMonth();
+
+  await ensurePrestataires();
+
+  // Enrichir quelques créneaux démo pour le mois affiché (prestataires + absences)
+  await seedMonthDemo(year, month);
+
+  const nDays = daysInMonth(year, month);
+  const from = new Date(Date.UTC(year, month, 1));
+  const to = new Date(Date.UTC(year, month, nDays));
 
   const equipes = await prisma.equipe.findMany({
     orderBy: { ordre: 'asc' },
     include: {
       slots: {
-        where: {
-          date: { gte: days[0], lte: days[4] },
-        },
+        where: { date: { gte: from, lte: to } },
         include: { affaire: true },
         orderBy: { createdAt: 'asc' },
       },
     },
   });
 
-  // Also surface dated tasks as planning rows (hint in cadrage)
   const taches = await prisma.tache.findMany({
     where: {
       fait: false,
-      dateEcheance: { gte: days[0], lte: days[4] },
+      dateEcheance: { gte: from, lte: to },
     },
+  });
+
+  const dayList = Array.from({ length: nDays }, (_, i) => {
+    const day = i + 1;
+    return {
+      day,
+      date: isoDateUTC(year, month, day),
+      weekend: isWeekendUTC(year, month, day),
+      ferie: isFerieUTC(year, month, day),
+    };
   });
 
   return (
     <Shell title="Planning">
       <PlanningView
-        jours={jours.map((j) => j.charAt(0).toUpperCase() + j.slice(1))}
+        year={year}
+        month={month}
         equipes={equipes.map((e) => ({
           id: e.id,
           nom: e.nom,
-          days: days.map((d) => {
-            const iso = d.toISOString().slice(0, 10);
+          categorie: e.categorie,
+          days: dayList.map((d) => {
             const slots = e.slots.filter(
-              (s) => s.date.toISOString().slice(0, 10) === iso,
+              (s) => s.date.toISOString().slice(0, 10) === d.date,
             );
-            // attach matching tasks to first equipe only for visibility
             const extra =
               e.ordre === 2
                 ? taches
-                    .filter((t) => t.dateEcheance.toISOString().slice(0, 10) === iso)
+                    .filter((t) => t.dateEcheance.toISOString().slice(0, 10) === d.date)
                     .map((t) => ({
                       id: `tache-${t.id}`,
                       type: 'tache',
                       label: t.titre,
-                      affaire: null,
+                      affaire: null as null,
                     }))
                 : [];
             return {
-              date: iso,
-              label: iso,
+              ...d,
               slots: [
                 ...slots.map((s) => ({
                   id: s.id,
@@ -87,4 +109,110 @@ export default async function PlanningPage() {
       />
     </Shell>
   );
+}
+
+/** Créneaux réalistes pour le mois (idempotent). */
+async function seedMonthDemo(year: number, month: number) {
+  if (year !== 2026) return;
+
+  const affaires = await prisma.affaire.findMany({
+    where: { statut: { in: ['programme', 'encours', 'commande'] } },
+    take: 8,
+  });
+  const byNum = Object.fromEntries(affaires.map((a) => [a.numeroDevis, a]));
+
+  const samples: { equipeId: string; day: number; type: string; label?: string; devis?: string }[] =
+    [];
+
+  if (month === 7) {
+    // Août 2026 — reprise de la démo maquette
+    samples.push(
+      { equipeId: 'eq1', day: 10, type: 'chantier', label: 'FONCIA · 196 Av. Victor Hugo, 75016 Paris' },
+      { equipeId: 'eq1', day: 11, type: 'chantier', label: 'FONCIA · 196 Av. Victor Hugo, 75016 Paris' },
+      { equipeId: 'eq1', day: 14, type: 'chantier', devis: '41811-1B' },
+      { equipeId: 'eq2', day: 10, type: 'chantier', devis: '41811-1B' },
+      { equipeId: 'eq2', day: 11, type: 'chantier', devis: '41811-1B' },
+      { equipeId: 'eq2', day: 12, type: 'chantier', devis: '40864' },
+      { equipeId: 'eq3', day: 13, type: 'absent', label: 'CONGÉS' },
+      { equipeId: 'eq3', day: 14, type: 'absent', label: 'CONGÉS' },
+      { equipeId: 'eq4', day: 14, type: 'absent', label: 'ABSENT' },
+      {
+        equipeId: 'presta-echafaudage',
+        day: 10,
+        type: 'presta',
+        label: 'Pose échafaudage · 74 Rue Mercadet, 75018 Paris',
+      },
+      {
+        equipeId: 'presta-echafaudage',
+        day: 11,
+        type: 'presta',
+        label: 'Dépose échafaudage · 74 Rue Mercadet, 75018 Paris',
+      },
+      {
+        equipeId: 'presta-bennes',
+        day: 10,
+        type: 'presta',
+        label: 'Benne 10 m³ · 66 Bd Jean Jaurès, 92110 Clichy',
+      },
+      {
+        equipeId: 'presta-bennes',
+        day: 14,
+        type: 'presta',
+        label: 'Reprise benne · 66 Bd Jean Jaurès, 92110 Clichy',
+      },
+    );
+  }
+
+  // Quelques absences récurrentes (1er lundi du mois pour eq3 si pas août)
+  if (month !== 7) {
+    for (let d = 1; d <= 7; d++) {
+      const dow = new Date(Date.UTC(year, month, d)).getUTCDay();
+      if (dow === 1) {
+        samples.push({ equipeId: 'eq3', day: d, type: 'absent', label: 'FORMATION' });
+        break;
+      }
+    }
+    if (byNum['41447']) {
+      samples.push({ equipeId: 'eq1', day: 15, type: 'chantier', devis: '41447' });
+    }
+    samples.push({
+      equipeId: 'presta-bennes',
+      day: 5,
+      type: 'presta',
+      label: 'Livraison benne · dépôt Aubervilliers',
+    });
+  }
+
+  for (const s of samples) {
+    const date = new Date(Date.UTC(year, month, s.day));
+    const affaireId = s.devis && byNum[s.devis] ? byNum[s.devis].id : null;
+    const label =
+      s.label ??
+      (affaireId && byNum[s.devis!]
+        ? `${byNum[s.devis!].client} · ${byNum[s.devis!].adresse}`
+        : null);
+
+    const exists = await prisma.planningSlot.findFirst({
+      where: {
+        equipeId: s.equipeId,
+        date,
+        type: s.type,
+      },
+    });
+    if (exists) continue;
+
+    // Vérifier que l'équipe existe
+    const eq = await prisma.equipe.findUnique({ where: { id: s.equipeId } });
+    if (!eq) continue;
+
+    await prisma.planningSlot.create({
+      data: {
+        equipeId: s.equipeId,
+        date,
+        type: s.type,
+        label,
+        affaireId,
+      },
+    });
+  }
 }

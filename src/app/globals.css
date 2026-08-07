@@ -288,10 +288,44 @@ td.num{text-align:right;font-family:"IBM Plex Mono",monospace}
 .blk.abs{background:#EEEFEC;border-left-color:#B4BAB3;color:var(--zinc)}
 .blk b{display:block;font-weight:600}
 .blk small{display:block;margin-top:3px;font-family:"IBM Plex Mono",monospace;color:var(--zinc);font-size:10px}
+.blk .adr-plan{display:block;font-size:10.5px;line-height:1.25;margin-top:2px;color:#3D4741}
 .blk.task{background:#FCF3D8;border-left-color:var(--postit-dark)}
 .blk.task.n3{background:#F8E7E1;border-left-color:var(--flamme)}
+.blk.presta-blk{background:#F3E8F7;border-left-color:#7B4B9A}
 .legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:11.5px;color:var(--zinc)}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+
+.plan-toolbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.plan-nav{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.plan-month-title{font-family:"Archivo",sans-serif;font-size:18px;font-weight:700;margin:0}
+.plan-year-pills{display:flex;gap:6px}
+.plan-year-pill{
+  font-family:"IBM Plex Mono",monospace;font-size:12px;padding:4px 10px;border-radius:3px;
+  border:1px solid var(--trait);color:var(--zinc);background:#fff;
+}
+.plan-year-pill.on{background:var(--bleu);border-color:var(--bleu);color:#fff;font-weight:600}
+.plan-mois-tabs{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px}
+.plan-mois-tabs a{
+  font-size:11.5px;padding:5px 8px;border-radius:3px;color:var(--zinc);
+  border:1px solid transparent;
+}
+.plan-mois-tabs a:hover{background:#EFF1EC}
+.plan-mois-tabs a.on{background:var(--bleu);color:#fff;font-weight:600}
+.plan-civil{min-width:1400px;table-layout:fixed}
+.plan-civil th{padding:4px 2px;font-size:10px;width:42px}
+.plan-civil th .d-num{display:block;font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:12px}
+.plan-civil th .d-wd{display:block;font-size:9px;color:var(--zinc);text-transform:uppercase}
+.plan-civil th.eq,.plan-civil td.eq{width:148px;min-width:148px}
+.plan-civil td{padding:3px;height:88px;width:42px}
+.plan-civil th.we,.plan-civil td.we{background:#F7F8F5}
+.plan-civil th.ferie,.plan-civil td.ferie{background:#F8E7E1}
+.plan-civil tr.presta td.eq{background:#F8F3FB}
+.presta-tag{
+  display:block;font-size:9px;letter-spacing:.08em;text-transform:uppercase;
+  color:#7B4B9A;margin-bottom:2px;font-weight:600;
+}
+.plan-civil .blk{font-size:10px;padding:3px 4px;margin-bottom:2px}
+.plan-civil .blk .adr-plan{font-size:9.5px}
 
 /* ---------- 4. contrats ---------- */
 .months{border-collapse:collapse;width:100%;min-width:1060px;background:#fff;table-layout:fixed}

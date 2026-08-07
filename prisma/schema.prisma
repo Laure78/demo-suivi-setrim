@@ -159,12 +159,14 @@ model ContratEntretien {
 }
 
 model Equipe {
-  id       String @id @default(cuid())
-  nom      String
-  chef     String
-  ordre    Int    @default(0)
-  affaires Affaire[]
-  slots    PlanningSlot[]
+  id         String @id @default(cuid())
+  nom        String
+  chef       String
+  ordre      Int    @default(0)
+  /// equipe | prestataire
+  categorie  String @default("equipe")
+  affaires   Affaire[]
+  slots      PlanningSlot[]
 }
 
 model PlanningSlot {
