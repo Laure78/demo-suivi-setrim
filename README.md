@@ -16,7 +16,8 @@ npm install
 npm run dev
 ```
 
-Connexion démo : n’importe quel compte listé, mot de passe `setrim2026`.
+Connexion démo (accès unique) : identifiant `setrim`, mot de passe `setrim2026`.
+Puis choisir « Je suis » dans le bandeau pour changer de profil.
 
 ## Modules livrés (v9)
 

@@ -6,7 +6,7 @@
  */
 
 import * as XLSX from 'xlsx';
-import { addDays, todayISO, toISODate } from './dates';
+import { addDays, todayISO, toISODate } from '@/lib/dates';
 
 /** Colonnes attendues (libellés « canoniques » affichés à l'utilisateur). */
 export const EXPECTED_COLUMNS = [

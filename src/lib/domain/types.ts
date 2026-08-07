@@ -181,6 +181,28 @@ export type ChecklistModele = {
   items: ChecklistModeleItem[];
 };
 
+export type ChecklistItemHistoryKind =
+  | 'create'
+  | 'check'
+  | 'uncheck'
+  | 'edit'
+  | 'archive'
+  | 'restore'
+  | 'reorder'
+  | 'add_to_modele';
+
+export type ChecklistItemHistoryEntry = {
+  id: string;
+  at: string;
+  userId: UserId;
+  userName: string;
+  kind: ChecklistItemHistoryKind;
+  detail: string;
+  /** Horodatage de réalisation conservé lors d'un décochage */
+  previousDateFait?: string;
+  previousFaitPar?: string;
+};
+
 export type ChecklistItem = {
   id: string;
   checklistId: string;
@@ -192,6 +214,19 @@ export type ChecklistItem = {
   faitPar?: string;
   commentaire: string;
   pieceJointe?: string;
+  /** Ordre d'affichage (glisser-déposer) */
+  ordre: number;
+  /** Responsable */
+  assigneeId?: UserId;
+  actionId?: string;
+  messageId?: string;
+  /** Créé manuellement (hors modèle) */
+  manuel?: boolean;
+  archived?: boolean;
+  archiveMotif?: string;
+  archivedAt?: string;
+  archivedBy?: string;
+  history: ChecklistItemHistoryEntry[];
 };
 
 export type Checklist = {
@@ -200,15 +235,43 @@ export type Checklist = {
   modeleId: string;
 };
 
+export type ActionPriorite = 'basse' | 'normale' | 'haute' | 'bloquante';
+export type ActionStatut = 'OUVERT' | 'FAIT' | 'ANNULE';
+
+/** Action assignable — créée manuellement ou depuis un message. */
+export type ActionItem = {
+  id: string;
+  libelle: string;
+  echeance: string;
+  assigneeId: UserId;
+  priorite: ActionPriorite;
+  statut: ActionStatut;
+  affaireId?: string;
+  checklistItemId?: string;
+  messageId?: string;
+  creePar: UserId;
+  createdAt: string;
+  dateFait?: string;
+  faitPar?: string;
+};
+
 export type NotaType = 'AUTO' | 'MANUEL';
 export type NotaStatut = 'OUVERT' | 'FAIT' | 'ANNULE';
 export type NotaPriorite = 'basse' | 'normale' | 'haute' | 'bloquante';
+
+export type NotaReport = {
+  date: string;
+  motif: string;
+  parUserId: UserId;
+  ancienneEcheance: string;
+  nouvelleEcheance: string;
+};
 
 export type Nota = {
   id: string;
   objet: string;
   type: NotaType;
-  /** ex. affaire:xyz / contrat:abc / facture:… */
+  /** ex. affaire:xyz / contrat:abc / facture:… / commande:… */
   entiteLiee: string;
   echeance: string;
   responsableId: UserId;
@@ -217,6 +280,28 @@ export type Nota = {
   dateCloture?: string;
   creePar: UserId;
   createdAt: string;
+  /** Clé stable pour dédupliquer les notas AUTO */
+  alertKey?: string;
+  /** Bloque la planification (ex. acompte non reçu) */
+  bloquePlanification?: boolean;
+  /** Niveau relance facture 1 / 2 / 3 */
+  niveauRelance?: 1 | 2 | 3;
+  archived?: boolean;
+  archiveMotif?: string;
+  archivedAt?: string;
+  archivedBy?: string;
+  reports?: NotaReport[];
+  /** Clôturé automatiquement par le moteur (règle plus applicable) — peut être recréé */
+  engineSuppressed?: boolean;
+};
+
+export type AuditEvent = {
+  id: string;
+  at: string;
+  userId: UserId;
+  userName: string;
+  action: string;
+  detail: string;
 };
 
 export type FactureType = 'ACOMPTE' | 'SITUATION' | 'SOLDE' | 'CE';
@@ -226,6 +311,8 @@ export type RelanceFacture = {
   niveau: 1 | 2 | 3;
   date: string;
   commentaire: string;
+  parUserId?: UserId;
+  parNom?: string;
 };
 
 export type Facture = {
@@ -241,6 +328,10 @@ export type Facture = {
   relances: RelanceFacture[];
   fichierPdf?: string;
   archived?: boolean;
+  creePar?: UserId;
+  creeParNom?: string;
+  createdAt?: string;
+  historique?: AuditEvent[];
 };
 
 export type CommandeType =
@@ -267,6 +358,10 @@ export type Commande = {
   montant: number;
   statut: CommandeStatut;
   bonCommande?: string;
+  creePar?: UserId;
+  creeParNom?: string;
+  createdAt?: string;
+  historique?: AuditEvent[];
 };
 
 export type DemandePrixStatut = 'ENVOYEE' | 'RELANCEE' | 'RECUE' | 'ABANDONNEE';
@@ -280,6 +375,18 @@ export type DemandePrix = {
   dateReponse?: string;
   montantRecu?: number;
   statut: DemandePrixStatut;
+  creePar?: UserId;
+  creeParNom?: string;
+  createdAt?: string;
+  historique?: AuditEvent[];
+};
+
+export type PieceJointe = {
+  id: string;
+  nom: string;
+  mime: string;
+  /** data URL (photo / fichier) — démo local + sync API */
+  dataUrl: string;
 };
 
 export type Message = {
@@ -290,22 +397,30 @@ export type Message = {
   threadId: string;
   affaireId?: string;
   corps: string;
-  piecesJointes: string[];
+  piecesJointes: PieceJointe[];
   luPar: UserId[];
   date: string;
   isImportant: boolean;
+  /** Action créée depuis ce message */
+  actionId?: string;
 };
 
 export type DocumentType = 'DEVIS' | 'FACTURE' | 'PHOTO' | 'PV' | 'PLAN' | 'BON' | 'AUTRE';
 
 export type Document = {
   id: string;
+  /** affaire:id | contrat:id | immeuble:id */
   entiteLiee: string;
   type: DocumentType;
+  /** data URL ou référence fichier */
   fichier: string;
   nomFichier: string;
+  mime?: string;
   date: string;
   deposePar: UserId;
+  deposeParNom?: string;
+  archived?: boolean;
+  archiveMotif?: string;
 };
 
 export type JournalActivite = {
@@ -335,9 +450,45 @@ export type AlertDelais = {
   demandePrixSansReponse: number;
 };
 
+export type ImportSheetKind = 'portefeuille' | 'planning' | 'planning_ce';
+
+/** fieldId → libellé d'en-tête Excel mémorisé */
+export type ColumnMapping = Record<string, string>;
+
+export type ColorCodes = {
+  en_cours: string;
+  divers: string;
+  resine: string;
+  nettoyage: string;
+  bloque: string;
+};
+
 export type AppSettings = {
   alertDelais: AlertDelais;
   joursFeries: string[];
+  /** Mapping colonnes par type d'onglet — rétabli au prochain import */
+  importMappings?: Partial<Record<ImportSheetKind, ColumnMapping>>;
+  /** Libellés types de commande (paramétrables) */
+  commandeTypeLabels?: Partial<Record<string, string>>;
+  /** Codes couleur portefeuille */
+  colorCodes?: ColorCodes;
+};
+
+export const DEFAULT_COLOR_CODES: ColorCodes = {
+  en_cours: '#3b82f6',
+  divers: '#94a3b8',
+  resine: '#8b5cf6',
+  nettoyage: '#84cc16',
+  bloque: '#dc2626',
+};
+
+export const DEFAULT_COMMANDE_TYPE_LABELS: Record<string, string> = {
+  BENNE: 'Benne',
+  ROULOTTE: 'Roulotte',
+  NACELLE: 'Nacelle',
+  ECHAFAUDAGE: 'Échafaudage',
+  MATERIAUX: 'Matériaux',
+  LOCATION: 'Location',
 };
 
 export type PersistedState = {
@@ -355,6 +506,7 @@ export type PersistedState = {
   checklistModeles: ChecklistModele[];
   checklists: Checklist[];
   checklistItems: ChecklistItem[];
+  actions: ActionItem[];
   notas: Nota[];
   factures: Facture[];
   commandes: Commande[];

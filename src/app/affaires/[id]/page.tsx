@@ -3,8 +3,16 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
-import { ArrowLeft, Paperclip } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { useApp } from '@/context/AppStateContext';
+import { EditableChecklist } from '@/components/EditableChecklist';
+import {
+  AdminGlanceBar,
+  CommandesTraceList,
+  DemandesPrixTraceList,
+  FacturesTraceList,
+} from '@/components/AffaireAdminTrace';
+import { ActivityJournal } from '@/components/ActivityJournal';
 import {
   adresseCourte,
   getDevis,
@@ -12,12 +20,15 @@ import {
   getSyndicForImmeuble,
   joursConsommes,
 } from '@/lib/domain/lookups';
+import { canAdmin } from '@/lib/domain/permissions';
 import { formatFR, formatShortDateTime, todayISO } from '@/lib/dates';
 
 type Tab =
+  | 'admin'
   | 'checklist'
   | 'commandes'
   | 'factures'
+  | 'demandes'
   | 'notas'
   | 'messages'
   | 'docs'
@@ -25,9 +36,27 @@ type Tab =
 
 export default function AffairePage() {
   const { id } = useParams<{ id: string }>();
-  const { state, user, toggleChecklistItem, createNota, closeNota } = useApp();
-  const [tab, setTab] = useState<Tab>('checklist');
+  const {
+    state,
+    user,
+    createNota,
+    closeNota,
+    reopenNota,
+    archiveNota,
+    updateNota,
+    passerCommande,
+    relancerFacture,
+    relancerDemandePrix,
+    addDocument,
+    archiveAffaire,
+    restoreAffaire,
+  } = useApp();
+  const [showArchiveAffaire, setShowArchiveAffaire] = useState(false);
+  const [affaireArchiveMotif, setAffaireArchiveMotif] = useState('');
+  const [tab, setTab] = useState<Tab>('admin');
   const [notaObjet, setNotaObjet] = useState('');
+  const [archiveId, setArchiveId] = useState<string | null>(null);
+  const [archiveMotif, setArchiveMotif] = useState('');
 
   const affaire = state.affaires.find((a) => a.id === id);
   const devis = affaire ? getDevis(state, affaire.devisId) : undefined;
@@ -36,10 +65,32 @@ export default function AffairePage() {
 
   const items = useMemo(() => {
     if (!affaire?.checklistId) return [];
-    return state.checklistItems
-      .filter((i) => i.checklistId === affaire.checklistId)
-      .sort((a, b) => a.echeance.localeCompare(b.echeance));
+    return state.checklistItems.filter(
+      (i) => i.checklistId === affaire.checklistId && !i.archived,
+    );
   }, [state.checklistItems, affaire]);
+
+  const commandes = useMemo(
+    () => state.commandes.filter((c) => c.affaireId === id),
+    [state.commandes, id],
+  );
+  const factures = useMemo(
+    () => state.factures.filter((f) => f.affaireId === id),
+    [state.factures, id],
+  );
+  const demandes = useMemo(
+    () => state.demandesPrix.filter((d) => d.affaireId === id),
+    [state.demandesPrix, id],
+  );
+  const journalEntites = useMemo(
+    () => [
+      `affaire:${id}`,
+      ...factures.map((f) => `facture:${f.id}`),
+      ...commandes.map((c) => `commande:${c.id}`),
+      ...demandes.map((d) => `demandePrix:${d.id}`),
+    ],
+    [id, factures, commandes, demandes],
+  );
 
   if (!affaire || !devis) {
     return (
@@ -53,18 +104,38 @@ export default function AffairePage() {
   }
 
   const conso = joursConsommes(state, affaire.id);
-  const commandes = state.commandes.filter((c) => c.affaireId === affaire.id);
-  const factures = state.factures.filter((f) => f.affaireId === affaire.id);
-  const notas = state.notas.filter((n) => n.entiteLiee === `affaire:${affaire.id}`);
   const messages = state.messages.filter((m) => m.affaireId === affaire.id);
-  const docs = state.documents.filter((d) => d.entiteLiee === `affaire:${affaire.id}`);
-  const journal = state.journal.filter((j) => j.entite === `affaire:${affaire.id}`);
-  const demandes = state.demandesPrix.filter((d) => d.affaireId === affaire.id);
+  const docs = state.documents.filter(
+    (d) => d.entiteLiee === `affaire:${affaire.id}` && !d.archived,
+  );
+  const openAdminNotas = state.notas.filter(
+    (n) =>
+      n.statut === 'OUVERT' &&
+      !n.archived &&
+      (n.entiteLiee === `affaire:${affaire.id}` ||
+        factures.some(
+          (f) =>
+            n.entiteLiee === `facture:${f.id}` || n.alertKey?.startsWith(`facture:${f.id}`),
+        ) ||
+        commandes.some(
+          (c) => n.entiteLiee === `commande:${c.id}` || n.alertKey === `commande:${c.id}`,
+        ) ||
+        demandes.some(
+          (d) => n.entiteLiee === `demandePrix:${d.id}` || n.alertKey === `dp:${d.id}`,
+        )),
+  );
+  const notas = state.notas.filter(
+    (n) =>
+      n.entiteLiee === `affaire:${affaire.id}` ||
+      openAdminNotas.some((x) => x.id === n.id),
+  );
 
   const tabs: { id: Tab; label: string }[] = [
+    { id: 'admin', label: 'Suivi admin' },
     { id: 'checklist', label: `Check-list (${items.filter((i) => i.fait).length}/${items.length})` },
-    { id: 'commandes', label: `Commandes (${commandes.length})` },
     { id: 'factures', label: `Factures (${factures.length})` },
+    { id: 'commandes', label: `Commandes (${commandes.length})` },
+    { id: 'demandes', label: `Demandes prix (${demandes.length})` },
     { id: 'notas', label: `Notas (${notas.filter((n) => n.statut === 'OUVERT').length})` },
     { id: 'messages', label: `Discussion (${messages.length})` },
     { id: 'docs', label: `Documents (${docs.length})` },
@@ -92,10 +163,81 @@ export default function AffairePage() {
               {syndic?.telephone ? ` · ${syndic.telephone}` : ''}
             </p>
           </div>
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold uppercase text-slate-800">
-            {affaire.statut}
-          </span>
+          <div className="flex flex-col items-end gap-2">
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold uppercase text-slate-800">
+              {affaire.statut}
+              {affaire.archived ? ' · Archivée' : ''}
+            </span>
+            {canAdmin(user) ? (
+              affaire.archived ? (
+                <button
+                  type="button"
+                  className="btn-secondary text-xs"
+                  onClick={() => restoreAffaire(affaire.id)}
+                >
+                  Restaurer
+                </button>
+              ) : showArchiveAffaire ? (
+                <div className="w-64 space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-2">
+                  <textarea
+                    className="input text-xs"
+                    rows={2}
+                    placeholder="Motif d’archivage (obligatoire)"
+                    value={affaireArchiveMotif}
+                    onChange={(e) => setAffaireArchiveMotif(e.target.value)}
+                  />
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      className="btn-secondary flex-1 text-xs"
+                      onClick={() => setShowArchiveAffaire(false)}
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-primary flex-1 text-xs"
+                      disabled={!affaireArchiveMotif.trim()}
+                      onClick={() => {
+                        const r = archiveAffaire(affaire.id, affaireArchiveMotif.trim());
+                        if (r.ok) {
+                          setShowArchiveAffaire(false);
+                          setAffaireArchiveMotif('');
+                        }
+                      }}
+                    >
+                      Archiver
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="text-xs font-medium text-amber-800 underline"
+                  onClick={() => setShowArchiveAffaire(true)}
+                >
+                  Archiver l’affaire
+                </button>
+              )
+            ) : null}
+          </div>
         </div>
+
+        <AdminGlanceBar factures={factures} commandes={commandes} demandes={demandes} />
+
+        {openAdminNotas.length > 0 ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
+            <p className="font-semibold">
+              {openAdminNotas.length} alerte{openAdminNotas.length > 1 ? 's' : ''} liée
+              {openAdminNotas.length > 1 ? 's' : ''} (moteur Notas)
+            </p>
+            <ul className="mt-1 list-inside list-disc text-xs">
+              {openAdminNotas.slice(0, 5).map((n) => (
+                <li key={n.id}>{n.objet}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-xl bg-slate-50 p-3 text-sm">
@@ -151,97 +293,95 @@ export default function AffairePage() {
         ))}
       </div>
 
-      {tab === 'checklist' ? (
-        <ul className="space-y-2">
-          {items.map((it) => {
-            const late = !it.fait && it.echeance < todayISO();
-            return (
-              <li
-                key={it.id}
-                className={`card flex items-start gap-3 ${
-                  late ? 'border-red-300 bg-red-50' : it.fait ? 'opacity-70' : ''
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  className="checkbox-lg mt-0.5"
-                  checked={it.fait}
-                  onChange={() => toggleChecklistItem(it.id)}
-                  aria-label={it.libelle}
-                />
-                <div className="min-w-0 flex-1">
-                  <p className={`font-medium ${it.fait ? 'line-through text-slate-500' : ''}`}>
-                    {it.libelle}
-                    {it.obligatoire ? (
-                      <span className="ml-2 text-[10px] font-bold uppercase text-red-600">
-                        Obligatoire
-                      </span>
-                    ) : null}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    Échéance {formatFR(it.echeance)}
-                    {it.fait && it.dateFait
-                      ? ` · Fait le ${formatShortDateTime(it.dateFait)} par ${it.faitPar}`
-                      : null}
-                  </p>
-                </div>
-                {it.pieceJointe ? <Paperclip size={16} className="text-slate-400" /> : null}
-              </li>
-            );
-          })}
-        </ul>
-      ) : null}
-
-      {tab === 'commandes' ? (
-        <div className="space-y-3">
-          <ul className="space-y-2">
-            {commandes.map((c) => (
-              <li key={c.id} className="card text-sm">
-                <p className="font-bold">
-                  {c.type} — {c.fournisseur}
-                </p>
-                <p>
-                  Besoin {formatFR(c.dateBesoin)} · {c.statut} · {c.montant} €
-                </p>
-              </li>
-            ))}
-          </ul>
-          {demandes.length > 0 ? (
-            <div>
-              <h3 className="mb-2 font-semibold">Demandes de prix</h3>
-              <ul className="space-y-2">
-                {demandes.map((d) => (
-                  <li key={d.id} className="card text-sm">
-                    <p className="font-bold">
-                      {d.fournisseur} — {d.objet}
-                    </p>
-                    <p>
-                      {formatFR(d.dateDemande)} · {d.statut}
-                    </p>
-                  </li>
+      {tab === 'admin' ? (
+        <div className="space-y-4">
+          <section className="space-y-2">
+            <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">Factures</h2>
+            <FacturesTraceList factures={factures} state={state} notas={openAdminNotas} />
+            <div className="flex flex-wrap gap-2">
+              {factures
+                .filter((f) => f.statut === 'EMISE' || f.statut === 'RELANCEE')
+                .map((f) => (
+                  <button
+                    key={`rel-${f.id}`}
+                    type="button"
+                    className="btn-secondary py-1.5 text-xs"
+                    onClick={() => relancerFacture(f.id)}
+                  >
+                    Relancer {f.numero}
+                  </button>
                 ))}
-              </ul>
             </div>
-          ) : null}
+          </section>
+          <section className="space-y-2">
+            <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">Commandes</h2>
+            <CommandesTraceList
+              commandes={commandes}
+              state={state}
+              notas={openAdminNotas}
+              delaiJ3={state.settings.alertDelais.commandeAvantBesoin}
+            />
+            <div className="flex flex-wrap gap-2">
+              {commandes
+                .filter((c) => c.statut === 'A_PASSER')
+                .map((c) => (
+                  <button
+                    key={`pass-${c.id}`}
+                    type="button"
+                    className="btn-secondary py-1.5 text-xs"
+                    onClick={() => passerCommande(c.id, `BC-${c.id.toUpperCase()}.pdf`)}
+                  >
+                    Passer · {c.type}
+                  </button>
+                ))}
+            </div>
+          </section>
+          <section className="space-y-2">
+            <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">
+              Demandes de prix
+            </h2>
+            <DemandesPrixTraceList demandes={demandes} state={state} notas={openAdminNotas} />
+            <div className="flex flex-wrap gap-2">
+              {demandes
+                .filter((d) => d.statut === 'ENVOYEE' || d.statut === 'RELANCEE')
+                .map((d) => (
+                  <button
+                    key={`dpr-${d.id}`}
+                    type="button"
+                    className="btn-secondary py-1.5 text-xs"
+                    onClick={() => relancerDemandePrix(d.id)}
+                  >
+                    Relancer {d.fournisseur}
+                  </button>
+                ))}
+            </div>
+          </section>
         </div>
       ) : null}
 
+      {tab === 'checklist' ? (
+        affaire.checklistId ? (
+          <EditableChecklist checklistId={affaire.checklistId} affaireId={affaire.id} />
+        ) : (
+          <div className="card text-sm text-slate-500">Pas de check-list sur cette affaire.</div>
+        )
+      ) : null}
+
+      {tab === 'commandes' ? (
+        <CommandesTraceList
+          commandes={commandes}
+          state={state}
+          notas={openAdminNotas}
+          delaiJ3={state.settings.alertDelais.commandeAvantBesoin}
+        />
+      ) : null}
+
       {tab === 'factures' ? (
-        <ul className="space-y-2">
-          {factures.length === 0 ? (
-            <li className="card text-sm text-slate-500">Aucune facture.</li>
-          ) : null}
-          {factures.map((f) => (
-            <li key={f.id} className="card text-sm">
-              <p className="font-bold">
-                {f.numero} · {f.type} · {f.statut}
-              </p>
-              <p>
-                {formatFR(f.dateEmission)} · {f.montant.toLocaleString('fr-FR')} €
-              </p>
-            </li>
-          ))}
-        </ul>
+        <FacturesTraceList factures={factures} state={state} notas={openAdminNotas} />
+      ) : null}
+
+      {tab === 'demandes' ? (
+        <DemandesPrixTraceList demandes={demandes} state={state} notas={openAdminNotas} />
       ) : null}
 
       {tab === 'notas' ? (
@@ -272,25 +412,144 @@ export default function AffairePage() {
             </button>
           </form>
           <ul className="space-y-2">
-            {notas.map((n) => (
-              <li key={n.id} className="card flex items-start justify-between gap-2 text-sm">
-                <div>
-                  <p className="font-semibold">{n.objet}</p>
-                  <p className="text-xs text-slate-500">
-                    {n.statut} · échéance {formatFR(n.echeance)} · {n.priorite}
-                  </p>
-                </div>
-                {n.statut === 'OUVERT' ? (
-                  <button
-                    type="button"
-                    className="btn-secondary py-2 text-xs"
-                    onClick={() => closeNota(n.id)}
-                  >
-                    Fait
-                  </button>
-                ) : null}
-              </li>
-            ))}
+            {notas.map((n) => {
+              const resp = state.utilisateurs.find((u) => u.id === n.responsableId);
+              return (
+                <li key={n.id} className="card space-y-2 text-sm">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      {n.statut === 'OUVERT' && !n.archived ? (
+                        <input
+                          className="input w-full font-semibold"
+                          value={n.objet}
+                          onChange={(e) => updateNota(n.id, { objet: e.target.value })}
+                        />
+                      ) : (
+                        <p className="font-semibold">{n.objet}</p>
+                      )}
+                      <p className="mt-1 text-xs text-slate-500">
+                        {n.type} · {n.statut}
+                        {n.archived ? ' · archivé' : ''} · {n.priorite}
+                        {n.niveauRelance ? ` · relance n°${n.niveauRelance}` : ''}
+                      </p>
+                    </div>
+                  </div>
+                  {n.statut === 'OUVERT' && !n.archived ? (
+                    <div className="flex flex-wrap gap-2">
+                      <label className="text-xs text-slate-600">
+                        Échéance
+                        <input
+                          type="date"
+                          className="input ml-1 py-1 text-xs"
+                          value={n.echeance}
+                          onChange={(e) => updateNota(n.id, { echeance: e.target.value })}
+                        />
+                      </label>
+                      <label className="text-xs text-slate-600">
+                        Priorité
+                        <select
+                          className="input ml-1 py-1 text-xs"
+                          value={n.priorite}
+                          onChange={(e) =>
+                            updateNota(n.id, {
+                              priorite: e.target.value as typeof n.priorite,
+                            })
+                          }
+                        >
+                          <option value="basse">Basse</option>
+                          <option value="normale">Normale</option>
+                          <option value="haute">Haute</option>
+                          <option value="bloquante">Bloquante</option>
+                        </select>
+                      </label>
+                      <label className="text-xs text-slate-600">
+                        Responsable
+                        <select
+                          className="input ml-1 py-1 text-xs"
+                          value={n.responsableId}
+                          onChange={(e) => updateNota(n.id, { responsableId: e.target.value })}
+                        >
+                          {state.utilisateurs
+                            .filter((u) => u.actif)
+                            .map((u) => (
+                              <option key={u.id} value={u.id}>
+                                {u.nom}
+                              </option>
+                            ))}
+                        </select>
+                      </label>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-500">
+                      Échéance {formatFR(n.echeance)} · {resp?.nom ?? n.responsableId}
+                    </p>
+                  )}
+                  <div className="flex flex-wrap gap-2">
+                    {n.statut === 'OUVERT' && !n.archived ? (
+                      <>
+                        <button
+                          type="button"
+                          className="btn-secondary py-1.5 text-xs"
+                          onClick={() => closeNota(n.id)}
+                        >
+                          Clôturer
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-secondary py-1.5 text-xs"
+                          onClick={() => {
+                            setArchiveId(n.id);
+                            setArchiveMotif('');
+                          }}
+                        >
+                          Archiver
+                        </button>
+                      </>
+                    ) : null}
+                    {(n.statut === 'FAIT' || n.statut === 'ANNULE') && !n.archived ? (
+                      <button
+                        type="button"
+                        className="btn-secondary py-1.5 text-xs"
+                        onClick={() => reopenNota(n.id)}
+                      >
+                        Réouvrir
+                      </button>
+                    ) : null}
+                  </div>
+                  {archiveId === n.id ? (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-2">
+                      <p className="mb-1 text-xs font-medium">Motif d&apos;archivage *</p>
+                      <input
+                        className="input mb-2 w-full text-sm"
+                        value={archiveMotif}
+                        onChange={(e) => setArchiveMotif(e.target.value)}
+                        placeholder="Obligatoire"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          className="btn-secondary py-1 text-xs"
+                          onClick={() => setArchiveId(null)}
+                        >
+                          Annuler
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-primary py-1 text-xs"
+                          onClick={() => {
+                            const r = archiveNota(n.id, archiveMotif);
+                            if (r.ok) setArchiveId(null);
+                            else alert(r.error);
+                          }}
+                        >
+                          Confirmer
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
           </ul>
         </div>
       ) : null}
@@ -321,38 +580,62 @@ export default function AffairePage() {
       ) : null}
 
       {tab === 'docs' ? (
-        <ul className="space-y-2">
-          {docs.length === 0 ? (
-            <li className="card text-sm text-slate-500">Aucun document.</li>
-          ) : null}
-          {docs.map((d) => (
-            <li key={d.id} className="card text-sm">
-              {d.type} — {d.nomFichier} · {formatFR(d.date)}
-            </li>
-          ))}
-        </ul>
+        <div className="space-y-3">
+          <label className="btn-secondary inline-flex cursor-pointer items-center gap-2 py-2 text-sm">
+            Ajouter un document
+            <input
+              type="file"
+              className="hidden"
+              accept="image/*,.pdf"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file || !user) return;
+                const reader = new FileReader();
+                reader.onload = () => {
+                  addDocument({
+                    entiteLiee: `affaire:${affaire.id}`,
+                    type: file.type.startsWith('image/') ? 'PHOTO' : 'AUTRE',
+                    nomFichier: file.name,
+                    fichier: String(reader.result ?? ''),
+                    mime: file.type,
+                  });
+                };
+                reader.readAsDataURL(file);
+                e.target.value = '';
+              }}
+            />
+          </label>
+          <p className="text-xs text-slate-500">
+            Bibliothèque complète :{' '}
+            <Link href="/documents" className="underline">
+              /documents
+            </Link>
+          </p>
+          <ul className="space-y-2">
+            {docs.length === 0 ? (
+              <li className="card text-sm text-slate-500">Aucun document.</li>
+            ) : null}
+            {docs.map((d) => (
+              <li key={d.id} className="card text-sm">
+                <p className="font-semibold">
+                  {d.type} — {d.nomFichier}
+                </p>
+                <p className="text-xs text-slate-500">
+                  {formatFR(d.date)}
+                  {d.deposeParNom ? ` · ${d.deposeParNom}` : ''}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : null}
 
       {tab === 'journal' ? (
-        <ul className="space-y-2">
-          {journal.length === 0 ? (
-            <li className="card text-sm text-slate-500">Aucune entrée.</li>
-          ) : null}
-          {journal.map((j) => {
-            const u = state.utilisateurs.find((x) => x.id === j.utilisateurId);
-            return (
-              <li key={j.id} className="card text-sm">
-                <p className="font-semibold">
-                  {u?.nom} · {j.action}
-                </p>
-                <p className="text-xs text-slate-500">
-                  {formatShortDateTime(j.horodatage)}
-                  {j.valeurApres ? ` — ${j.valeurApres}` : ''}
-                </p>
-              </li>
-            );
-          })}
-        </ul>
+        <ActivityJournal
+          entitePrefixes={journalEntites}
+          title="Historique complet de l’affaire"
+          empty="Aucune entrée dans le journal pour cette affaire."
+        />
       ) : null}
     </div>
   );

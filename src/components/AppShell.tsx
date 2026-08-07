@@ -7,43 +7,74 @@ import {
   Bell,
   Briefcase,
   CalendarDays,
+  CheckSquare,
   ClipboardList,
+  FileSpreadsheet,
   FileText,
+  FolderOpen,
   LogOut,
   MessageSquare,
   RotateCcw,
   Search,
   Settings,
   ShoppingCart,
+  UserCircle,
 } from 'lucide-react';
 import { useApp } from '@/context/AppStateContext';
 import { LoginScreen } from '@/components/LoginScreen';
 import { SetrimFooter } from '@/components/SetrimFooter';
 import { DemoBanner } from '@/components/DemoBanner';
+import { QuickNotaFab } from '@/components/QuickNotaFab';
 import { ROLE_LABELS } from '@/lib/domain/types';
 import { canAdmin } from '@/lib/domain/permissions';
 import { buildMesAlertes } from '@/lib/domain/alerts';
+import { totalUnread } from '@/lib/domain/messaging';
+import { globalSearch } from '@/lib/domain/search';
 import { useMemo, useState } from 'react';
 
 const NAV = [
   { href: '/', label: 'Mes alertes', icon: Bell },
+  { href: '/mes-actions', label: 'Mes actions', icon: CheckSquare },
   { href: '/portefeuille', label: 'Portefeuille', icon: Briefcase },
   { href: '/planning', label: 'Planning', icon: CalendarDays },
   { href: '/planning-ce', label: 'Planning CE', icon: ClipboardList },
   { href: '/facturation', label: 'Factures', icon: FileText },
   { href: '/commandes', label: 'Commandes', icon: ShoppingCart },
+  { href: '/documents', label: 'Documents', icon: FolderOpen },
+  { href: '/import', label: 'Import', icon: FileSpreadsheet },
   { href: '/messagerie', label: 'Messagerie', icon: MessageSquare },
 ] as const;
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { ready, user, state, logout, resetDemo } = useApp();
+  const { ready, user, state, logout, resetDemo, setActiveUser } = useApp();
   const [q, setQ] = useState('');
 
   const alertCount = useMemo(() => {
     if (!user) return 0;
     return buildMesAlertes(state, user.id).filter((a) => a.bucket === 'retard').length;
   }, [state, user]);
+
+  const unreadMsg = useMemo(() => {
+    if (!user) return 0;
+    return totalUnread(state.messages, user.id);
+  }, [state.messages, user]);
+
+  const myOpenActions = useMemo(() => {
+    if (!user) return 0;
+    return (state.actions ?? []).filter(
+      (a) => a.assigneeId === user.id && a.statut === 'OUVERT',
+    ).length;
+  }, [state.actions, user]);
+
+  const searchResults = useMemo(
+    () =>
+      globalSearch(state, q, 10).map((h) => ({
+        label: h.sub ? `${h.label} · ${h.sub}` : h.label,
+        href: h.href,
+      })),
+    [state, q],
+  );
 
   if (!ready) return null;
   if (!user) {
@@ -56,45 +87,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-
-  const searchResults =
-    q.trim().length >= 2
-      ? (() => {
-          const needle = q.trim().toLowerCase();
-          const hits: { label: string; href: string }[] = [];
-          for (const d of state.devis) {
-            if (d.numeroBatappli.toLowerCase().includes(needle)) {
-              const aff = state.affaires.find((a) => a.devisId === d.id);
-              if (aff) hits.push({ label: `Devis ${d.numeroBatappli}`, href: `/affaires/${aff.id}` });
-            }
-          }
-          for (const imm of state.immeubles) {
-            if (
-              imm.adresse.toLowerCase().includes(needle) ||
-              imm.ville.toLowerCase().includes(needle)
-            ) {
-              hits.push({
-                label: `${imm.adresse}, ${imm.ville}`,
-                href: `/portefeuille?q=${encodeURIComponent(imm.adresse)}`,
-              });
-            }
-          }
-          for (const s of state.syndics) {
-            if (s.nom.toLowerCase().includes(needle)) {
-              hits.push({ label: `Syndic ${s.nom}`, href: `/portefeuille?q=${encodeURIComponent(s.nom)}` });
-            }
-          }
-          for (const f of state.factures) {
-            if (f.numero.toLowerCase().includes(needle)) {
-              hits.push({
-                label: `Facture ${f.numero}`,
-                href: f.affaireId ? `/affaires/${f.affaireId}` : '/facturation',
-              });
-            }
-          }
-          return hits.slice(0, 8);
-        })()
-      : [];
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -144,10 +136,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <div className="text-right text-sm">
-              <p className="font-semibold text-slate-900">{user.nom}</p>
-              <p className="text-xs text-slate-500">{ROLE_LABELS[user.role]}</p>
-            </div>
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <span className="hidden sm:inline">Je suis</span>
+              <select
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-900 outline-none ring-[var(--navy)] focus:ring-2"
+                value={user.id}
+                onChange={(e) => setActiveUser(e.target.value)}
+                aria-label="Profil actif"
+              >
+                {state.utilisateurs.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.nom} — {ROLE_LABELS[u.role]}
+                  </option>
+                ))}
+              </select>
+            </label>
             {canAdmin(user) ? (
               <Link
                 href="/admin"
@@ -157,6 +160,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <Settings size={16} />
               </Link>
             ) : null}
+            <Link
+              href="/profil"
+              className="rounded-lg border border-slate-200 p-2.5 text-slate-600 hover:bg-slate-50"
+              title="Mon profil / notifications"
+            >
+              <UserCircle size={16} />
+            </Link>
             <button
               type="button"
               onClick={() => {
@@ -202,6 +212,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                       {alertCount}
                     </span>
                   ) : null}
+                  {href === '/messagerie' && unreadMsg > 0 ? (
+                    <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-bold text-white">
+                      {unreadMsg}
+                    </span>
+                  ) : null}
+                  {href === '/mes-actions' && myOpenActions > 0 ? (
+                    <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-400 px-1 text-[10px] font-bold text-slate-900">
+                      {myOpenActions}
+                    </span>
+                  ) : null}
                 </Link>
               );
             })}
@@ -209,7 +229,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
       </header>
 
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-5 pb-10">{children}</main>
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-5 pb-24">{children}</main>
+      <QuickNotaFab />
       <SetrimFooter />
     </div>
   );

@@ -63,10 +63,17 @@ export function SetrimFooter() {
       </div>
 
       <div className="border-t border-slate-100 bg-slate-50">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-3 text-xs text-slate-500">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 text-xs text-slate-500">
           <span>© {new Date().getFullYear()} SETRIM étanchéité</span>
-          <span>
-            Logiciel de démo créé par BeWork — tous droits réservés
+          <span className="inline-flex items-center gap-2">
+            <Image
+              src="/logo-bework-mark.png"
+              alt="BeWork"
+              width={28}
+              height={28}
+              className="h-7 w-7"
+            />
+            <span>Logiciel de démo créé par BeWork — tous droits réservés</span>
           </span>
         </div>
       </div>

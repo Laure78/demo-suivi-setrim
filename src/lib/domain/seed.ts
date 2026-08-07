@@ -20,10 +20,26 @@ import type {
   Syndic,
   Utilisateur,
 } from './types';
-import { DEFAULT_ALERT_DELAIS } from './types';
+import {
+  DEFAULT_ALERT_DELAIS,
+  DEFAULT_COLOR_CODES,
+  DEFAULT_COMMANDE_TYPE_LABELS,
+} from './types';
 import { addDays, todayISO } from '@/lib/dates';
+import { currentExercice } from './ce-engine';
+import { JOURS_FERIES_FR } from './planning';
 
 const DEMO_PASSWORD = 'setrim2026';
+
+/** Accès unique partagé (toute l’équipe). */
+export const COMMON_ACCESS = {
+  identifiant: 'setrim',
+  password: DEMO_PASSWORD,
+  /** Profil ouvert après connexion */
+  defaultUserId: 'denis',
+} as const;
+
+export const DEMO_PASSWORD_HINT = DEMO_PASSWORD;
 
 function isoAt(day: string, time: string): string {
   return new Date(`${day}T${time}`).toISOString();
@@ -529,6 +545,9 @@ export function createSeedState(): PersistedState {
         dateFait: fait ? isoAt(addDays(echeance, -1), '10:00:00') : undefined,
         faitPar: fait ? 'Melissa' : undefined,
         commentaire: '',
+        ordre: i,
+        manuel: false,
+        history: [],
       });
     });
 
@@ -580,16 +599,40 @@ export function createSeedState(): PersistedState {
     });
 
     if (r.acompteRecu > 0 && r.statut !== 'SOLDE') {
+      const emDate = addDays(t, r.lastActionDays - 5);
+      const regDate = addDays(t, r.lastActionDays - 3);
       factures.push({
         id: `fac-ac-${idx + 1}`,
         affaireId,
         numero: `FA-AC-${r.num.slice(2)}`,
         type: 'ACOMPTE',
-        dateEmission: addDays(t, r.lastActionDays - 5),
+        dateEmission: emDate,
         montant: r.acompteRecu,
         statut: 'REGLEE',
-        dateReglement: addDays(t, r.lastActionDays - 3),
+        dateReglement: regDate,
         relances: [],
+        fichierPdf: `FA-AC-${r.num.slice(2)}.pdf`,
+        creePar: 'melissa',
+        creeParNom: 'Melissa',
+        createdAt: `${emDate}T09:15:00.000Z`,
+        historique: [
+          {
+            id: `h-fac-ac-${idx}-1`,
+            at: `${emDate}T09:15:00.000Z`,
+            userId: 'melissa',
+            userName: 'Melissa',
+            action: 'Émission',
+            detail: `Acompte ${r.acompteRecu.toLocaleString('fr-FR')} €`,
+          },
+          {
+            id: `h-fac-ac-${idx}-2`,
+            at: `${regDate}T14:30:00.000Z`,
+            userId: 'melissa',
+            userName: 'Melissa',
+            action: 'Règlement enregistré',
+            detail: 'Virement reçu',
+          },
+        ],
       });
     }
     if (r.num === 'D-24970') {
@@ -598,10 +641,40 @@ export function createSeedState(): PersistedState {
         affaireId,
         numero: 'FA-24970',
         type: 'SOLDE',
-        dateEmission: addDays(t, -35),
+        dateEmission: addDays(t, -31),
         montant: Math.round(r.ht * 1.2),
-        statut: 'EMISE',
-        relances: [],
+        statut: 'RELANCEE',
+        relances: [
+          {
+            niveau: 1,
+            date: addDays(t, -1),
+            commentaire: 'Relance mail syndic',
+            parUserId: 'melissa',
+            parNom: 'Melissa',
+          },
+        ],
+        fichierPdf: 'FA-24970-solde.pdf',
+        creePar: 'melissa',
+        creeParNom: 'Melissa',
+        createdAt: `${addDays(t, -31)}T10:00:00.000Z`,
+        historique: [
+          {
+            id: 'h-fac-24970-1',
+            at: `${addDays(t, -31)}T10:00:00.000Z`,
+            userId: 'melissa',
+            userName: 'Melissa',
+            action: 'Émission',
+            detail: 'Facture de solde',
+          },
+          {
+            id: 'h-fac-24970-2',
+            at: `${addDays(t, -1)}T11:20:00.000Z`,
+            userId: 'melissa',
+            userName: 'Melissa',
+            action: 'Relance niveau 1',
+            detail: 'Relance mail syndic',
+          },
+        ],
       });
     }
     if (r.num === 'D-24990') {
@@ -615,9 +688,22 @@ export function createSeedState(): PersistedState {
           affaireId,
           type: 'BENNE',
           fournisseur: 'Bennes IDF',
-          dateBesoin: addDays(t, 1),
+          dateBesoin: addDays(t, 2), // J-2 → alerte J-3 active
           montant: 480,
           statut: 'A_PASSER',
+          creePar: 'valerie',
+          creeParNom: 'Valérie',
+          createdAt: `${addDays(t, -3)}T08:40:00.000Z`,
+          historique: [
+            {
+              id: 'h-cmd-1-1',
+              at: `${addDays(t, -3)}T08:40:00.000Z`,
+              userId: 'valerie',
+              userName: 'Valérie',
+              action: 'Création',
+              detail: 'Besoin chantier — à passer avant date besoin',
+            },
+          ],
         },
         {
           id: 'cmd-2',
@@ -628,7 +714,50 @@ export function createSeedState(): PersistedState {
           dateCommande: addDays(t, -1),
           montant: 3200,
           statut: 'COMMANDEE',
-          bonCommande: 'BC-8841',
+          bonCommande: 'BC-8841.pdf',
+          creePar: 'valerie',
+          creeParNom: 'Valérie',
+          createdAt: `${addDays(t, -5)}T09:00:00.000Z`,
+          historique: [
+            {
+              id: 'h-cmd-2-1',
+              at: `${addDays(t, -5)}T09:00:00.000Z`,
+              userId: 'valerie',
+              userName: 'Valérie',
+              action: 'Création',
+              detail: 'Échafaudage 3 semaines',
+            },
+            {
+              id: 'h-cmd-2-2',
+              at: `${addDays(t, -1)}T16:10:00.000Z`,
+              userId: 'audrey',
+              userName: 'Audrey',
+              action: 'Commande passée',
+              detail: 'BC-8841.pdf joint',
+            },
+          ],
+        },
+        {
+          id: 'cmd-3',
+          affaireId,
+          type: 'ROULOTTE',
+          fournisseur: 'Roulottes Pro',
+          dateBesoin: addDays(t, 5),
+          montant: 900,
+          statut: 'A_PASSER',
+          creePar: 'philippe',
+          creeParNom: 'Philippe',
+          createdAt: `${addDays(t, -2)}T07:55:00.000Z`,
+          historique: [
+            {
+              id: 'h-cmd-3-1',
+              at: `${addDays(t, -2)}T07:55:00.000Z`,
+              userId: 'philippe',
+              userName: 'Philippe',
+              action: 'Création',
+              detail: 'En attente retour demande de prix',
+            },
+          ],
         },
       );
       demandesPrix.push({
@@ -638,6 +767,19 @@ export function createSeedState(): PersistedState {
         objet: 'Location roulotte 4 semaines',
         dateDemande: addDays(t, -10),
         statut: 'ENVOYEE',
+        creePar: 'audrey',
+        creeParNom: 'Audrey',
+        createdAt: `${addDays(t, -10)}T10:05:00.000Z`,
+        historique: [
+          {
+            id: 'h-dp-1-1',
+            at: `${addDays(t, -10)}T10:05:00.000Z`,
+            userId: 'audrey',
+            userName: 'Audrey',
+            action: 'Envoi demande de prix',
+            detail: 'Mail + plan d’implantation',
+          },
+        ],
       });
     }
 
@@ -650,10 +792,67 @@ export function createSeedState(): PersistedState {
         type: 'CHANTIER',
         commentaire: r.num,
       });
+      if (r.statut === 'EN_COURS') {
+        // 2e jour pour montrer les jours consommés
+        affectations.push({
+          id: `affec-${idx + 1}b`,
+          date: addDays(t, r.num === 'D-25041' ? 1 : -1),
+          equipeId: idx % 2 === 0 ? 'eq-a' : 'eq-b',
+          affaireId,
+          type: 'CHANTIER',
+          commentaire: r.num,
+        });
+      }
     }
   });
 
+  // Exemples types natifs sur la semaine courante
+  affectations.push(
+    {
+      id: 'affec-conges-1',
+      date: addDays(t, 2),
+      equipeId: 'eq-c',
+      type: 'CONGES',
+      commentaire: 'Congés',
+    },
+    {
+      id: 'affec-rdv-1',
+      date: addDays(t, 3),
+      equipeId: 'eq-a',
+      type: 'RDV',
+      commentaire: 'RDV syndic',
+    },
+  );
+
+  // Devis signé / en attente sans affaire — pour tester l'enregistrement (jours de charge obligatoires)
+  devis.push({
+    id: 'dev-nouveau',
+    numeroBatappli: 'D-25099',
+    date: addDays(t, -2),
+    montantHT: 15600,
+    montantTTC: 18720,
+    type: 'TRAVAUX',
+    immeubleId: 'imm-2',
+    statut: 'EN_ATTENTE',
+    source: 'SAISIE',
+  });
+  devis.push({
+    id: 'dev-signe-libre',
+    numeroBatappli: 'D-25100',
+    date: addDays(t, -1),
+    montantHT: 8400,
+    montantTTC: 10080,
+    type: 'DIVERS',
+    immeubleId: 'imm-6',
+    statut: 'SIGNE',
+    source: 'SAISIE',
+  });
+
   // Contrats CE
+  const prevMonth = ((new Date().getMonth() + 11) % 12) + 1;
+  const nextMonth = ((new Date().getMonth() + 1) % 12) + 1;
+  const inTwoMonths = ((new Date().getMonth() + 2) % 12) + 1;
+
   const contrats: ContratEntretien[] = [
     {
       id: 'ce-1',
@@ -662,13 +861,13 @@ export function createSeedState(): PersistedState {
       montantHTAnnuel: 4200,
       nbCompagnons: 2,
       nbJours: 2,
-      moisPassageContractuel: new Date().getMonth(), // mois précédent = hors délai potentiel
+      moisPassageContractuel: prevMonth,
       exerciceDebut: '07-01',
       exerciceFin: '06-30',
       taciteReconduction: true,
       preavisMois: 3,
       statut: 'ACTIF',
-      commentaire: 'Copro Acacias',
+      commentaire: 'Copro Acacias — engagement mois précédent',
     },
     {
       id: 'ce-2',
@@ -677,7 +876,7 @@ export function createSeedState(): PersistedState {
       montantHTAnnuel: 9800,
       nbCompagnons: 3,
       nbJours: 4,
-      moisPassageContractuel: ((new Date().getMonth() + 2) % 12) + 1,
+      moisPassageContractuel: inTwoMonths,
       exerciceDebut: '07-01',
       exerciceFin: '06-30',
       taciteReconduction: true,
@@ -692,7 +891,7 @@ export function createSeedState(): PersistedState {
       montantHTAnnuel: 5600,
       nbCompagnons: 2,
       nbJours: 2,
-      moisPassageContractuel: ((new Date().getMonth() + 1) % 12) + 1,
+      moisPassageContractuel: nextMonth,
       exerciceDebut: '07-01',
       exerciceFin: '06-30',
       taciteReconduction: true,
@@ -700,14 +899,42 @@ export function createSeedState(): PersistedState {
       statut: 'ATTENTE_OS',
       commentaire: 'Attente OS',
     },
+    {
+      id: 'ce-4',
+      immeubleId: 'imm-1',
+      syndicId: 'syn-1',
+      montantHTAnnuel: 7200,
+      nbCompagnons: 2,
+      nbJours: 3,
+      moisPassageContractuel: 9, // septembre
+      exerciceDebut: '07-01',
+      exerciceFin: '06-30',
+      taciteReconduction: true,
+      preavisMois: 3,
+      statut: 'EN_RESILIATION',
+      dateEffetResiliation: addDays(t, 60),
+      commentaire: 'Préavis en cours',
+    },
+    {
+      id: 'ce-5',
+      immeubleId: 'imm-2',
+      syndicId: 'syn-2',
+      montantHTAnnuel: 3100,
+      nbCompagnons: 1,
+      nbJours: 1,
+      moisPassageContractuel: 4,
+      exerciceDebut: '07-01',
+      exerciceFin: '06-30',
+      taciteReconduction: false,
+      preavisMois: 3,
+      statut: 'RESILIE',
+      commentaire: 'Résilié — archivé historique',
+    },
   ];
 
-  // Fix mois passage CE-1 to be previous month (1-12)
-  const prevMonth = ((new Date().getMonth() + 11) % 12) + 1;
-  contrats[0].moisPassageContractuel = prevMonth;
+  // Exercice courant (bascule au 1er juillet, pas au 1er janvier)
+  const exercice = currentExercice(t).label;
 
-  const year = new Date().getFullYear();
-  const exercice = `${year - 1}-${year}`;
   const passagesCe: PassageCE[] = [
     {
       id: 'pass-1',
@@ -734,6 +961,16 @@ export function createSeedState(): PersistedState {
       statut: 'A_PROGRAMMER',
       photos: [],
       compteRendu: '',
+    },
+    {
+      id: 'pass-4',
+      contratId: 'ce-4',
+      exercice,
+      dateRealisee: addDays(t, -10),
+      bonIntervention: 'BI-CE-4412.pdf',
+      photos: [],
+      statut: 'REALISE',
+      compteRendu: 'Passage OK — à facturer',
     },
   ];
 
@@ -838,27 +1075,116 @@ export function createSeedState(): PersistedState {
     },
   );
 
-  journal.push({
-    id: 'j-1',
-    utilisateurId: 'melissa',
-    entite: 'affaire:aff-1',
-    action: 'check_item',
-    valeurApres: "Facturation d'acompte",
-    horodatage: isoAt(addDays(t, -9), '10:30:00'),
-  });
+  journal.push(
+    {
+      id: 'j-1',
+      utilisateurId: 'melissa',
+      entite: 'affaire:aff-1',
+      action: 'création',
+      valeurApres: 'Affaire créée depuis devis signé',
+      horodatage: isoAt(addDays(t, -25), '09:15:00'),
+    },
+    {
+      id: 'j-2',
+      utilisateurId: 'melissa',
+      entite: 'affaire:aff-1',
+      action: 'check_item',
+      valeurAvant: 'non fait',
+      valeurApres: "Facturation d'acompte — coché",
+      horodatage: isoAt(addDays(t, -9), '10:30:00'),
+    },
+    {
+      id: 'j-3',
+      utilisateurId: 'melissa',
+      entite: 'facture:fac-ac-1',
+      action: 'émission',
+      valeurApres: 'Facture acompte FA-AC-25041 émise',
+      horodatage: isoAt(addDays(t, -5), '09:15:00'),
+    },
+    {
+      id: 'j-4',
+      utilisateurId: 'audrey',
+      entite: 'commande:cmd-2',
+      action: 'commande',
+      valeurAvant: 'A_PASSER',
+      valeurApres: 'COMMANDEE — Échafaudage BC-8841',
+      horodatage: isoAt(addDays(t, -1), '16:10:00'),
+    },
+    {
+      id: 'j-5',
+      utilisateurId: 'valerie',
+      entite: 'affaire:aff-1',
+      action: 'mise à jour',
+      valeurAvant: 'joursChargeEstimes=null',
+      valeurApres: 'joursChargeEstimes=8',
+      horodatage: isoAt(addDays(t, -24), '16:45:00'),
+    },
+    {
+      id: 'j-6',
+      utilisateurId: 'philippe',
+      entite: 'affaire:aff-1',
+      action: 'statut',
+      valeurAvant: 'PORTEFEUILLE',
+      valeurApres: 'PLANIFIE',
+      horodatage: isoAt(addDays(t, -12), '08:40:00'),
+    },
+  );
 
-  documents.push({
-    id: 'doc-1',
-    entiteLiee: 'affaire:aff-1',
-    type: 'DEVIS',
-    fichier: '#',
-    nomFichier: 'D-25041-signe.pdf',
-    date: addDays(t, -25),
-    deposePar: 'melissa',
-  });
+  documents.push(
+    {
+      id: 'doc-1',
+      entiteLiee: 'affaire:aff-1',
+      type: 'DEVIS',
+      fichier: '#',
+      nomFichier: 'D-25041-signe.pdf',
+      date: addDays(t, -25),
+      deposePar: 'melissa',
+      deposeParNom: 'Melissa',
+    },
+    {
+      id: 'doc-2',
+      entiteLiee: 'affaire:aff-1',
+      type: 'PLAN',
+      fichier: '#',
+      nomFichier: 'Plan toiture.pdf',
+      date: addDays(t, -20),
+      deposePar: 'philippe',
+      deposeParNom: 'Philippe',
+    },
+    {
+      id: 'doc-3',
+      entiteLiee: 'contrat:ce-1',
+      type: 'BON',
+      fichier: '#',
+      nomFichier: 'Contrat CE Acacias.pdf',
+      date: addDays(t, -100),
+      deposePar: 'valerie',
+      deposeParNom: 'Valérie',
+    },
+    {
+      id: 'doc-4',
+      entiteLiee: 'immeuble:imm-1',
+      type: 'PHOTO',
+      fichier: '#',
+      nomFichier: 'Photo avant.jpg',
+      date: addDays(t, -4),
+      deposePar: 'philippe',
+      deposeParNom: 'Philippe',
+    },
+    {
+      id: 'doc-5',
+      entiteLiee: 'affaire:aff-1',
+      type: 'PV',
+      fichier: '#',
+      nomFichier: 'PV reunion demarrage.pdf',
+      date: addDays(t, -8),
+      deposePar: 'denis',
+      deposeParNom: 'Denis',
+    },
+  );
 
   return {
-    version: 9,
+    version: 18,
     sessionUserId: null,
     utilisateurs,
     syndics,
@@ -872,6 +1198,7 @@ export function createSeedState(): PersistedState {
     checklistModeles,
     checklists,
     checklistItems,
+    actions: [],
     notas,
     factures,
     commandes,
@@ -881,9 +1208,10 @@ export function createSeedState(): PersistedState {
     journal,
     settings: {
       alertDelais: { ...DEFAULT_ALERT_DELAIS },
-      joursFeries: [],
+      joursFeries: [...JOURS_FERIES_FR],
+      importMappings: {},
+      colorCodes: { ...DEFAULT_COLOR_CODES },
+      commandeTypeLabels: { ...DEFAULT_COMMANDE_TYPE_LABELS },
     },
   };
 }
-
-export const DEMO_PASSWORD_HINT = DEMO_PASSWORD;
