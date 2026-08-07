@@ -581,9 +581,8 @@ export function AffaireSheet({
           </button>
         </div>
         <p className="hint">
-          Tout se dit ici, pas par mail — le même fil apparaît aussi dans{' '}
-          <a href={`/messages?thread=${encodeURIComponent(a.numeroDevis)}`}>Messages</a>. Denis et
-          Philippe répondent depuis le chantier, photos comprises.
+          Tout se dit ici, pas par mail. Denis et Philippe répondent depuis le chantier, photos
+          comprises.
         </p>
       </>
     );

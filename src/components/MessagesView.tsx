@@ -297,8 +297,8 @@ export function MessagesView({
   return (
     <>
       <p className="hint" style={{ marginBottom: 12 }}>
-        Même fil partout : <b>Équipe SETRIM</b>, collègues en direct, et les <b>fils chantier</b> (aussi
-        dans la fiche affaire). Zéro mail.
+        Messagerie interne : le fil <b>Équipe SETRIM</b> et le direct entre collègues. Les échanges
+        de chantier restent dans la fiche affaire (onglet Fil). Zéro mail.
         {canAdd ? (
           <>
             {' '}
@@ -318,7 +318,7 @@ export function MessagesView({
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Rechercher collègue ou chantier…"
+              placeholder="Rechercher un collègue…"
             />
           </div>
           {canAdd ? (
