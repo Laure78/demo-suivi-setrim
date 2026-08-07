@@ -84,10 +84,13 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .who button{
   width:31px;height:31px;border-radius:50%;font-family:"Archivo",sans-serif;font-size:11.5px;
   font-weight:700;background:#DBDFD9;color:#5E6862;border:2px solid transparent;
+  overflow:hidden;padding:0;display:grid;place-items:center;
 }
+.who button .who-photo{width:100%;height:100%;object-fit:cover;display:block}
 .who button:hover{border-color:var(--bleu)}
 .who button:disabled{opacity:.7;cursor:wait}
 .who button.on{background:var(--bleu);color:#fff}
+.who button.on .who-photo{opacity:.95}
 .who button[data-terrain="1"].on{background:var(--bleu-fonce)}
 .btn-note{
   border:1px solid var(--bitume);border-radius:3px;padding:6px 12px;font-size:12.5px;font-weight:500;
@@ -259,6 +262,21 @@ td.num{text-align:right;font-family:"IBM Plex Mono",monospace}
   font-family:"Archivo",sans-serif;font-size:12px;font-weight:700;color:#fff;background:var(--bleu)}
 .av.grp{background:var(--bitume);border-radius:50%}
 .av.ce{background:var(--vert)}
+.av.photo{padding:0;overflow:hidden;background:#C9CFC8}
+.av.photo img{width:100%;height:100%;object-fit:cover;display:block}
+.profil-btn{
+  display:flex;align-items:center;gap:8px;border:1px solid var(--trait);background:#fff;
+  border-radius:20px;padding:4px 12px 4px 4px;cursor:pointer;font:inherit;font-size:12.5px;
+  color:var(--bitume);margin-bottom:10px;
+}
+.profil-btn:hover{border-color:var(--bleu);color:var(--bleu)}
+.profil-sheet .avatar-preview{
+  width:88px;height:88px;border-radius:50%;overflow:hidden;margin:12px auto 16px;
+  background:var(--bleu);display:grid;place-items:center;color:#fff;
+  font-family:"Archivo",sans-serif;font-size:28px;font-weight:700;
+}
+.profil-sheet .avatar-preview img{width:100%;height:100%;object-fit:cover}
+.profil-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
 .conv .txt{min-width:0;flex:1;display:block}
 .conv .txt>span{display:block}
 .th-head>span{display:block;min-width:0}
@@ -287,6 +305,8 @@ td.num{text-align:right;font-family:"IBM Plex Mono",monospace}
 .stream{flex:1;overflow:auto;padding:16px;background:#EEF0EB;display:flex;flex-direction:column;gap:9px}
 .bub{max-width:74%;background:#fff;border-radius:10px 10px 10px 2px;padding:8px 11px 6px;
   box-shadow:0 1px 1px rgba(0,0,0,.08);position:relative}
+.bub .bub-av{position:absolute;left:-40px;top:4px}
+.bub.me .bub-av{display:none}
 .bub .au{font-size:11.5px;font-weight:600;color:var(--bleu);margin-bottom:2px}
 .bub p{font-size:13.5px;line-height:1.4}
 .bub .hr{font-size:10px;color:var(--zinc);font-family:"IBM Plex Mono",monospace;text-align:right;margin-top:2px}

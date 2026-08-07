@@ -74,6 +74,7 @@ export default async function MessagesPage() {
       titre: genMeta.titre,
       sousTitre: genMeta.sousTitre,
       avatar: genMeta.avatar,
+      photo: null as string | null,
       cls: 'grp',
       pin: genMeta.pin,
       last: genLast
@@ -108,6 +109,7 @@ export default async function MessagesPage() {
             ? `Sur chantier — ${ROLE_LABEL[u.role] ?? u.role}`
             : ROLE_LABEL[u.role] ?? u.role,
           avatar: u.initiales,
+          photo: u.avatarUrl ?? null,
           cls: '',
           pin: '',
           last: last
@@ -126,6 +128,11 @@ export default async function MessagesPage() {
         convs={convs}
         initialThread={convs[0]?.id ?? 'gen'}
         meId={session.user.id}
+        meNom={session.user.name ?? ''}
+        meInitiales={session.user.initiales}
+        meAvatarUrl={
+          users.find((u) => u.id === session.user.id)?.avatarUrl ?? null
+        }
         canAdd={['assistante', 'responsable', 'dirigeant'].includes(session.user.role)}
       />
     </Shell>

@@ -11,6 +11,7 @@ export type Collaborateur = {
   role: string;
   terrain: boolean;
   roleLabel?: string;
+  avatarUrl?: string | null;
 };
 
 const DEMO_PASSWORD = 'setrim2026';
@@ -75,7 +76,14 @@ export function WhoSwitcher() {
               disabled={!!switching}
               onClick={() => switchTo(u.email, u.initiales)}
             >
-              {busy ? '…' : u.initiales}
+              {busy ? (
+                '…'
+              ) : u.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={u.avatarUrl} alt={u.initiales} className="who-photo" />
+              ) : (
+                u.initiales
+              )}
             </button>
           );
         })}

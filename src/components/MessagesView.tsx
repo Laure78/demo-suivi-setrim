@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { AvatarBubble } from '@/components/AvatarBubble';
 
 /** Comptes bureau protégés — non suppressibles */
 const BUREAU_IDS = new Set(['audrey', 'melissa', 'valerie', 'denis', 'philippe']);
@@ -11,6 +12,7 @@ type Conv = {
   titre: string;
   sousTitre: string;
   avatar: string;
+  photo?: string | null;
   cls: string;
   pin: string;
   last: string;
@@ -26,18 +28,24 @@ type Msg = {
   systeme: boolean;
   createdAt: string;
   auteurId: string;
-  auteur: { nom: string; initiales: string };
+  auteur: { nom: string; initiales: string; avatarUrl?: string | null };
 };
 
 export function MessagesView({
   convs: initialConvs,
   initialThread,
   meId,
+  meNom,
+  meInitiales,
+  meAvatarUrl: meAvatarInitial,
   canAdd,
 }: {
   convs: Conv[];
   initialThread: string;
   meId: string;
+  meNom: string;
+  meInitiales: string;
+  meAvatarUrl: string | null;
   canAdd: boolean;
 }) {
   const [convs, setConvs] = useState(initialConvs);
@@ -50,6 +58,10 @@ export function MessagesView({
   const [addErr, setAddErr] = useState('');
   const [adding, setAdding] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showProfil, setShowProfil] = useState(false);
+  const [meAvatarUrl, setMeAvatarUrl] = useState<string | null>(meAvatarInitial);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const avatarRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
     nom: '',
     initiales: '',
@@ -90,6 +102,10 @@ export function MessagesView({
   useEffect(() => {
     setConvs(initialConvs);
   }, [initialConvs]);
+
+  useEffect(() => {
+    setMeAvatarUrl(meAvatarInitial);
+  }, [meAvatarInitial]);
 
   useEffect(() => {
     load(conv);
@@ -222,6 +238,44 @@ export function MessagesView({
     router.refresh();
   }
 
+
+  async function uploadAvatar(file: File) {
+    setAvatarBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const r = await fetch('/api/profil', { method: 'POST', body: fd });
+      const j = await r.json();
+      if (!r.ok) {
+        alert(j.error ?? 'Échec de l’envoi');
+        return;
+      }
+      setMeAvatarUrl(j.avatarUrl ?? null);
+      router.refresh();
+    } finally {
+      setAvatarBusy(false);
+    }
+  }
+
+  async function removeAvatar() {
+    if (!confirm('Retirer votre photo de profil ?')) return;
+    setAvatarBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append('action', 'remove');
+      const r = await fetch('/api/profil', { method: 'POST', body: fd });
+      const j = await r.json();
+      if (!r.ok) {
+        alert(j.error ?? 'Impossible de retirer');
+        return;
+      }
+      setMeAvatarUrl(null);
+      router.refresh();
+    } finally {
+      setAvatarBusy(false);
+    }
+  }
+
   return (
     <>
       <p className="hint" style={{ marginBottom: 12 }}>
@@ -234,6 +288,12 @@ export function MessagesView({
           </>
         ) : null}
       </p>
+      <button type="button" className="profil-btn" onClick={() => setShowProfil(true)}>
+        <AvatarBubble label={meInitiales} photo={meAvatarUrl} size={28} />
+        <span>
+          {meNom || 'Mon profil'} — <span className="edit-mark">changer la photo</span>
+        </span>
+      </button>
       <div className="chat">
         <div className="conv-list">
           <div className="conv-search">
@@ -256,7 +316,7 @@ export function MessagesView({
               role="button"
               tabIndex={0}
             >
-              <span className={`av ${x.cls}`}>{x.avatar}</span>
+              <AvatarBubble label={x.avatar} photo={x.photo} cls={x.cls} />
               <span className="txt">
                 <span className="nm">{x.titre}</span>
                 <span className="lst">{x.last}</span>
@@ -289,7 +349,7 @@ export function MessagesView({
         </div>
         <div className="thread">
           <div className="th-head">
-            <span className={`av ${c?.cls}`}>{c?.avatar}</span>
+            <AvatarBubble label={c?.avatar ?? ''} photo={c?.photo} cls={c?.cls} />
             <span className="th-head-txt">
               <h4>{c?.titre}</h4>
               <p>{c?.sousTitre}</p>
@@ -328,6 +388,14 @@ export function MessagesView({
                 /\.(jpe?g|png|webp|gif|heic)$/i.test(m.fichier);
               return (
                 <div className={`bub${mine ? ' me' : ''}`} key={m.id}>
+                  {!mine ? (
+                    <AvatarBubble
+                      label={m.auteur.initiales}
+                      photo={m.auteur.avatarUrl}
+                      size={28}
+                      cls="bub-av"
+                    />
+                  ) : null}
                   <div className="au">{m.auteur.nom}</div>
                   {m.fichier && isImg ? (
                     <a href={m.fichier} target="_blank" rel="noreferrer" className="photo-link">
@@ -489,6 +557,59 @@ export function MessagesView({
                 {adding ? 'Ajout…' : 'Ajouter'}
               </button>
             </form>
+          </div>
+        </>
+      ) : null}
+
+      {showProfil ? (
+        <>
+          <div className="scrim on" onClick={() => setShowProfil(false)} />
+          <div className="add-collab-sheet profil-sheet">
+            <button type="button" className="sheet-close" onClick={() => setShowProfil(false)}>
+              ✕
+            </button>
+            <span className="eyebrow">Mon profil</span>
+            <h3>{meNom}</h3>
+            <p className="hint">Photo visible dans Messages et auprès de l&apos;équipe.</p>
+            <div className="avatar-preview">
+              {meAvatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={meAvatarUrl} alt={meNom} />
+              ) : (
+                meInitiales
+              )}
+            </div>
+            <input
+              ref={avatarRef}
+              type="file"
+              hidden
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                e.target.value = '';
+                if (f) void uploadAvatar(f);
+              }}
+            />
+            <div className="profil-actions">
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={avatarBusy}
+                onClick={() => avatarRef.current?.click()}
+              >
+                {avatarBusy ? 'Envoi…' : meAvatarUrl ? 'Changer la photo' : 'Ajouter une photo'}
+              </button>
+              {meAvatarUrl ? (
+                <button
+                  type="button"
+                  className="btn-note"
+                  disabled={avatarBusy}
+                  onClick={() => void removeAvatar()}
+                >
+                  Retirer
+                </button>
+              ) : null}
+            </div>
           </div>
         </>
       ) : null}

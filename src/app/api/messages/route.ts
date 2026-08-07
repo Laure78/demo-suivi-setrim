@@ -11,7 +11,7 @@ export async function GET(req: Request) {
   const meta = await prisma.threadMeta.findUnique({ where: { id: thread } });
   const messages = await prisma.message.findMany({
     where: { threadKey: thread },
-    include: { auteur: { select: { nom: true, initiales: true } } },
+    include: { auteur: { select: { nom: true, initiales: true, avatarUrl: true } } },
     orderBy: { createdAt: 'asc' },
   });
 
@@ -24,18 +24,31 @@ export async function POST(req: Request) {
 
   const body = await req.json();
   const texte = String(body.texte ?? '').trim();
-  if (!texte && !body.photoLabel) {
+  const photoLabel = body.photoLabel ? String(body.photoLabel) : null;
+  const fichier = body.fichier ? String(body.fichier) : null;
+  if (!texte && !photoLabel && !fichier) {
     return NextResponse.json({ error: 'Message vide' }, { status: 400 });
   }
 
   const threadKey = String(body.threadKey ?? 'gen');
+  const affaireId = body.affaireId ? String(body.affaireId) : null;
 
-  // Messagerie = Équipe SETRIM ou direct collaborateur uniquement
+  // Messagerie interne (Équipe / DM) OU fil chantier (affaire)
   if (threadKey !== 'gen') {
     const user = await prisma.user.findUnique({ where: { id: threadKey } });
-    if (!user) {
+    const affaire =
+      !user &&
+      (await prisma.affaire.findFirst({
+        where: affaireId
+          ? { id: affaireId }
+          : { numeroDevis: threadKey },
+      }));
+    if (!user && !affaire) {
       return NextResponse.json(
-        { error: 'Conversation introuvable — uniquement Équipe SETRIM ou un collaborateur.' },
+        {
+          error:
+            'Conversation introuvable — Équipe SETRIM, un collaborateur, ou une affaire.',
+        },
         { status: 400 },
       );
     }
@@ -44,15 +57,24 @@ export async function POST(req: Request) {
   const msg = await prisma.message.create({
     data: {
       threadKey,
-      affaireId: body.affaireId ?? null,
+      affaireId: affaireId ?? null,
       auteurId: session.user.id,
       texte: texte || null,
-      photoLabel: body.photoLabel ?? null,
+      photoLabel,
+      fichier,
     },
   });
 
-  // Notifier le destinataire en DM, ou toute l'équipe sur le fil général
-  if (threadKey === 'gen') {
+  const preview =
+    texte ||
+    (fichier && photoLabel
+      ? `📎 ${photoLabel}`
+      : photoLabel
+        ? `📷 ${photoLabel}`
+        : 'Nouveau message');
+
+  // Notifs : uniquement messagerie interne (pas les fils chantier)
+  if (!affaireId && threadKey === 'gen') {
     const others = await prisma.user.findMany({
       where: { actif: true, id: { not: session.user.id } },
       select: { id: true },
@@ -60,16 +82,19 @@ export async function POST(req: Request) {
     await notifyUsers({
       userIds: others.map((u) => u.id),
       title: `Équipe SETRIM — ${session.user.name}`,
-      body: texte.slice(0, 120),
+      body: preview.slice(0, 120),
       url: '/messages',
     });
-  } else {
-    await notifyUsers({
-      userIds: [threadKey],
-      title: `${session.user.name}`,
-      body: texte.slice(0, 120),
-      url: '/messages',
-    });
+  } else if (!affaireId && threadKey !== 'gen') {
+    const isUser = await prisma.user.findUnique({ where: { id: threadKey } });
+    if (isUser) {
+      await notifyUsers({
+        userIds: [threadKey],
+        title: `${session.user.name}`,
+        body: preview.slice(0, 120),
+        url: '/messages',
+      });
+    }
   }
 
   const mentions = texte.match(/@(\w+)/g) ?? [];

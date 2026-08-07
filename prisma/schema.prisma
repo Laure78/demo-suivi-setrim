@@ -50,6 +50,8 @@ model User {
   role         Role
   terrain      Boolean  @default(false)
   actif        Boolean  @default(true)
+  /// Photo de profil (/uploads/... ou data URL)
+  avatarUrl    String?
   createdAt    DateTime @default(now())
 
   taches          Tache[]            @relation("TacheResponsable")
@@ -61,30 +63,32 @@ model User {
 }
 
 model Affaire {
-  id          String        @id @default(cuid())
-  numeroDevis String        @unique
-  client      String
-  adresse     String
-  montantHt   Decimal       @db.Decimal(12, 2)
-  montantTtc  Decimal?      @db.Decimal(12, 2)
-  joursCharge Int           @default(0)
-  statut      AffaireStatut @default(commande)
-  type        AffaireType   @default(travaux)
-  dateDevis   DateTime?
-  note        String        @default("")
-  acompteHt   Decimal       @default(0) @db.Decimal(12, 2)
-  dateDebut   DateTime?
-  dateFin     DateTime?
-  equipeId    String?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id                 String        @id @default(cuid())
+  numeroDevis        String        @unique
+  client             String
+  adresse            String
+  montantHt          Decimal       @db.Decimal(12, 2)
+  montantTtc         Decimal?      @db.Decimal(12, 2)
+  joursCharge        Int           @default(0)
+  statut             AffaireStatut @default(commande)
+  type               AffaireType   @default(travaux)
+  dateDevis          DateTime?
+  note               String        @default("")
+  acompteHt          Decimal       @default(0) @db.Decimal(12, 2)
+  dateDebut          DateTime?
+  dateFin            DateTime?
+  equipeId           String?
+  contratEntretienId String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
-  equipe   Equipe?         @relation(fields: [equipeId], references: [id])
-  taches   Tache[]
-  messages Message[]
-  pieces   Piece[]
-  factures Facture[]
-  slots    PlanningSlot[]
+  equipe           Equipe?            @relation(fields: [equipeId], references: [id])
+  contratEntretien ContratEntretien?  @relation(fields: [contratEntretienId], references: [id], onDelete: SetNull)
+  taches           Tache[]
+  messages         Message[]
+  pieces           Piece[]
+  factures         Facture[]
+  slots            PlanningSlot[]
 }
 
 model Tache {
@@ -111,6 +115,8 @@ model Message {
   auteurId   String
   texte      String?
   photoLabel String?
+  /// Chemin public /uploads/... (photo ou pièce jointe)
+  fichier    String?
   systeme    Boolean  @default(false)
   createdAt  DateTime @default(now())
 
@@ -156,6 +162,8 @@ model ContratEntretien {
   etat            String    @default("contract")
   datePosee       DateTime?
   createdAt       DateTime  @default(now())
+
+  affaires Affaire[]
 }
 
 model Equipe {
