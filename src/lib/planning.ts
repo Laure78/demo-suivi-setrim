@@ -88,3 +88,117 @@ export function isFerieUTC(year: number, monthIndex: number, day: number) {
 }
 
 export { MOIS_FR };
+
+/**
+ * Pose les chantiers (affaires programmées / en cours) sur le planning du mois.
+ * Chaque jour ouvré de la période d'intervention porte client + adresse.
+ */
+export async function syncChantiersAuPlanning(year: number, month: number) {
+  const { prisma } = await import('@/lib/prisma');
+  const equipes = await prisma.equipe.findMany({
+    where: { categorie: 'equipe' },
+    orderBy: { ordre: 'asc' },
+  });
+  if (!equipes.length) return;
+
+  const nDays = daysInMonth(year, month);
+  const monthStart = new Date(Date.UTC(year, month, 1));
+  const monthEnd = new Date(Date.UTC(year, month, nDays));
+
+  const chantiers = await prisma.affaire.findMany({
+    where: {
+      statut: { in: ['programme', 'encours'] },
+      type: { in: ['travaux', 'contrat_entretien'] },
+    },
+  });
+
+  let eqIdx = 0;
+  for (const a of chantiers) {
+    let equipeId = a.equipeId;
+    if (!equipeId || !equipes.some((e) => e.id === equipeId)) {
+      equipeId = equipes[eqIdx % equipes.length].id;
+      eqIdx++;
+      await prisma.affaire.update({
+        where: { id: a.id },
+        data: { equipeId },
+      });
+    }
+
+    const charge = Math.max(1, a.joursCharge || 1);
+    let start = a.dateDebut ? new Date(a.dateDebut) : null;
+    let end = a.dateFin ? new Date(a.dateFin) : null;
+
+    if (!start) {
+      // En cours → début du mois ; programmé → milieu du mois (ou date devis si dans le mois)
+      if (a.statut === 'encours') {
+        start = new Date(monthStart);
+      } else if (a.dateDevis) {
+        const dd = new Date(a.dateDevis);
+        start =
+          dd >= monthStart && dd <= monthEnd
+            ? dd
+            : new Date(Date.UTC(year, month, Math.min(15, nDays)));
+      } else {
+        start = new Date(Date.UTC(year, month, Math.min(10, nDays)));
+      }
+      await prisma.affaire.update({
+        where: { id: a.id },
+        data: { dateDebut: start },
+      });
+    }
+
+    if (!end) {
+      end = new Date(start);
+      // Avancer de `charge` jours ouvrés
+      let added = 0;
+      while (added < charge - 1) {
+        end.setUTCDate(end.getUTCDate() + 1);
+        const dow = end.getUTCDay();
+        if (dow !== 0 && dow !== 6) added++;
+      }
+      await prisma.affaire.update({
+        where: { id: a.id },
+        data: { dateFin: end },
+      });
+    }
+
+    // Créer un créneau pour chaque jour du mois qui intersecte [start, end]
+    for (let day = 1; day <= nDays; day++) {
+      if (isWeekendUTC(year, month, day) || isFerieUTC(year, month, day)) continue;
+      const date = new Date(Date.UTC(year, month, day, 12, 0, 0));
+      if (date < start || date > end) continue;
+
+      const existing = await prisma.planningSlot.findFirst({
+        where: {
+          affaireId: a.id,
+          date: new Date(Date.UTC(year, month, day)),
+          type: { in: ['chantier', 'ce'] },
+        },
+      });
+      if (existing) {
+        // Mettre à jour l'adresse si besoin
+        if (existing.equipeId !== equipeId || !existing.label?.includes(a.adresse)) {
+          await prisma.planningSlot.update({
+            where: { id: existing.id },
+            data: {
+              equipeId,
+              label: `${a.client} · ${a.adresse}`,
+            },
+          });
+        }
+        continue;
+      }
+
+      await prisma.planningSlot.create({
+        data: {
+          equipeId,
+          date: new Date(Date.UTC(year, month, day)),
+          affaireId: a.id,
+          type: a.type === 'contrat_entretien' ? 'ce' : 'chantier',
+          label: `${a.client} · ${a.adresse}`,
+        },
+      });
+    }
+  }
+}
+

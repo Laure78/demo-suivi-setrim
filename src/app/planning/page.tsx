@@ -7,6 +7,7 @@ import {
   isoDateUTC,
   isFerieUTC,
   isWeekendUTC,
+  syncChantiersAuPlanning,
 } from '@/lib/planning';
 
 export const dynamic = 'force-dynamic';
@@ -24,6 +25,7 @@ export default async function PlanningPage({ searchParams }: Props) {
       : now.getMonth();
 
   await ensurePrestataires();
+  await syncChantiersAuPlanning(year, month);
 
   // Enrichir quelques créneaux démo pour le mois affiché (prestataires + absences)
   await seedMonthDemo(year, month);

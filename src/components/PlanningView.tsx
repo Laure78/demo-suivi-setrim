@@ -80,9 +80,9 @@ export function PlanningView({
       </div>
 
       <p className="hint" style={{ marginBottom: 12 }}>
-        Planning année civile — un jour = une colonne. Chaque case indique l&apos;adresse du chantier
-        ou l&apos;absence. En bas : les 2 prestataires (échafaudage, bennes). Glisser-déposer pour
-        déplacer.
+        Planning année civile — un jour = une colonne. Les chantiers du portefeuille (programmés et
+        en cours) s&apos;y posent automatiquement avec leur adresse. Absences et prestataires en
+        plus. Glisser-déposer pour déplacer.
       </p>
 
       <div className="plan-mois-tabs">

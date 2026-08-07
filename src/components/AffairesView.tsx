@@ -41,6 +41,14 @@ export function AffairesView({
   const tot = rows.reduce((s, a) => s + a.montantHt, 0);
   const totj = rows.reduce((s, a) => s + a.joursCharge, 0);
 
+  // Totaux portefeuille = Commandes + Programmés
+  const portefeuille = useMemo(
+    () => affaires.filter((a) => a.statut === 'commande' || a.statut === 'programme'),
+    [affaires],
+  );
+  const pfHt = portefeuille.reduce((s, a) => s + a.montantHt, 0);
+  const pfJ = portefeuille.reduce((s, a) => s + a.joursCharge, 0);
+
   async function openSheet(id: string) {
     setSheetId(id);
     const r = await fetch(`/api/affaires/${id}`);
@@ -80,9 +88,25 @@ export function AffairesView({
         </span>
       </div>
 
+      <div className="totals" style={{ marginBottom: 14, borderTop: '1px solid var(--trait)' }}>
+        <div>
+          <span className="eyebrow">Portefeuille (commandes + programmés)</span>
+          <span className="v">{eur0(pfHt)}</span>
+        </div>
+        <div>
+          <span className="eyebrow">Jours de charge</span>
+          <span className="v">{pfJ} j</span>
+        </div>
+        <div>
+          <span className="eyebrow">Moyenne / jour</span>
+          <span className="v">{pfJ ? eur0(pfHt / pfJ) : '—'}</span>
+        </div>
+      </div>
+
       <p className="hint" style={{ marginBottom: 12 }}>
         Les trois premiers onglets sont vos trois bannettes. Une affaire naît du devis Batappli et
-        garde le même numéro jusqu&apos;à l&apos;encaissement.
+        garde le même numéro jusqu&apos;à l&apos;encaissement. Les chantiers programmés et en cours
+        apparaissent automatiquement au planning.
       </p>
       <div className="tabs">
         {TABS.map((k) => (
@@ -166,8 +190,8 @@ export function AffairesView({
         </div>
       </div>
       <p className="hint">
-        Le portefeuille n&apos;est pas un tableau à part : c&apos;est ce total, sur les onglets
-        Commandes et Programmés.
+        Le portefeuille, c&apos;est ce total sur les onglets Commandes et Programmés. Une fois la
+        date posée, le chantier rejoint le planning.
       </p>
 
       {sheetId ? (

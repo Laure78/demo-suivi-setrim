@@ -131,11 +131,13 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
           const short =
             s.id === 'aujourdhui'
               ? "Aujourd'hui"
-              : s.id === 'contrats'
-                ? 'Contrats'
-                : s.id === 'facturation'
-                  ? 'Factures'
-                  : s.label;
+              : s.id === 'portefeuille'
+                ? 'Portef.'
+                : s.id === 'contrats'
+                  ? 'Contrats'
+                  : s.id === 'facturation'
+                    ? 'Factures'
+                    : s.label;
           return (
             <Link key={s.id} href={s.href} className={on ? 'on' : ''}>
               <span className="mt-k">{s.k}</span>
