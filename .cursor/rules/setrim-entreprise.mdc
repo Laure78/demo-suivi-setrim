@@ -1,0 +1,20 @@
+---
+description: Contexte organisation SETRIM (effectifs et rôles)
+alwaysApply: true
+---
+
+# SETRIM — organisation réelle
+
+Entreprise d’étanchéité. Effectifs à respecter dans les contenus et la démo :
+
+- **5 personnes au bureau** (dirigeant, conducteur de travaux, assistantes, responsable…)
+- **15 ouvriers / chefs de chantier** sur les chantiers
+- **2 prestataires** externes
+
+## Implications produit
+
+- La démo actuelle expose surtout les **5 utilisateurs bureau** (sélecteur « Je suis »).
+- Les **équipes chantier** (A / B / C) représentent les ouvriers & chefs de chantier — ne pas les confondre avec le bureau.
+- Les prestataires peuvent apparaître comme intervenants externes (échafaudage, bennes, etc.), pas comme utilisateurs internes.
+- Adapter le langage : artisans, chefs de chantier, conducteur de travaux — pas de jargon startup.
+
