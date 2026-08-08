@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 
 const DEMO_PASSWORD = 'setrim2026';
 
-/** Les 5 du bureau SETRIM — ordre fixe pour Messages / sélecteur. */
+/** Les 5 du bureau SETRIM — ordre fixe pour Messagerie / sélecteur. */
 export const BUREAU_USERS = [
   {
     id: 'audrey',

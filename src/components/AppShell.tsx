@@ -59,7 +59,7 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
   const screenTitle =
     title ??
     (pathname.startsWith(MESSAGES_HREF)
-      ? 'Messages'
+      ? 'Messagerie'
       : SCREENS.find((s) => pathname === s.href || pathname.startsWith(s.href + '/'))?.label) ??
     "Aujourd'hui";
 
@@ -115,7 +115,7 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
           onClick={() => setMenuOpen(false)}
         >
           <span className="k">✉</span>
-          <span className="nav-label">Messages</span>
+          <span className="nav-label">Messagerie</span>
           {unreadCount > 0 ? <span className="badge">{unreadCount}</span> : null}
         </Link>
         <button
@@ -197,7 +197,7 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
             href={MESSAGES_HREF}
             className={`btn-note btn-messages desk-only-inline${pathname.startsWith(MESSAGES_HREF) ? ' on' : ''}`}
           >
-            Messages
+            Messagerie
             {unreadCount > 0 ? <span className="mono"> ({unreadCount})</span> : null}
           </Link>
           <InstallAppButton />

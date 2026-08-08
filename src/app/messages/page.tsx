@@ -126,16 +126,11 @@ export default async function MessagesPage() {
   ];
 
   return (
-    <Shell title="Messages">
+    <Shell title="Messagerie">
       <MessagesView
         convs={convs}
         initialThread={convs[0]?.id ?? 'gen'}
         meId={session.user.id}
-        meNom={session.user.name ?? ''}
-        meInitiales={session.user.initiales}
-        meAvatarUrl={
-          users.find((u) => u.id === session.user.id)?.avatarUrl ?? null
-        }
         canAdd={['assistante', 'responsable', 'dirigeant'].includes(session.user.role)}
       />
     </Shell>

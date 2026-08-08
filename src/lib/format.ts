@@ -121,7 +121,7 @@ export const SCREENS = [
   { id: 'facturation', href: '/facturation', label: 'Facturation', k: '5' },
 ] as const;
 
-/** Accès Messages depuis le bandeau (pas le menu latéral). */
+/** Accès Messagerie depuis le bandeau (pas le menu latéral). */
 export const MESSAGES_HREF = '/messages';
 
 export const MOIS_EXERCICE = [
