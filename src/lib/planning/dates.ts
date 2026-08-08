@@ -81,6 +81,24 @@ export function formatHour(d: Date): string {
   return format(d, 'HH:mm');
 }
 
+/** Titre barre : « 4 – 10 août 2026 » */
+export function formatWeekTitle(d: Date): string {
+  const days = weekDays(d);
+  const start = days[0]!;
+  const end = days[6]!;
+  if (start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()) {
+    return `${format(start, 'd')} – ${format(end, 'd MMMM yyyy', { locale: fr })}`;
+  }
+  if (start.getFullYear() === end.getFullYear()) {
+    return `${format(start, 'd MMM', { locale: fr })} – ${format(end, 'd MMM yyyy', { locale: fr })}`;
+  }
+  return `${format(start, 'd MMM yyyy', { locale: fr })} – ${format(end, 'd MMM yyyy', { locale: fr })}`;
+}
+
+export function addWeeks(date: Date, amount: number): Date {
+  return addDays(date, amount * 7);
+}
+
 export function weekDays(date: Date): Date[] {
   const start = startOfWeek(date, { weekStartsOn: WEEK_STARTS_ON });
   return eachDayOfInterval({

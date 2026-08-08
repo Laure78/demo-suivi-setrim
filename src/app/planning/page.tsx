@@ -8,7 +8,7 @@ type Props = {
   searchParams: Promise<{ annee?: string; mois?: string; vue?: string }>;
 };
 
-/** Nouvel agenda Jour / Mois / Année. */
+/** Nouvel agenda Jour / Semaine / Mois / Année. */
 export default async function PlanningPage({ searchParams }: Props) {
   const sp = await searchParams;
   const now = new Date();
@@ -19,7 +19,9 @@ export default async function PlanningPage({ searchParams }: Props) {
       ? monthParam - 1
       : now.getMonth();
   const initialView =
-    sp.vue === 'day' || sp.vue === 'year' || sp.vue === 'month' ? sp.vue : 'month';
+    sp.vue === 'day' || sp.vue === 'week' || sp.vue === 'year' || sp.vue === 'month'
+      ? sp.vue
+      : 'month';
 
   const data = await loadPlanningMonth(year, month, {
     weekdaysOnly: false,

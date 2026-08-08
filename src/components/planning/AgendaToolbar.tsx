@@ -1,6 +1,15 @@
 'use client';
 
-export type PlanningViewMode = 'day' | 'month' | 'year';
+export type PlanningViewMode = 'day' | 'week' | 'month' | 'year';
+
+const VIEW_LABEL: Record<PlanningViewMode, string> = {
+  day: 'Jour',
+  week: 'Semaine',
+  month: 'Mois',
+  year: 'Année',
+};
+
+const VIEWS: PlanningViewMode[] = ['day', 'week', 'month', 'year'];
 
 export function AgendaToolbar({
   view,
@@ -41,7 +50,7 @@ export function AgendaToolbar({
       </div>
       <h3 className="agenda-title">{title}</h3>
       <div className="agenda-seg" role="tablist" aria-label="Vue">
-        {(['day', 'month', 'year'] as const).map((v) => (
+        {VIEWS.map((v) => (
           <button
             key={v}
             type="button"
@@ -50,7 +59,7 @@ export function AgendaToolbar({
             className={view === v ? 'on' : ''}
             onClick={() => onSetView(v)}
           >
-            {v === 'day' ? 'Jour' : v === 'month' ? 'Mois' : 'Année'}
+            {VIEW_LABEL[v]}
           </button>
         ))}
       </div>

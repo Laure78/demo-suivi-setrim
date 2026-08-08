@@ -7,6 +7,7 @@ import { AgendaToolbar, type PlanningViewMode } from '@/components/planning/Agen
 import { useZoomBackGestures } from '@/components/planning/useZoomBackGestures';
 import { DayView } from '@/components/planning/views/DayView';
 import { MonthView } from '@/components/planning/views/MonthView';
+import { WeekView } from '@/components/planning/views/WeekView';
 import { YearView } from '@/components/planning/views/YearView';
 import {
   filterEvents,
@@ -17,9 +18,11 @@ import {
 } from '@/lib/planning/toCalendarEvents';
 import {
   addMonths,
+  addWeeks,
   addYears,
   formatExerciceTitle,
   formatMonthTitle,
+  formatWeekTitle,
   formatYearTitle,
   startOfDay,
   startOfExercice,
@@ -37,6 +40,8 @@ const ALL_TYPES: PlanningSourceType[] = [
   'tache',
   'ferie',
 ];
+
+const TAB_VIEWS: PlanningViewMode[] = ['day', 'week', 'month', 'year'];
 
 type ZoomDir = 'in' | 'out' | 'none';
 
@@ -76,6 +81,10 @@ export function PlanningShell({
     [allEvents, resourceIds, sourceTypes],
   );
   const eventsByDay = useMemo(() => indexEventsByDay(events), [events]);
+  const visibleEquipes = useMemo(
+    () => equipes.filter((e) => resourceIds.has(e.id)),
+    [equipes, resourceIds],
+  );
 
   const title =
     view === 'day'
@@ -84,18 +93,22 @@ export function PlanningShell({
           day: 'numeric',
           month: 'long',
         })
-      : view === 'month'
-        ? formatMonthTitle(selectedDate)
-        : yearMode === 'exercice'
-          ? `Exercice ${formatExerciceTitle(selectedDate)}`
-          : formatYearTitle(selectedDate);
+      : view === 'week'
+        ? formatWeekTitle(selectedDate)
+        : view === 'month'
+          ? formatMonthTitle(selectedDate)
+          : yearMode === 'exercice'
+            ? `Exercice ${formatExerciceTitle(selectedDate)}`
+            : formatYearTitle(selectedDate);
 
   const backLabel =
     view === 'day'
-      ? selectedDate.toLocaleDateString('fr-FR', { month: 'long' })
-      : view === 'month'
-        ? String(selectedDate.getFullYear())
-        : null;
+      ? 'Semaine'
+      : view === 'week'
+        ? formatMonthTitle(selectedDate)
+        : view === 'month'
+          ? String(selectedDate.getFullYear())
+          : null;
 
   const transition = reduce
     ? { duration: 0.12 }
@@ -108,7 +121,8 @@ export function PlanningShell({
   }, []);
 
   const zoomBack = useCallback(() => {
-    if (view === 'day') zoomTo('month', 'out');
+    if (view === 'day') zoomTo('week', 'out');
+    else if (view === 'week') zoomTo('month', 'out');
     else if (view === 'month') zoomTo('year', 'out');
   }, [view, zoomTo]);
 
@@ -118,6 +132,7 @@ export function PlanningShell({
     setZoomDir('none');
     setSelectedDate((d) => {
       if (view === 'day') return startOfDay(new Date(d.getTime() - 86400000));
+      if (view === 'week') return startOfDay(addWeeks(d, -1));
       if (view === 'month') return startOfMonth(addMonths(d, -1));
       if (yearMode === 'exercice') return startOfExercice(addYears(startOfExercice(d), -1));
       return startOfYear(addYears(d, -1));
@@ -128,6 +143,7 @@ export function PlanningShell({
     setZoomDir('none');
     setSelectedDate((d) => {
       if (view === 'day') return startOfDay(new Date(d.getTime() + 86400000));
+      if (view === 'week') return startOfDay(addWeeks(d, 1));
       if (view === 'month') return startOfMonth(addMonths(d, 1));
       if (yearMode === 'exercice') return startOfExercice(addYears(startOfExercice(d), 1));
       return startOfYear(addYears(d, 1));
@@ -194,8 +210,19 @@ export function PlanningShell({
                   <DayView
                     date={selectedDate}
                     events={events}
-                    equipes={equipes.filter((e) => resourceIds.has(e.id))}
+                    equipes={visibleEquipes}
                     onSelectDate={setSelectedDate}
+                  />
+                ) : null}
+                {view === 'week' ? (
+                  <WeekView
+                    date={selectedDate}
+                    events={events}
+                    equipes={visibleEquipes}
+                    onOpenDay={(d, e) => {
+                      setSelectedDate(d);
+                      zoomTo('day', 'in', e ? originFromEvent(e) : '50% 50%');
+                    }}
                   />
                 ) : null}
                 {view === 'month' ? (
@@ -233,7 +260,7 @@ export function PlanningShell({
       </div>
 
       <nav className="agenda-tabbar" aria-label="Vues">
-        {(['day', 'month', 'year'] as const).map((v) => (
+        {TAB_VIEWS.map((v) => (
           <button
             key={v}
             type="button"
@@ -243,7 +270,7 @@ export function PlanningShell({
               setView(v);
             }}
           >
-            {v === 'day' ? 'Jour' : v === 'month' ? 'Mois' : 'Année'}
+            {v === 'day' ? 'Jour' : v === 'week' ? 'Sem.' : v === 'month' ? 'Mois' : 'Année'}
           </button>
         ))}
       </nav>
