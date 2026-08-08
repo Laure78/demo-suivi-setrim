@@ -7,7 +7,6 @@ import { signOut, useSession } from 'next-auth/react';
 import { SCREENS, MESSAGES_HREF } from '@/lib/format';
 import { RemarquesDrawer } from '@/components/RemarquesDrawer';
 import { WhoSwitcher } from '@/components/WhoSwitcher';
-import { InstallAppButton } from '@/components/InstallAppButton';
 import { SetrimFooter } from '@/components/SetrimFooter';
 import { useEffect, useState } from 'react';
 import { enableWebPush } from '@/lib/web-push-client';
@@ -200,7 +199,6 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
             Messagerie
             {unreadCount > 0 ? <span className="mono"> ({unreadCount})</span> : null}
           </Link>
-          <InstallAppButton />
           <button type="button" className="btn-note desk-only-inline" onClick={() => setNotesOpen(true)}>
             Remarques <span className="mono">({noteCount})</span>
           </button>

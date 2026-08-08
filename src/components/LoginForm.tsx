@@ -5,7 +5,6 @@ import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { COLLABORATEURS } from '@/components/WhoSwitcher';
-import { InstallAppButton } from '@/components/InstallAppButton';
 import { SetrimFooter } from '@/components/SetrimFooter';
 
 const DEMO_PASSWORD = 'setrim2026';
@@ -93,9 +92,6 @@ export function LoginForm() {
         </button>
         <div className="login-users">
           Mot de passe démo : <span className="mono">{DEMO_PASSWORD}</span>
-        </div>
-        <div style={{ marginTop: 14 }}>
-          <InstallAppButton />
         </div>
       </form>
       <SetrimFooter />
