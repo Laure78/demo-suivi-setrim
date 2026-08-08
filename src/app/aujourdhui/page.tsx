@@ -95,6 +95,7 @@ export default async function AujourdhuiPage() {
       <TodayWall
         userName={session.user.name ?? ''}
         userRole={ROLE_LABEL[session.user.role] ?? session.user.role}
+        meId={session.user.id}
         chantiers={chantiers}
         taches={taches.map((t) => ({
           id: t.id,

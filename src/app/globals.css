@@ -34,10 +34,10 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 }
 
 /* ---------- shell ---------- */
-.app{display:flex;min-height:100vh}
+.app{display:flex;min-height:100vh;min-height:100dvh}
 .rail{
   width:206px;flex:0 0 206px;background:var(--rail);color:#E6E8E3;
-  display:flex;flex-direction:column;position:sticky;top:0;height:100vh;
+  display:flex;flex-direction:column;position:sticky;top:0;height:100vh;height:100dvh;
 }
 .rail{position:relative;overflow:hidden}
 .brand{background:#fff;padding:16px 16px 14px;border-bottom:3px solid var(--bleu)}
@@ -64,11 +64,11 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
   font-family:"IBM Plex Mono",monospace;border-radius:9px;padding:1px 6px}
 .rail-foot{margin-top:auto;padding:14px 16px;border-top:1px solid rgba(255,255,255,.14);font-size:10px;color:#8FB2C6;line-height:1.6}
 
-.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.main{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column}
 .bar{
   display:flex;align-items:center;gap:14px;flex-wrap:wrap;
   padding:14px 24px;background:var(--papier);border-bottom:1px solid var(--trait);
-  position:sticky;top:0;z-index:20;
+  position:sticky;top:0;z-index:20;flex:none;
 }
 .bar h2{font-family:"Archivo",sans-serif;font-size:17px;font-weight:700;letter-spacing:-.01em}
 .bar .date{font-size:12px;color:var(--zinc)}
@@ -90,13 +90,22 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
   border:1px solid var(--bitume);border-radius:3px;padding:6px 12px;font-size:12.5px;font-weight:500;
 }
 .btn-note:hover{background:var(--bleu);border-color:var(--bleu);color:#fff}
+a.btn-note{display:inline-flex;align-items:center;text-decoration:none}
+a.btn-note.on,a.btn-messages.on{
+  background:var(--bleu);border-color:var(--bleu);color:#fff;
+}
 .btn-install{
   border:1px solid var(--bleu);color:var(--bleu);border-radius:3px;padding:6px 12px;
   font-size:12.5px;font-weight:500;white-space:nowrap;
 }
 .btn-install:hover{background:var(--bleu);color:#fff}
-.content{padding:22px 24px 60px;max-width:1240px}
+.content{
+  padding:20px 28px 48px;width:100%;max-width:none;flex:1;min-height:0;
+  display:flex;flex-direction:column;
+}
 .mobile-tabbar{display:none}
+.hamburger{display:none}
+.menu-scrim,.mobile-drawer{display:none}
 
 /* ---------- generic bits ---------- */
 .card{background:var(--papier);border:1px solid var(--trait);border-radius:4px}
@@ -118,7 +127,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 }
 .btn-edit:hover{background:var(--bleu);color:#fff;border-color:var(--bleu)}
 .sheet-head-actions{
-  position:absolute;top:18px;right:48px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+  position:absolute;top:16px;right:56px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;z-index:4;
 }
 .edit-affaire-form{display:flex;flex-direction:column;gap:10px;margin-top:10px}
 .edit-affaire-form label{display:flex;flex-direction:column;gap:4px;font-size:11.5px;color:var(--zinc)}
@@ -170,6 +179,31 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 }
 .pi-check span.box{width:15px;height:15px;border:1.5px solid currentColor;border-radius:2px;display:inline-block}
 .pi-late{position:absolute;top:-8px;right:10px;background:var(--bitume);color:#fff;font-size:10px;
+  font-family:"IBM Plex Mono",monospace;padding:2px 7px;border-radius:2px}
+.today-add-task{
+  background:#fff;border:1px solid var(--trait);border-radius:10px;padding:14px 16px;
+  display:flex;flex-direction:column;gap:10px;margin-bottom:4px;
+}
+.today-add-task>input{
+  border:1px solid var(--trait);border-radius:8px;padding:12px 12px;font:inherit;min-height:48px;
+}
+.today-add-meta{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.today-add-meta label{
+  display:flex;flex-direction:column;gap:4px;font-size:11.5px;color:var(--zinc);flex:1;min-width:140px;
+}
+.today-add-meta input,.today-add-meta select{
+  border:1px solid var(--trait);border-radius:8px;padding:10px;font:inherit;font-size:14px;
+  color:var(--bitume);background:#fff;min-height:44px;
+}
+.today-add-meta .btn-primary{
+  background:var(--bleu);color:#fff;border-radius:8px;padding:10px 18px;font-size:14px;
+  font-weight:600;min-height:44px;flex:none;
+}
+@media(max-width:860px){
+  .today-add-meta{flex-direction:column;align-items:stretch}
+  .today-add-meta label{min-width:0}
+  .today-add-meta .btn-primary{width:100%}
+}
   font-family:"IBM Plex Mono",monospace;padding:2px 6px;border-radius:2px}
 .done-strip{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .done-strip .d{font-size:12px;color:var(--zinc);text-decoration:line-through;
@@ -210,46 +244,84 @@ td.num{text-align:right;font-family:"IBM Plex Mono",monospace}
 .totals div span{display:block}
 .totals .v{font-family:"IBM Plex Mono",monospace;font-size:17px;font-weight:600}
 
-/* ---------- slide-over ---------- */
+/* ---------- slide-over fiche affaire ---------- */
 .sheet{
-  position:fixed;inset:0 0 0 auto;width:min(560px,100%);background:var(--papier);
+  position:fixed;inset:0 0 0 auto;
+  width:min(840px,58vw);max-width:100%;
+  height:100%;height:100dvh;
+  background:var(--papier);
   border-left:1px solid var(--trait);box-shadow:-18px 0 40px -24px rgba(0,0,0,.5);
-  transform:translateX(100%);transition:transform .25s ease;z-index:40;overflow:auto;
+  transform:translateX(100%);transition:transform .25s ease;z-index:40;
+  display:flex;flex-direction:column;overflow:hidden;
 }
 .sheet.open{transform:none}
-.sheet-head{padding:18px 20px;border-bottom:1px solid var(--trait);position:sticky;top:0;background:#fff}
-.sheet-head h3{font-family:"Archivo",sans-serif;font-size:18px}
-.sheet-close{position:absolute;top:16px;right:16px;font-size:19px;color:var(--zinc)}
-.kv{display:grid;grid-template-columns:auto 1fr;gap:5px 16px;font-size:12.5px;margin-top:10px}
+.sheet-head{
+  flex:none;padding:18px 56px 16px 22px;border-bottom:1px solid var(--trait);
+  position:relative;background:#fff;z-index:2;
+}
+.sheet-head h3{font-family:"Archivo",sans-serif;font-size:22px;line-height:1.2;padding-right:8px}
+.sheet-close{
+  position:absolute;top:12px;right:12px;z-index:5;
+  width:44px;height:44px;display:grid;place-items:center;
+  font-size:20px;color:var(--zinc);border:none;background:transparent;cursor:pointer;
+  border-radius:10px;
+}
+.sheet-close:hover{background:#EEF0EB;color:var(--bitume)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 18px;font-size:13px;margin-top:12px}
 .kv dt{color:var(--zinc)}
 .kv dd{font-family:"IBM Plex Mono",monospace}
-.sheet-tabs{display:flex;border-bottom:1px solid var(--trait);position:sticky;top:0;background:#fff}
-.sheet-tabs button{flex:1;padding:10px 4px;font-size:12.5px;color:var(--zinc);border-bottom:2px solid transparent}
+.sheet-tabs{
+  flex:none;display:flex;border-bottom:1px solid var(--trait);background:#fff;
+  overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;
+}
+.sheet-tabs::-webkit-scrollbar{display:none}
+.sheet-tabs button{
+  flex:1;min-width:0;padding:12px 8px;min-height:48px;font-size:13px;color:var(--zinc);
+  border-bottom:2px solid transparent;white-space:nowrap;
+}
 .sheet-tabs button.on{color:var(--bleu);font-weight:600;border-bottom-color:var(--bleu)}
-.sheet-body{padding:18px 20px 40px}
-.task-line{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid #EDEFEB}
-.task-line .box{width:15px;height:15px;border:1.5px solid var(--zinc);border-radius:2px;margin-top:2px;flex:none}
+.sheet-body{
+  flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;
+  padding:18px 22px calc(28px + env(safe-area-inset-bottom));
+}
+.task-line{display:flex;gap:10px;align-items:flex-start;padding:12px 0;border-bottom:1px solid #EDEFEB}
+.task-line .box{
+  width:22px;height:22px;border:1.5px solid var(--zinc);border-radius:4px;margin-top:1px;flex:none;
+  cursor:pointer;
+}
 .task-line.done .box{background:var(--vert);border-color:var(--vert)}
 .task-line.done .t{color:var(--zinc);text-decoration:line-through}
-.task-line .t{font-weight:500;font-size:13px}
-.task-line .m{font-size:11.5px;color:var(--zinc)}
+.task-line .t{font-weight:500;font-size:14px}
+.task-line .m{font-size:12px;color:var(--zinc)}
 .lvl{width:4px;align-self:stretch;border-radius:2px;background:var(--postit)}
 .lvl.n3{background:var(--flamme)}
 .lvl.n1{background:#C6CCC5}
 .add-task{margin-top:14px;display:flex;gap:8px}
 .add-task input{flex:1;border:1px solid var(--trait);border-radius:3px;padding:8px 10px;font:inherit}
 .add-task button{background:var(--bleu);color:#fff;border-radius:3px;padding:8px 14px;font-size:12.5px}
-.add-task-form{margin-top:14px;display:flex;flex-direction:column;gap:8px}
-.add-task-form>input{border:1px solid var(--trait);border-radius:3px;padding:8px 10px;font:inherit}
-.add-task-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
+.add-task-form{margin-top:14px;display:flex;flex-direction:column;gap:10px}
+.add-task-form>input{
+  border:1px solid var(--trait);border-radius:8px;padding:12px 12px;font:inherit;min-height:48px;
+}
+.add-task-meta{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
 .add-task-meta label,.task-edit label{
-  display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--zinc);
+  display:flex;flex-direction:column;gap:4px;font-size:11.5px;color:var(--zinc);flex:1;min-width:120px;
 }
 .add-task-meta input,.add-task-meta select,.task-edit input,.task-edit select{
-  border:1px solid var(--trait);border-radius:3px;padding:6px 8px;font:inherit;font-size:12.5px;
-  color:var(--encre);background:#fff;min-width:0;
+  border:1px solid var(--trait);border-radius:8px;padding:10px 10px;font:inherit;font-size:14px;
+  color:var(--bitume);background:#fff;min-width:0;min-height:44px;
 }
-.add-task-meta button{background:var(--bleu);color:#fff;border-radius:3px;padding:8px 14px;font-size:12.5px;height:34px}
+.add-task-meta button{
+  background:var(--bleu);color:#fff;border-radius:8px;padding:10px 18px;font-size:14px;
+  font-weight:600;min-height:44px;flex:none;
+}
+.task-modeles{margin-top:18px;padding-top:14px;border-top:1px solid var(--trait)}
+.task-modele-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.task-modele{
+  border:1px solid var(--trait);background:#F7F8F5;border-radius:999px;
+  padding:8px 14px;font-size:12.5px;font-weight:500;color:var(--bitume);min-height:40px;
+}
+.task-modele:hover{border-color:var(--bleu);color:var(--bleu);background:#EFF5FB}
 .task-edit{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;padding:8px;background:#F7F8F5;border-radius:4px}
 .urg-tag{font-weight:600}
 .urg-tag.n3{color:var(--flamme)}
@@ -475,55 +547,108 @@ td.num{text-align:right;font-family:"IBM Plex Mono",monospace}
 .scrim{position:fixed;inset:0;background:rgba(27,30,28,.35);opacity:0;pointer-events:none;
   transition:opacity .25s;z-index:35}
 .scrim.on{opacity:1;pointer-events:auto}
+.scrim.over-edit{z-index:45}
+.sheet.over-edit{z-index:46}
 
 /* ---------- responsive ---------- */
 @media(max-width:860px){
-  .app{flex-direction:column;padding-bottom:64px}
-  .rail{
-    width:100%;height:auto;position:sticky;top:0;z-index:30;
-    flex-direction:row;align-items:center;overflow:hidden;
+  .app{flex-direction:column;padding-bottom:0}
+  .desk-rail{display:none !important}
+  .hamburger{
+    display:flex;flex-direction:column;justify-content:center;gap:5px;
+    width:44px;height:44px;padding:10px 8px;border-radius:8px;flex:none;
+    border:1px solid var(--trait);background:#fff;
   }
-  .brand{border:none;padding:8px 12px;flex:none;min-width:0}
-  .brand img.logo{max-width:110px}
-  .motif{display:none}
-  .brand p{display:none}
-  .nav{display:none}
-  .rail-foot{display:none}
-  .content{padding:14px 12px 24px}
-  .bar{padding:10px 12px;gap:8px}
+  .hamburger span{
+    display:block;height:2px;width:100%;background:var(--bitume);border-radius:1px;
+  }
+  .hamburger:hover{border-color:var(--bleu)}
+  .desk-only-inline{display:none !important}
+  .menu-scrim{
+    display:block;position:fixed;inset:0;background:rgba(27,30,28,.45);z-index:60;
+  }
+  .mobile-drawer{
+    display:flex;flex-direction:column;
+    position:fixed;top:0;left:0;bottom:0;width:min(320px,88vw);
+    background:var(--rail);color:#E6E8E3;z-index:61;
+    box-shadow:12px 0 40px -16px rgba(0,0,0,.5);
+    padding:0 0 env(safe-area-inset-bottom);
+  }
+  .mobile-drawer-head{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+    padding:14px 12px;background:#fff;border-bottom:3px solid var(--bleu);
+  }
+  .mobile-drawer-head .logo{max-width:120px;height:auto}
+  .mobile-drawer-head .sheet-close{position:static;color:var(--zinc)}
+  .mobile-drawer-nav{
+    padding:12px 10px;display:flex;flex-direction:column;gap:2px;flex:1;overflow:auto;
+  }
+  .mobile-drawer .nav-link{
+    display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+    padding:14px 12px;border-radius:8px;color:#C3D9E6;font-size:15px;min-height:48px;
+    border:none;background:transparent;cursor:pointer;font:inherit;
+  }
+  .mobile-drawer .nav-link .k{
+    font-family:"IBM Plex Mono",monospace;font-size:11px;color:#7EA8C2;
+    border:1px solid rgba(255,255,255,.22);border-radius:2px;padding:2px 5px;
+  }
+  .mobile-drawer .nav-link.on{background:var(--chape);color:var(--bitume);font-weight:600}
+  .mobile-drawer .nav-link.on .k{color:var(--zinc);border-color:var(--trait)}
+  .mobile-drawer .badge{
+    margin-left:auto;background:var(--flamme);color:#fff;font-size:11px;
+    font-family:"IBM Plex Mono",monospace;border-radius:9px;padding:1px 7px;
+  }
+  .mobile-drawer-foot{
+    padding:14px 16px;border-top:1px solid rgba(255,255,255,.14);font-size:12px;color:#8FB2C6;
+  }
+  .mobile-drawer-foot button{
+    margin-top:8px;color:#7EC4EC;text-decoration:underline;font-size:13px;min-height:40px;
+  }
+  .content{padding:12px 12px 20px}
+  .bar{padding:8px 10px;gap:8px}
+  .bar-title{min-width:0;flex:1}
   .bar-title h2{font-size:15px}
-  .bar .date{font-size:11px}
+  .bar .date{display:none}
   .who button{width:28px;height:28px;font-size:10.5px}
   .btn-note{padding:5px 8px;font-size:11.5px}
   .btn-install{padding:5px 8px;font-size:11.5px}
   .who-block{gap:6px}
-  .setrim-footer-inner{padding:20px 14px 16px;gap:20px}
-  .setrim-footer-cols{gap:16px 24px}
-  .setrim-footer-legal{padding:10px 14px 12px}
-  .mobile-tabbar{
-    display:flex;position:fixed;left:0;right:0;bottom:0;z-index:30;
-    background:var(--rail);border-top:1px solid rgba(255,255,255,.14);
-    padding:4px 2px calc(4px + env(safe-area-inset-bottom));
-    justify-content:space-around;gap:2px;
+
+  .sheet{
+    inset:0;width:100%;max-width:none;border-left:none;
+    transform:translateY(8%);opacity:0;border-radius:0;
+    transition:transform .22s ease,opacity .22s ease;
   }
-  .mobile-tabbar a{
-    flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;
-    gap:2px;padding:6px 2px;color:#C3D9E6;font-size:9.5px;position:relative;
-    border-radius:3px;
+  .sheet.open{transform:none;opacity:1}
+  .sheet-head{padding:14px 56px 12px 16px}
+  .sheet-head h3{font-size:20px}
+  .sheet-head .hint{display:none}
+  .sheet-head .adr{font-size:13px;line-height:1.35}
+  .sheet-head-actions{top:14px;right:52px}
+  .sheet-head-actions .btn-edit{min-height:40px;padding:8px 12px;font-size:13px}
+  .sheet-tabs{position:sticky;top:0;z-index:3;box-shadow:0 1px 0 var(--trait)}
+  .sheet-tabs button{
+    flex:0 0 auto;min-width:4.6rem;padding:14px 14px;font-size:14px;min-height:52px;
   }
-  .mobile-tabbar a.on{background:var(--chape);color:var(--bitume);font-weight:600}
-  .mobile-tabbar .mt-k{
-    font-family:"IBM Plex Mono",monospace;font-size:9px;opacity:.75;
+  .sheet-body{padding:14px 14px calc(24px + env(safe-area-inset-bottom))}
+  .kv{gap:8px 12px;font-size:13.5px}
+  .task-line{padding:14px 0;gap:12px}
+  .task-line .box{width:26px;height:26px;border-radius:6px}
+  .add-task-meta{flex-direction:column;align-items:stretch}
+  .add-task-meta label{min-width:0}
+  .add-task-meta button{width:100%}
+  .task-modele{min-height:44px;padding:10px 14px;font-size:13.5px}
+  .chips{gap:8px}
+  .chips button,.modele-chip,button.chip{
+    min-height:40px;padding:8px 12px;font-size:13px;
   }
-  .mobile-tabbar a.on .mt-k{opacity:1}
-  .mobile-tabbar .mt-l{
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;
-  }
-  .mobile-tabbar .mt-badge{
-    position:absolute;top:2px;right:calc(50% - 18px);
-    background:var(--flamme);color:#fff;font-size:9px;
-    font-family:"IBM Plex Mono",monospace;border-radius:8px;padding:0 4px;
-  }
+  .agenda{min-height:calc(100dvh - 120px)}
+  .agenda-tabbar{z-index:25}
+  .agenda-day-scroll{max-height:min(62dvh,560px)}
+  .desk-only{display:none !important}
+  .setrim-footer-mini{padding:8px 12px;gap:10px}
+  .setrim-footer-copy{font-size:10.5px}
+  .mobile-tabbar{display:none !important}
   .chat{height:auto;min-height:420px}
   .plan-wrap,.fact-grid{margin-left:-4px;margin-right:-4px}
 }
@@ -587,37 +712,27 @@ a { color: inherit; text-decoration: none; }
 }
 .filter-client select:focus{outline:2px solid var(--bleu);outline-offset:1px}
 
-/* ---------- footer SETRIM ---------- */
+/* ---------- footer SETRIM (minimal) ---------- */
 .setrim-footer{
   margin-top:auto;
   background:var(--bleu-fonce);
   color:#E6E8E3;
-  border-top:3px solid var(--bleu);
+  border-top:2px solid var(--bleu);
 }
-.setrim-footer-inner{
-  display:flex;flex-wrap:wrap;gap:28px 40px;align-items:flex-start;
-  padding:28px 24px 20px;max-width:1240px;
+.setrim-footer-mini{
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  padding:10px 20px;max-width:none;
 }
-.setrim-footer-brand{flex:0 0 auto;max-width:200px}
 .setrim-footer-logo{
-  display:block;width:100%;max-width:140px;height:auto;
-  background:#fff;padding:8px 10px;border-radius:2px;
+  display:block;height:24px;width:auto;
+  background:#fff;padding:4px 6px;border-radius:2px;
 }
-.setrim-footer-tag{
-  font-family:"Archivo",sans-serif;font-size:9px;letter-spacing:.1em;
-  text-transform:uppercase;color:#7EC4EC;margin-top:10px;line-height:1.5;
+.setrim-footer-copy{font-size:11.5px;color:#8FB2C6;flex:1;min-width:0}
+.setrim-footer-web{
+  font-size:12px;color:#fff;text-decoration:none;
+  border-bottom:1px solid rgba(255,255,255,.3);
 }
-.setrim-footer-cols{display:flex;flex-wrap:wrap;gap:22px 36px;flex:1;min-width:0}
-.setrim-footer-col{min-width:140px}
-.setrim-footer-col .eyebrow{color:#7EA8C2;margin-bottom:6px;display:block}
-.setrim-footer-col p{font-size:13px;line-height:1.55;margin:0;color:#D5E4ED}
-.setrim-footer-col a{color:#fff;text-decoration:none;border-bottom:1px solid rgba(255,255,255,.25)}
-.setrim-footer-col a:hover{border-bottom-color:#fff}
-.setrim-footer-legal{
-  display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;
-  padding:10px 24px 14px;border-top:1px solid rgba(255,255,255,.12);
-  font-size:11px;color:#8FB2C6;max-width:1240px;
-}
+.setrim-footer-web:hover{border-bottom-color:#fff}
 .login-wrap .setrim-footer{width:100%;margin-top:auto}
 .conv-add{
   display:block;width:100%;text-align:left;padding:10px 13px;font-size:12.5px;font-weight:600;
@@ -642,7 +757,7 @@ a { color: inherit; text-decoration: none; }
 }
 
 /* ---------- Agenda planning (Jour / Semaine / Mois / Année) ---------- */
-.agenda{display:flex;flex-direction:column;gap:0;min-height:calc(100vh - 120px)}
+.agenda{display:flex;flex-direction:column;gap:0;min-height:calc(100dvh - 120px);flex:1}
 .agenda-toolbar{
   display:flex;flex-wrap:wrap;align-items:center;gap:10px;justify-content:space-between;
   padding:10px 0 12px;border-bottom:1px solid var(--trait);margin-bottom:12px;
@@ -660,14 +775,17 @@ a { color: inherit; text-decoration: none; }
 .agenda-body{display:grid;grid-template-columns:260px 1fr;gap:16px;flex:1;min-height:0}
 .agenda-sidebar{
   background:#fff;border:1px solid var(--trait);border-radius:8px;padding:14px;
-  align-self:start;position:sticky;top:72px;max-height:calc(100vh - 100px);overflow:auto;
+  align-self:stretch;position:sticky;top:72px;max-height:calc(100dvh - 100px);overflow:auto;
 }
 .agenda-filters{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
 .agenda-filters label{
   display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;min-height:32px;
 }
-.agenda-main{min-width:0;background:#fff;border:1px solid var(--trait);border-radius:8px;padding:14px;overflow:auto}
-.agenda-view{min-height:320px}
+.agenda-main{
+  min-width:0;min-height:0;background:#fff;border:1px solid var(--trait);border-radius:8px;
+  padding:14px;overflow:auto;flex:1;display:flex;flex-direction:column;
+}
+.agenda-view{min-height:0;flex:1}
 .agenda-tabbar{
   display:none;position:sticky;bottom:0;gap:0;background:#fff;border-top:1px solid var(--trait);
   padding:6px 8px calc(6px + env(safe-area-inset-bottom));z-index:10;

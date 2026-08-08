@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { daysLate, formatDateShort, NIVEAU_LABEL } from '@/lib/format';
 
 export type PostitTache = {
@@ -24,19 +24,39 @@ export type ChantierDuJour = {
   numeroDevis?: string | null;
 };
 
+function todayIso() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 export function TodayWall({
   taches,
   userName,
   userRole,
+  meId,
   chantiers,
 }: {
   taches: PostitTache[];
   userName: string;
   userRole: string;
+  meId: string;
   chantiers: ChantierDuJour[];
 }) {
   const router = useRouter();
   const [gone, setGone] = useState<Record<string, boolean>>({});
+  const [titre, setTitre] = useState('');
+  const [niveau, setNiveau] = useState(2);
+  const [echeance, setEcheance] = useState(todayIso);
+  const [affaireId, setAffaireId] = useState('');
+  const [affaires, setAffaires] = useState<
+    { id: string; numeroDevis: string; client: string; adresse: string }[]
+  >([]);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
   const mine = taches
     .filter((t) => !t.fait && !gone[t.id])
     .sort((a, b) => {
@@ -45,10 +65,57 @@ export function TodayWall({
     });
   const done = taches.filter((t) => t.fait);
 
+  useEffect(() => {
+    fetch('/api/affaires/liste')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (j?.affaires) setAffaires(j.affaires);
+      })
+      .catch(() => {});
+  }, []);
+
   async function check(id: string) {
     setGone((g) => ({ ...g, [id]: true }));
     await fetch(`/api/taches/${id}/toggle`, { method: 'POST' });
     setTimeout(() => router.refresh(), 340);
+  }
+
+  async function addTask(e?: React.FormEvent) {
+    e?.preventDefault();
+    const v = titre.trim();
+    if (!v) {
+      setErr('Indiquez le titre de la tâche.');
+      return;
+    }
+    setBusy(true);
+    setErr('');
+    try {
+      const aff = affaires.find((a) => a.id === affaireId);
+      const r = await fetch('/api/taches', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          titre: v,
+          niveau,
+          dateEcheance: echeance,
+          responsableId: meId,
+          affaireId: affaireId || null,
+          libelleAffaire: aff ? `${aff.client} · ${aff.adresse.split(',')[0]}` : null,
+        }),
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        setErr(j.error ?? 'Impossible d’ajouter');
+        return;
+      }
+      setTitre('');
+      setNiveau(2);
+      setEcheance(todayIso());
+      setAffaireId('');
+      router.refresh();
+    } finally {
+      setBusy(false);
+    }
   }
 
   function portefeuilleHref(c: ChantierDuJour) {
@@ -64,16 +131,58 @@ export function TodayWall({
           Tâches à faire — {userName}, {userRole}
         </span>
       </div>
-      <p className="hint">
-        Les tâches créées sur une affaire (urgence + échéance) arrivent ici. Rouge = urgent, jaune =
-        à faire, gris = info. Tant que la case n&apos;est pas cochée, l&apos;alerte revient chaque
-        jour.
-      </p>
-      <div className="wall" style={{ marginTop: 14 }}>
+
+      <form className="today-add-task" onSubmit={(e) => void addTask(e)}>
+        <p className="eyebrow">Nouvelle tâche</p>
+        <input
+          value={titre}
+          onChange={(e) => setTitre(e.target.value)}
+          placeholder="Ex. rappeler le syndic, commander la benne…"
+          aria-label="Titre de la tâche"
+        />
+        <div className="today-add-meta">
+          <label>
+            Échéance
+            <input
+              type="date"
+              value={echeance}
+              onChange={(e) => setEcheance(e.target.value)}
+              required
+            />
+          </label>
+          <label>
+            Urgence
+            <select value={niveau} onChange={(e) => setNiveau(Number(e.target.value))}>
+              <option value={3}>Urgent (rouge)</option>
+              <option value={2}>À faire (jaune)</option>
+              <option value={1}>Info (gris)</option>
+            </select>
+          </label>
+          <label>
+            Affaire (optionnel)
+            <select value={affaireId} onChange={(e) => setAffaireId(e.target.value)}>
+              <option value="">— aucune —</option>
+              {affaires.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.numeroDevis} · {a.client}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button type="submit" className="btn-primary" disabled={busy}>
+            {busy ? '…' : 'Ajouter'}
+          </button>
+        </div>
+        {err ? <p className="hint" style={{ color: 'var(--flamme)', margin: 0 }}>{err}</p> : null}
+      </form>
+
+      <div className="wall" style={{ marginTop: 18 }}>
         {mine.length === 0 ? (
           <div className="card" style={{ padding: 26, gridColumn: '1 / -1' }}>
             <div className="eyebrow">Rien en attente</div>
-            <p style={{ marginTop: 6 }}>Aucune tâche à faire pour {userName}. Tout est coché.</p>
+            <p style={{ marginTop: 6 }}>
+              Aucune tâche à faire pour {userName}. Ajoutez-en une ci-dessus.
+            </p>
           </div>
         ) : (
           mine.map((t) => {

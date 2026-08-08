@@ -142,8 +142,13 @@ export function AffaireSheet({
   if (!detail) {
     return (
       <>
-        <div className="scrim on" onClick={onClose} />
-        <div className="sheet open">
+        <div className="scrim on over-edit" onClick={onClose} />
+        <div className="sheet open over-edit">
+          <div className="sheet-head">
+            <button type="button" className="sheet-close" onClick={onClose}>
+              ✕
+            </button>
+          </div>
           <div className="sheet-body">
             <p className="hint">Chargement…</p>
           </div>
@@ -353,7 +358,7 @@ export function AffaireSheet({
   if (tab === 'taches') {
     body = (
       <>
-        <p className="hint" style={{ marginBottom: 10 }}>
+        <p className="hint desk-only" style={{ marginBottom: 10 }}>
           Urgence + échéance → la tâche apparaît dans{' '}
           <a href="/aujourdhui">Aujourd&apos;hui</a> chez le responsable (post-it à cocher).
         </p>
@@ -490,22 +495,21 @@ export function AffaireSheet({
             </button>
           </div>
         </div>
-        <p className="hint">
-          Modèles proposés :{' '}
-          {MODELES_TACHES.map((m, i) => (
-            <button
-              key={m.titre}
-              type="button"
-              className="edit-mark"
-              style={{ marginRight: 6 }}
-              onClick={() => addModele(m.titre, m.niveau, m.offsetDays)}
-            >
-              {m.titre.split('—')[0].trim()}
-              {i < MODELES_TACHES.length - 1 ? ',' : '.'}
-            </button>
-          ))}{' '}
-          Tous modifiables, aucun imposé.
-        </p>
+        <div className="task-modeles">
+          <p className="eyebrow">Modèles rapides</p>
+          <div className="task-modele-list">
+            {MODELES_TACHES.map((m) => (
+              <button
+                key={m.titre}
+                type="button"
+                className="task-modele"
+                onClick={() => addModele(m.titre, m.niveau, m.offsetDays)}
+              >
+                {m.titre.split('—')[0].trim()}
+              </button>
+            ))}
+          </div>
+        </div>
       </>
     );
   }
@@ -835,10 +839,10 @@ export function AffaireSheet({
 
   return (
     <>
-      <div className="scrim on" onClick={onClose} />
-      <div className="sheet open" id="sheet">
+      <div className="scrim on over-edit" onClick={onClose} />
+      <div className="sheet open over-edit" id="sheet">
         <div className="sheet-head">
-          <button type="button" className="sheet-close" onClick={onClose}>
+          <button type="button" className="sheet-close" onClick={onClose} aria-label="Fermer">
             ✕
           </button>
           <div className="sheet-head-actions">
@@ -963,7 +967,7 @@ export function AffaireSheet({
                 <dt>Acompte</dt>
                 <dd>{a.acompteHt ? eur(a.acompteHt) : '—'}</dd>
               </dl>
-              <p className="hint" style={{ marginTop: 10 }}>
+              <p className="hint desk-only" style={{ marginTop: 10 }}>
                 Fil conducteur : devis validé → planning →{' '}
                 {isCe ? 'anniversaire CE → ' : ''}
                 alertes Aujourd&apos;hui → facturation.

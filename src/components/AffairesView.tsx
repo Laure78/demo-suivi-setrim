@@ -124,7 +124,10 @@ export function AffairesView({
   function closeSheet() {
     setSheetId(null);
     setDetail(null);
-    router.refresh();
+    // Sans ça, ?affaire= + refresh rouvre la fiche immédiatement
+    if (initialAffaireId) {
+      router.replace('/portefeuille', { scroll: false });
+    }
   }
 
   async function submitDevis(e: React.FormEvent) {
