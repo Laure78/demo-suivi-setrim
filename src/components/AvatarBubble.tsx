@@ -1,6 +1,8 @@
 'use client';
 
-/** Avatar : photo ou initiales */
+import { isEmojiAvatar, isImageAvatar } from '@/lib/avatar';
+
+/** Avatar : emoji, photo (legacy) ou initiales */
 export function AvatarBubble({
   label,
   photo,
@@ -13,14 +15,28 @@ export function AvatarBubble({
   size?: number;
 }) {
   const style = size
-    ? ({ width: size, height: size, fontSize: Math.round(size * 0.33) } as React.CSSProperties)
+    ? ({
+        width: size,
+        height: size,
+        fontSize: isEmojiAvatar(photo)
+          ? Math.round(size * 0.55)
+          : Math.round(size * 0.33),
+      } as React.CSSProperties)
     : undefined;
 
-  if (photo) {
+  if (isEmojiAvatar(photo)) {
+    return (
+      <span className={`av emoji ${cls}`.trim()} style={style} title={label}>
+        {photo}
+      </span>
+    );
+  }
+
+  if (isImageAvatar(photo)) {
     return (
       <span className={`av photo ${cls}`.trim()} style={style} title={label}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={photo} alt={label} />
+        <img src={photo!} alt={label} />
       </span>
     );
   }

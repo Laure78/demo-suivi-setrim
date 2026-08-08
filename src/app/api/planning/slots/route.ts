@@ -3,6 +3,29 @@ import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { AffaireStatut } from '@prisma/client';
 
+async function refreshAffaireFromSlots(affaireId: string) {
+  const slots = await prisma.planningSlot.findMany({
+    where: { affaireId, type: { in: ['chantier', 'ce'] } },
+    orderBy: { date: 'asc' },
+  });
+  if (!slots.length) return;
+
+  const aff = await prisma.affaire.findUnique({ where: { id: affaireId } });
+  if (!aff) return;
+
+  await prisma.affaire.update({
+    where: { id: affaireId },
+    data: {
+      dateDebut: slots[0].date,
+      dateFin: slots[slots.length - 1].date,
+      joursCharge: Math.max(1, slots.length),
+      equipeId: slots[0].equipeId,
+      statut:
+        aff.statut === AffaireStatut.commande ? AffaireStatut.programme : aff.statut,
+    },
+  });
+}
+
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
@@ -29,20 +52,7 @@ export async function POST(req: Request) {
   });
 
   if (affaireId) {
-    const aff = await prisma.affaire.findUnique({ where: { id: affaireId } });
-    if (aff && (aff.statut === AffaireStatut.commande || !aff.dateDebut)) {
-      await prisma.affaire.update({
-        where: { id: affaireId },
-        data: {
-          statut:
-            aff.statut === AffaireStatut.commande
-              ? AffaireStatut.programme
-              : aff.statut,
-          dateDebut: aff.dateDebut ?? new Date(date),
-          equipeId,
-        },
-      });
-    }
+    await refreshAffaireFromSlots(affaireId);
   }
 
   return NextResponse.json(slot);
@@ -58,6 +68,9 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: 'Créneau non modifiable' }, { status: 400 });
   }
 
+  const existing = await prisma.planningSlot.findUnique({ where: { id } });
+  if (!existing) return NextResponse.json({ error: 'Introuvable' }, { status: 404 });
+
   const data: Record<string, unknown> = {};
   if (body.equipeId) data.equipeId = String(body.equipeId);
   if (body.date) data.date = new Date(String(body.date));
@@ -72,14 +85,15 @@ export async function PATCH(req: Request) {
 
   const updated = await prisma.planningSlot.update({ where: { id }, data });
 
-  if (updated.affaireId && body.date) {
-    await prisma.affaire.update({
-      where: { id: updated.affaireId },
-      data: {
-        dateDebut: new Date(String(body.date)),
-        ...(body.equipeId ? { equipeId: String(body.equipeId) } : {}),
-      },
-    });
+  if (updated.affaireId) {
+    const aff = await prisma.affaire.findUnique({ where: { id: updated.affaireId } });
+    if (aff && (body.date || body.equipeId)) {
+      await prisma.planningSlot.update({
+        where: { id: updated.id },
+        data: { label: `${aff.client} · ${aff.adresse}` },
+      });
+    }
+    await refreshAffaireFromSlots(updated.affaireId);
   }
 
   return NextResponse.json(updated);
@@ -95,6 +109,13 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ error: 'Créneau non supprimable' }, { status: 400 });
   }
 
+  const existing = await prisma.planningSlot.findUnique({ where: { id } });
+  if (!existing) return NextResponse.json({ error: 'Introuvable' }, { status: 404 });
+
   await prisma.planningSlot.delete({ where: { id } });
+  if (existing.affaireId) {
+    await refreshAffaireFromSlots(existing.affaireId);
+  }
+
   return NextResponse.json({ ok: true });
 }

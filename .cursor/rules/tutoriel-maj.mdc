@@ -1,0 +1,32 @@
+---
+description: Maintenir la rubrique Tutoriel à jour quand la plateforme évolue
+alwaysApply: true
+---
+
+# Tutoriel plateforme — à jour obligatoire
+
+La démo SETRIM a une rubrique **Tutoriel** (`/tutoriel`) qui explique le fonctionnement actuel.
+
+## Source de vérité
+
+- Contenu tutoriel : `src/lib/tutoriel.ts` (`TUTORIEL_SECTIONS`, `TUTORIEL_INTRO`, `TUTORIEL_MAJ`)
+- Aides au survol (« ? ») : `src/lib/aides.ts` + composant `src/components/AideTip.tsx`
+- Affichage tutoriel : `src/components/TutorielView.tsx`
+- Page : `src/app/tutoriel/page.tsx`
+- Entrée menu : `SCREENS` dans `src/lib/format.ts` (id `tutoriel`)
+
+## Quand mettre à jour
+
+Dès qu’une évolution produit change le comportement visible pour l’utilisateur (nouveau menu, écran modifié, règle métier, messagerie, planning, tâches, facturation, etc.) :
+
+1. Modifier la section concernée dans `src/lib/tutoriel.ts`
+2. Mettre à jour le texte d’aide au survol correspondant dans `src/lib/aides.ts` (et placer un `AideTip` / `AideLabel` si nouvel élément clé)
+3. Ajouter une section si un nouvel écran / une nouvelle rubrique apparaît
+4. Retirer ou reformuler ce qui n’existe plus
+5. Actualiser `TUTORIEL_MAJ` (mois + année)
+
+## Ton
+
+- Français, concret, langage BTP (bureau, chantier, conducteur de travaux)
+- Pas de jargon startup
+- Respecter l’orga SETRIM : 5 bureau, équipes chantier, 2 prestataires

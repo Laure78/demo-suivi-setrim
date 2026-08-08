@@ -9,6 +9,7 @@ export {
   isFerieUTC,
   MOIS_FR,
   syncChantiersAuPlanning,
+  resyncAffaireSlots,
 } from '@/lib/planning/core';
 
 export * from '@/lib/planning/dates';

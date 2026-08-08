@@ -6,7 +6,7 @@
 import { prisma } from '@/lib/prisma';
 import { AffaireStatut, AffaireType, FactureType } from '@prisma/client';
 import { MODELES_TACHES } from '@/lib/format';
-import { syncChantiersAuPlanning } from '@/lib/planning';
+import { syncChantiersAuPlanning, resyncAffaireSlots } from '@/lib/planning';
 
 function addDaysUTC(d: Date, n: number) {
   const x = new Date(d);
@@ -165,7 +165,12 @@ export async function programmerAffaire(
 
   const y = input.dateDebut.getUTCFullYear();
   const m = input.dateDebut.getUTCMonth();
+  await resyncAffaireSlots(affaireId);
+  // Mois voisin si la période déborde (sécurité agenda mensuel)
   await syncChantiersAuPlanning(y, m);
+  if (end.getUTCMonth() !== m || end.getUTCFullYear() !== y) {
+    await syncChantiersAuPlanning(end.getUTCFullYear(), end.getUTCMonth());
+  }
 
   return updated;
 }

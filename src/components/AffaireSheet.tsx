@@ -44,6 +44,7 @@ export type AffaireDetail = {
     type: string;
     label: string | null;
     equipe: string;
+    equipeId?: string;
   }[];
   taches: {
     id: string;
@@ -113,6 +114,11 @@ export function AffaireSheet({
   const [msg, setMsg] = useState('');
   const [dateDebut, setDateDebut] = useState('');
   const [jours, setJours] = useState('');
+  const [equipePlanId, setEquipePlanId] = useState('');
+  const [equipes, setEquipes] = useState<{ id: string; nom: string }[]>([]);
+  const [slotDrafts, setSlotDrafts] = useState<
+    Record<string, { date: string; equipeId: string }>
+  >({});
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -136,8 +142,29 @@ export function AffaireSheet({
         if (!taskResp && list[0]) setTaskResp(list[0].id);
       })
       .catch(() => {});
+    void fetch('/api/equipes')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { equipes?: { id: string; nom: string }[] } | null) => {
+        if (j?.equipes?.length) setEquipes(j.equipes);
+      })
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!detail) return;
+    if (detail.dateDebut) setDateDebut(detail.dateDebut.slice(0, 10));
+    setJours(String(detail.joursCharge || 1));
+    setEquipePlanId(detail.equipe?.id ?? '');
+    const drafts: Record<string, { date: string; equipeId: string }> = {};
+    for (const s of detail.planning ?? []) {
+      drafts[s.id] = {
+        date: s.date.slice(0, 10),
+        equipeId: s.equipeId ?? detail.equipe?.id ?? '',
+      };
+    }
+    setSlotDrafts(drafts);
+  }, [detail]);
 
   if (!detail) {
     return (
@@ -334,9 +361,50 @@ export function AffaireSheet({
         action: 'programmer',
         dateDebut,
         joursCharge: jours ? Number(jours) : undefined,
+        equipeId: equipePlanId || undefined,
       }),
     });
     setBusy(false);
+    onRefresh();
+  }
+
+  async function saveSlot(slotId: string) {
+    const d = slotDrafts[slotId];
+    if (!d?.date || !d.equipeId) return;
+    setBusy(true);
+    const r = await fetch('/api/planning/slots', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: slotId,
+        date: d.date,
+        equipeId: d.equipeId,
+        affaireId: a.id,
+      }),
+    });
+    setBusy(false);
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      alert(j.error ?? 'Impossible de modifier le créneau');
+      return;
+    }
+    onRefresh();
+  }
+
+  async function deleteSlot(slotId: string) {
+    if (!confirm('Retirer ce créneau du planning ?')) return;
+    setBusy(true);
+    const r = await fetch('/api/planning/slots', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: slotId }),
+    });
+    setBusy(false);
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      alert(j.error ?? 'Suppression impossible');
+      return;
+    }
     onRefresh();
   }
 
@@ -701,8 +769,8 @@ export function AffaireSheet({
     body = (
       <>
         <p className="hint" style={{ marginBottom: 12 }}>
-          Le devis validé devient une intervention au planning. Même adresse, même équipe, mêmes
-          dates — les alertes Aujourd&apos;hui se recalent dessus.
+          Modifiez dates et équipe ici : le planning général se met à jour automatiquement
+          (même affaire, mêmes créneaux).
         </p>
         <dl className="kv">
           <dt>Début</dt>
@@ -725,16 +793,74 @@ export function AffaireSheet({
         </dl>
 
         {slots.length > 0 ? (
-          <div style={{ marginTop: 14 }}>
-            <span className="eyebrow">Créneaux planning</span>
-            {slots.map((s) => (
-              <div className="piece" key={s.id}>
-                <span>
-                  {formatDateShort(s.date)} · {s.equipe}
-                </span>
-                <small>{s.type === 'ce' ? 'Contrat entretien' : 'Chantier'}</small>
-              </div>
-            ))}
+          <div className="plan-slots-edit" style={{ marginTop: 14 }}>
+            <span className="eyebrow">Créneaux planning — modifiables</span>
+            {slots.map((s) => {
+              const draft = slotDrafts[s.id] ?? {
+                date: s.date.slice(0, 10),
+                equipeId: s.equipeId ?? '',
+              };
+              return (
+                <div className="piece plan-slot-row" key={s.id}>
+                  <div className="plan-slot-fields">
+                    <label>
+                      Date
+                      <input
+                        type="date"
+                        value={draft.date}
+                        disabled={busy}
+                        onChange={(e) =>
+                          setSlotDrafts((prev) => ({
+                            ...prev,
+                            [s.id]: { ...draft, date: e.target.value },
+                          }))
+                        }
+                      />
+                    </label>
+                    <label>
+                      Équipe
+                      <select
+                        value={draft.equipeId}
+                        disabled={busy || !equipes.length}
+                        onChange={(e) =>
+                          setSlotDrafts((prev) => ({
+                            ...prev,
+                            [s.id]: { ...draft, equipeId: e.target.value },
+                          }))
+                        }
+                      >
+                        {!draft.equipeId ? <option value="">— équipe —</option> : null}
+                        {equipes.map((eq) => (
+                          <option key={eq.id} value={eq.id}>
+                            {eq.nom}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <small>{s.type === 'ce' ? 'Contrat entretien' : 'Chantier'}</small>
+                  </div>
+                  <div className="plan-slot-actions">
+                    <button
+                      type="button"
+                      className="btn-note"
+                      disabled={busy}
+                      onClick={() => void saveSlot(s.id)}
+                    >
+                      Enregistrer
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-note plan-slot-del"
+                      disabled={busy}
+                      title="Retirer du planning"
+                      onClick={() => void deleteSlot(s.id)}
+                    >
+                      Retirer
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         ) : (
           <p className="hint" style={{ marginTop: 12 }}>
@@ -742,12 +868,13 @@ export function AffaireSheet({
           </p>
         )}
 
-        <div className="add-task" style={{ marginTop: 16, flexWrap: 'wrap' }}>
+        <div className="add-task plan-program" style={{ marginTop: 16, flexWrap: 'wrap' }}>
           <input
             type="date"
             value={dateDebut}
             onChange={(e) => setDateDebut(e.target.value)}
             style={{ flex: '1 1 140px' }}
+            aria-label="Date de début"
           />
           <input
             type="number"
@@ -756,14 +883,29 @@ export function AffaireSheet({
             value={jours}
             onChange={(e) => setJours(e.target.value)}
             style={{ width: 72 }}
+            aria-label="Nombre de jours"
           />
+          <select
+            value={equipePlanId}
+            onChange={(e) => setEquipePlanId(e.target.value)}
+            style={{ flex: '1 1 160px' }}
+            aria-label="Équipe"
+          >
+            <option value="">Équipe (auto)</option>
+            {equipes.map((eq) => (
+              <option key={eq.id} value={eq.id}>
+                {eq.nom}
+              </option>
+            ))}
+          </select>
           <button type="button" onClick={programmer} disabled={busy || !dateDebut}>
-            Programmer
+            {slots.length ? 'Recaler le planning' : 'Programmer'}
           </button>
         </div>
         <p className="hint">
-          Programmer = statut PROGRAMMÉ + créneaux + tâches (benne, autorisation, factures)
-          recalées sur la date d&apos;intervention.
+          Programmer / Recaler = statut PROGRAMMÉ + créneaux au planning + tâches (benne,
+          autorisation, factures) recalées sur la date d&apos;intervention. Les changements
+          apparaissent tout de suite dans l&apos;agenda Planning.
         </p>
       </>
     );

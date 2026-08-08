@@ -8,7 +8,7 @@ export default auth((req) => {
   if (pathname.startsWith('/api/')) return;
   if (pathname.startsWith('/login')) {
     if (req.auth) {
-      const url = new URL('/aujourdhui', req.nextUrl.origin);
+      const url = new URL('/', req.nextUrl.origin);
       return Response.redirect(url);
     }
     return;

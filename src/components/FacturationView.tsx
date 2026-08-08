@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { eur, eur0 } from '@/lib/format';
+import { AIDES } from '@/lib/aides';
+import { AideLabel } from '@/components/AideTip';
 import { AffaireSheet, type AffaireDetail } from '@/components/AffaireSheet';
 
 type AffaireFactRow = {
@@ -62,8 +64,12 @@ export function FacturationView({
   return (
     <>
       <p className="hint" style={{ marginBottom: 12 }}>
-        Même objet que le portefeuille : chaque ligne ouvre l&apos;affaire (devis → planning →
-        tâches → factures).
+        <AideLabel aide={AIDES.facturation}>
+          <span>
+            Même objet que le portefeuille : chaque ligne ouvre l&apos;affaire (devis → planning →
+            tâches → factures).
+          </span>
+        </AideLabel>
       </p>
       <div className="fact-grid">
         <div className="card stat">

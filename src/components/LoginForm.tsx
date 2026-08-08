@@ -30,7 +30,7 @@ export function LoginForm() {
       setError('Identifiants incorrects.');
       return;
     }
-    router.push(params.get('callbackUrl') || '/aujourdhui');
+    router.push(params.get('callbackUrl') || '/');
     router.refresh();
   }
 

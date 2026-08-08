@@ -119,6 +119,7 @@ export const SCREENS = [
   { id: 'planning', href: '/planning', label: 'Planning', k: '3' },
   { id: 'contrats', href: '/contrats', label: "Contrats d'entretien", k: '4' },
   { id: 'facturation', href: '/facturation', label: 'Facturation', k: '5' },
+  { id: 'tutoriel', href: '/tutoriel', label: 'Tutoriel', k: '6' },
 ] as const;
 
 /** Accès Messagerie depuis le bandeau (pas le menu latéral). */

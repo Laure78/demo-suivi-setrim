@@ -38,7 +38,7 @@ export async function GET(
       slots: {
         orderBy: { date: 'asc' },
         take: 30,
-        include: { equipe: { select: { nom: true } } },
+        include: { equipe: { select: { id: true, nom: true } } },
       },
     },
   });
@@ -72,6 +72,7 @@ export async function GET(
       type: s.type,
       label: s.label,
       equipe: s.equipe.nom,
+      equipeId: s.equipe.id,
     })),
     taches: a.taches.map((t) => ({
       id: t.id,

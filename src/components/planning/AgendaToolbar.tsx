@@ -1,5 +1,8 @@
 'use client';
 
+import { AideLabel } from '@/components/AideTip';
+import { AIDES } from '@/lib/aides';
+
 export type PlanningViewMode = 'day' | 'week' | 'month' | 'year';
 
 const VIEW_LABEL: Record<PlanningViewMode, string> = {
@@ -48,7 +51,9 @@ export function AgendaToolbar({
           Aujourd&apos;hui
         </button>
       </div>
-      <h3 className="agenda-title">{title}</h3>
+      <AideLabel aide={AIDES.planning} placement="bottom">
+        <h3 className="agenda-title">{title}</h3>
+      </AideLabel>
       <div className="agenda-seg" role="tablist" aria-label="Vue">
         {VIEWS.map((v) => (
           <button
@@ -58,6 +63,15 @@ export function AgendaToolbar({
             aria-selected={view === v}
             className={view === v ? 'on' : ''}
             onClick={() => onSetView(v)}
+            title={
+              v === 'day'
+                ? 'Détail horaire du jour par équipe'
+                : v === 'week'
+                  ? 'Semaine complète'
+                  : v === 'month'
+                    ? 'Vue mois'
+                    : 'Vue année / exercice'
+            }
           >
             {VIEW_LABEL[v]}
           </button>

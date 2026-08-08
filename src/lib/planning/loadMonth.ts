@@ -64,6 +64,9 @@ export async function loadPlanningMonth(
       fait: false,
       dateEcheance: { gte: from, lte: to },
     },
+    include: {
+      affaire: { select: { id: true, equipeId: true, client: true, adresse: true } },
+    },
   });
 
   const dayList: { day: number; date: string; weekend: boolean; ferie: boolean }[] = [];
@@ -82,6 +85,9 @@ export async function loadPlanningMonth(
     });
   }
 
+  const defaultEquipeId =
+    equipesDb.find((e) => e.categorie === 'equipe')?.id ?? equipesDb[0]?.id ?? null;
+
   const equipes: EquipeRowInput[] = equipesDb.map((e) => ({
     id: e.id,
     nom: e.nom,
@@ -89,18 +95,28 @@ export async function loadPlanningMonth(
     ordre: e.ordre,
     days: dayList.map((d) => {
       const slots = e.slots.filter((s) => s.date.toISOString().slice(0, 10) === d.date);
-      const extra =
-        e.ordre === 2
-          ? taches
-              .filter((t) => t.dateEcheance.toISOString().slice(0, 10) === d.date)
-              .map((t) => ({
-                id: `tache-${t.id}`,
-                type: 'tache',
-                label: t.titre,
-                affaireId: t.affaireId,
-                affaire: null,
-              }))
-          : [];
+      const tacheSlots = taches
+        .filter((t) => {
+          if (t.dateEcheance.toISOString().slice(0, 10) !== d.date) return false;
+          const target =
+            t.affaire?.equipeId ?? defaultEquipeId;
+          return target === e.id;
+        })
+        .map((t) => ({
+          id: `tache-${t.id}`,
+          type: 'tache',
+          label: t.titre,
+          affaireId: t.affaireId,
+          niveau: t.niveau,
+          affaire: t.affaire
+            ? {
+                id: t.affaire.id,
+                client: t.affaire.client,
+                numeroDevis: '',
+                adresse: t.affaire.adresse,
+              }
+            : null,
+        }));
       return {
         ...d,
         slots: [
@@ -118,7 +134,9 @@ export async function loadPlanningMonth(
                 }
               : null,
           })),
-          ...extra.filter((x) => !slots.some((s) => s.type === 'tache' && s.label === x.label)),
+          ...tacheSlots.filter(
+            (x) => !slots.some((s) => s.type === 'tache' && s.label === x.label),
+          ),
         ],
       };
     }),

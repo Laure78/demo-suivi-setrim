@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { eur, MOIS_EXERCICE } from '@/lib/format';
+import { AIDES } from '@/lib/aides';
+import { AideLabel } from '@/components/AideTip';
 import { AffaireSheet, type AffaireDetail } from '@/components/AffaireSheet';
 
 type ContratRow = {
@@ -63,10 +65,14 @@ export function ContratsView({ contrats }: { contrats: ContratRow[] }) {
   return (
     <>
       <p className="hint" style={{ marginBottom: 12 }}>
-        Exercice du 1<sup>er</sup> juillet 2026 au 30 juin 2027. Le mois de passage est
-        contractuel (date anniversaire) : chaque contrat crée une affaire liée, posée au planning
-        du mois, avec alertes à J-30 (caler la date) et J-15 (urgence). Cliquez une ligne pour
-        ouvrir l&apos;affaire.
+        <AideLabel aide={AIDES.contrats}>
+          <span>
+            Exercice du 1<sup>er</sup> juillet 2026 au 30 juin 2027. Le mois de passage est
+            contractuel (date anniversaire) : chaque contrat crée une affaire liée, posée au planning
+            du mois, avec alertes à J-30 (caler la date) et J-15 (urgence). Cliquez une ligne pour
+            ouvrir l&apos;affaire.
+          </span>
+        </AideLabel>
       </p>
 
       <div className="import-bar" style={{ marginBottom: 12 }}>

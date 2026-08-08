@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { daysLate, formatDateShort, NIVEAU_LABEL } from '@/lib/format';
+import { AIDES } from '@/lib/aides';
+import { AideLabel } from '@/components/AideTip';
 
 export type PostitTache = {
   id: string;
@@ -127,13 +129,19 @@ export function TodayWall({
   return (
     <>
       <div className="sec-head">
-        <span className="eyebrow">
-          Tâches à faire — {userName}, {userRole}
-        </span>
+        <AideLabel aide={AIDES.tachesJour}>
+          <span className="eyebrow">
+            Tâches à faire — {userName}, {userRole}
+          </span>
+        </AideLabel>
       </div>
 
       <form className="today-add-task" onSubmit={(e) => void addTask(e)}>
-        <p className="eyebrow">Nouvelle tâche</p>
+        <AideLabel aide={AIDES.nouvelleTache}>
+          <p className="eyebrow" style={{ margin: 0 }}>
+            Nouvelle tâche
+          </p>
+        </AideLabel>
         <input
           value={titre}
           onChange={(e) => setTitre(e.target.value)}
@@ -220,7 +228,9 @@ export function TodayWall({
       ) : null}
 
       <div className="sec-head">
-        <span className="eyebrow">Les chantiers du jour</span>
+        <AideLabel aide={AIDES.chantiersJour}>
+          <span className="eyebrow">Les chantiers du jour</span>
+        </AideLabel>
       </div>
       <p className="hint" style={{ marginBottom: 10 }}>
         Cliquez un chantier pour ouvrir l&apos;affaire dans le portefeuille.

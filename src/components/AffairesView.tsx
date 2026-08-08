@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { eur, eur0, formatDateFr, STATUT_PLURAL } from '@/lib/format';
+import { AIDES } from '@/lib/aides';
+import { AideLabel } from '@/components/AideTip';
 import { AffaireSheet, type AffaireDetail } from '@/components/AffaireSheet';
 
 export type AffaireRow = {
@@ -209,8 +211,12 @@ export function AffairesView({
       </div>
 
       <p className="hint" style={{ marginBottom: 12 }}>
-        Fil conducteur unique : le devis validé = l&apos;affaire. Elle porte le même numéro jusqu&apos;à
-        l&apos;encaissement. Programmer une date → planning + alertes Aujourd&apos;hui.
+        <AideLabel aide={AIDES.portefeuille}>
+          <span>
+            Fil conducteur unique : le devis validé = l&apos;affaire. Elle porte le même numéro jusqu&apos;à
+            l&apos;encaissement. Programmer une date → planning + alertes Aujourd&apos;hui.
+          </span>
+        </AideLabel>
       </p>
 
       <div className="import-bar" style={{ marginBottom: 10 }}>

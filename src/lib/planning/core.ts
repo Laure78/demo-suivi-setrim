@@ -202,3 +202,66 @@ export async function syncChantiersAuPlanning(year: number, month: number) {
   }
 }
 
+/**
+ * Recrée les créneaux chantier/CE d’une affaire à partir de dateDébut / dateFin / équipe.
+ * Les anciens créneaux liés sont remplacés → l’agenda /planning se met à jour.
+ */
+export async function resyncAffaireSlots(affaireId: string) {
+  const a = await prisma.affaire.findUnique({ where: { id: affaireId } });
+  if (!a?.dateDebut) return { ok: false as const, reason: 'pas_de_debut' };
+
+  let equipeId = a.equipeId;
+  if (!equipeId) {
+    const eq = await prisma.equipe.findFirst({
+      where: { categorie: 'equipe' },
+      orderBy: { ordre: 'asc' },
+    });
+    equipeId = eq?.id ?? null;
+  }
+  if (!equipeId) return { ok: false as const, reason: 'pas_dequipe' };
+
+  const start = new Date(a.dateDebut);
+  start.setUTCHours(12, 0, 0, 0);
+  let end = a.dateFin ? new Date(a.dateFin) : new Date(start);
+  end.setUTCHours(12, 0, 0, 0);
+  if (end < start) end = new Date(start);
+
+  await prisma.planningSlot.deleteMany({
+    where: { affaireId, type: { in: ['chantier', 'ce'] } },
+  });
+
+  const type = a.type === 'contrat_entretien' ? 'ce' : 'chantier';
+  const label = `${a.client} · ${a.adresse}`;
+  const cursor = new Date(start);
+  let created = 0;
+
+  while (cursor <= end) {
+    const y = cursor.getUTCFullYear();
+    const m = cursor.getUTCMonth();
+    const d = cursor.getUTCDate();
+    const dow = cursor.getUTCDay();
+    if (dow !== 0 && dow !== 6 && !isFerieUTC(y, m, d)) {
+      await prisma.planningSlot.create({
+        data: {
+          equipeId,
+          date: new Date(Date.UTC(y, m, d)),
+          affaireId,
+          type,
+          label,
+        },
+      });
+      created++;
+    }
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  if (a.equipeId !== equipeId) {
+    await prisma.affaire.update({
+      where: { id: affaireId },
+      data: { equipeId },
+    });
+  }
+
+  return { ok: true as const, created };
+}
+

@@ -4,12 +4,23 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
-import { SCREENS, MESSAGES_HREF } from '@/lib/format';
+import { SCREENS, MESSAGES_HREF, ROLE_LABEL } from '@/lib/format';
+import { AIDES } from '@/lib/aides';
+import { AideTip } from '@/components/AideTip';
 import { RemarquesDrawer } from '@/components/RemarquesDrawer';
 import { WhoSwitcher } from '@/components/WhoSwitcher';
 import { SetrimFooter } from '@/components/SetrimFooter';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type MouseEvent } from 'react';
 import { enableWebPush } from '@/lib/web-push-client';
+
+const NAV_AIDES: Record<string, string> = {
+  aujourdhui: AIDES.navAujourdhui,
+  portefeuille: AIDES.navPortefeuille,
+  planning: AIDES.navPlanning,
+  contrats: AIDES.navContrats,
+  facturation: AIDES.navFacturation,
+  tutoriel: AIDES.tutoriel,
+};
 
 type Props = {
   children: React.ReactNode;
@@ -57,10 +68,12 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
 
   const screenTitle =
     title ??
-    (pathname.startsWith(MESSAGES_HREF)
-      ? 'Messagerie'
-      : SCREENS.find((s) => pathname === s.href || pathname.startsWith(s.href + '/'))?.label) ??
-    "Aujourd'hui";
+    (pathname === '/'
+      ? 'Accueil'
+      : pathname.startsWith(MESSAGES_HREF)
+        ? 'Messagerie'
+        : SCREENS.find((s) => pathname === s.href || pathname.startsWith(s.href + '/'))?.label) ??
+    'Accueil';
 
   const today = new Date().toLocaleDateString('fr-FR', {
     weekday: 'long',
@@ -69,17 +82,33 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
     year: 'numeric',
   });
 
+  function stopAideClick(e: MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
   function DeskNav() {
     return (
       <>
         {SCREENS.map((s) => {
           const on = pathname === s.href || pathname.startsWith(s.href + '/');
+          const aide = NAV_AIDES[s.id];
           return (
-            <Link key={s.id} href={s.href} className={`nav-link${on ? ' on' : ''}`}>
+            <Link
+              key={s.id}
+              href={s.href}
+              className={`nav-link${on ? ' on' : ''}`}
+              title={aide}
+            >
               <span className="k">{s.k}</span>
               <span className="nav-label">{s.label}</span>
               {s.id === 'aujourdhui' && lateCount > 0 ? (
                 <span className="badge">{lateCount}</span>
+              ) : null}
+              {aide ? (
+                <span className="aide-nav" onClick={stopAideClick} onKeyDown={(e) => e.stopPropagation()}>
+                  <AideTip text={aide} placement="right" />
+                </span>
               ) : null}
             </Link>
           );
@@ -98,6 +127,7 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
               key={s.id}
               href={s.href}
               className={`nav-link${on ? ' on' : ''}`}
+              title={NAV_AIDES[s.id]}
               onClick={() => setMenuOpen(false)}
             >
               <span className="k">{s.k}</span>
@@ -111,6 +141,7 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
         <Link
           href={MESSAGES_HREF}
           className={`nav-link${pathname.startsWith(MESSAGES_HREF) ? ' on' : ''}`}
+          title={AIDES.messagerie}
           onClick={() => setMenuOpen(false)}
         >
           <span className="k">✉</span>
@@ -120,6 +151,7 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
         <button
           type="button"
           className="nav-link"
+          title={AIDES.remarques}
           onClick={() => {
             setMenuOpen(false);
             setNotesOpen(true);
@@ -137,14 +169,16 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
     <div className="app">
       <aside className="rail desk-rail">
         <div className="brand">
-          <Image
-            src="/logo-setrim.png"
-            alt="SETRIM étanchéité"
-            width={168}
-            height={48}
-            className="logo"
-            priority
-          />
+          <Link href="/" className="brand-link" title="Accueil — tableau de bord" aria-label="Accueil SETRIM">
+            <Image
+              src="/logo-setrim.png"
+              alt="SETRIM étanchéité"
+              width={168}
+              height={48}
+              className="logo"
+              priority
+            />
+          </Link>
           <p>
             Étanchéité · Aubervilliers
             <br />
@@ -157,12 +191,15 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
         <div className="rail-foot">
           {user ? (
             <>
-              Connecté · {user.name}
-              <br />
+              <div className="rail-who">
+                <span className="rail-who-label">Connecté</span>
+                <strong>{user.name}</strong>
+                <span>{ROLE_LABEL[user.role] ?? user.role}</span>
+              </div>
               <button
                 type="button"
                 onClick={() => signOut({ callbackUrl: '/login' })}
-                style={{ marginTop: 6, color: '#7EC4EC', textDecoration: 'underline' }}
+                style={{ marginTop: 8, color: '#7EC4EC', textDecoration: 'underline' }}
               >
                 Se déconnecter
               </button>
@@ -191,17 +228,32 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
             <div className="date">{today}</div>
           </div>
           <div className="spacer" />
+          <span className="aide-label desk-only-inline" style={{ marginRight: 4 }}>
+            <AideTip text={AIDES.who} placement="bottom" label="Aide — Je suis" />
+          </span>
           <WhoSwitcher />
-          <Link
-            href={MESSAGES_HREF}
-            className={`btn-note btn-messages desk-only-inline${pathname.startsWith(MESSAGES_HREF) ? ' on' : ''}`}
-          >
-            Messagerie
-            {unreadCount > 0 ? <span className="mono"> ({unreadCount})</span> : null}
-          </Link>
-          <button type="button" className="btn-note desk-only-inline" onClick={() => setNotesOpen(true)}>
-            Remarques <span className="mono">({noteCount})</span>
-          </button>
+          <span className="aide-label desk-only-inline">
+            <Link
+              href={MESSAGES_HREF}
+              className={`btn-note btn-messages${pathname.startsWith(MESSAGES_HREF) ? ' on' : ''}`}
+              title={AIDES.messagerie}
+            >
+              Messagerie
+              {unreadCount > 0 ? <span className="mono"> ({unreadCount})</span> : null}
+            </Link>
+            <AideTip text={AIDES.messagerie} placement="bottom" />
+          </span>
+          <span className="aide-label desk-only-inline">
+            <button
+              type="button"
+              className="btn-note"
+              title={AIDES.remarques}
+              onClick={() => setNotesOpen(true)}
+            >
+              Remarques <span className="mono">({noteCount})</span>
+            </button>
+            <AideTip text={AIDES.remarques} placement="bottom" />
+          </span>
         </header>
         <div className="content">{children}</div>
         <SetrimFooter />
@@ -212,13 +264,21 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
           <div className="menu-scrim" onClick={() => setMenuOpen(false)} aria-hidden />
           <aside className="mobile-drawer" role="dialog" aria-label="Menu">
             <div className="mobile-drawer-head">
-              <Image
-                src="/logo-setrim.png"
-                alt="SETRIM"
-                width={120}
-                height={34}
-                className="logo"
-              />
+              <Link
+                href="/"
+                className="brand-link"
+                title="Accueil — tableau de bord"
+                aria-label="Accueil SETRIM"
+                onClick={() => setMenuOpen(false)}
+              >
+                <Image
+                  src="/logo-setrim.png"
+                  alt="SETRIM"
+                  width={120}
+                  height={34}
+                  className="logo"
+                />
+              </Link>
               <button
                 type="button"
                 className="sheet-close"
@@ -234,7 +294,11 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
             <div className="mobile-drawer-foot">
               {user ? (
                 <>
-                  <p>Connecté · {user.name}</p>
+                  <div className="rail-who">
+                    <span className="rail-who-label">Connecté</span>
+                    <strong>{user.name}</strong>
+                    <span>{ROLE_LABEL[user.role] ?? user.role}</span>
+                  </div>
                   <button type="button" onClick={() => signOut({ callbackUrl: '/login' })}>
                     Se déconnecter
                   </button>

@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AvatarBubble } from '@/components/AvatarBubble';
+import { AideLabel, AideTip } from '@/components/AideTip';
+import { AVATAR_EMOJIS } from '@/lib/avatar';
+import { AIDES } from '@/lib/aides';
 
 /** Comptes bureau protégés — non suppressibles */
 const BUREAU_IDS = new Set(['audrey', 'melissa', 'valerie', 'denis', 'philippe']);
@@ -37,11 +40,17 @@ export function MessagesView({
   convs: initialConvs,
   initialThread,
   meId,
+  meNom,
+  meInitiales,
+  meAvatarUrl: meAvatarInitial,
   canAdd,
 }: {
   convs: Conv[];
   initialThread: string;
   meId: string;
+  meNom: string;
+  meInitiales: string;
+  meAvatarUrl: string | null;
   canAdd: boolean;
 }) {
   const [convs, setConvs] = useState(initialConvs);
@@ -54,6 +63,9 @@ export function MessagesView({
   const [addErr, setAddErr] = useState('');
   const [adding, setAdding] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showProfil, setShowProfil] = useState(false);
+  const [meAvatarUrl, setMeAvatarUrl] = useState<string | null>(meAvatarInitial);
+  const [avatarBusy, setAvatarBusy] = useState(false);
   const [form, setForm] = useState({
     nom: '',
     initiales: '',
@@ -104,6 +116,10 @@ export function MessagesView({
   useEffect(() => {
     setConv(initialThread);
   }, [initialThread]);
+
+  useEffect(() => {
+    setMeAvatarUrl(meAvatarInitial);
+  }, [meAvatarInitial]);
 
   useEffect(() => {
     load(conv);
@@ -188,20 +204,6 @@ export function MessagesView({
     await load(conv);
   }
 
-  async function deleteMessage(m: Msg) {
-    const mine = m.auteurId === meId;
-    if (!mine && !canAdd) return;
-    if (!confirm('Supprimer ce message ?')) return;
-    const r = await fetch(`/api/messages/${m.id}`, { method: 'DELETE' });
-    if (!r.ok) {
-      const j = await r.json().catch(() => ({}));
-      alert(j.error ?? 'Suppression impossible');
-      return;
-    }
-    setMsgs((prev) => prev.filter((x) => x.id !== m.id));
-    router.refresh();
-  }
-
   async function addCollaborateur(e: React.FormEvent) {
     e.preventDefault();
     setAdding(true);
@@ -256,17 +258,69 @@ export function MessagesView({
     router.refresh();
   }
 
+  async function saveEmoji(emoji: string) {
+    setAvatarBusy(true);
+    try {
+      const r = await fetch('/api/profil', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'emoji', emoji }),
+      });
+      const j = await r.json();
+      if (!r.ok) {
+        alert(j.error ?? 'Impossible d’enregistrer');
+        return;
+      }
+      setMeAvatarUrl(j.avatarUrl ?? emoji);
+      router.refresh();
+    } finally {
+      setAvatarBusy(false);
+    }
+  }
+
+  async function removeEmoji() {
+    setAvatarBusy(true);
+    try {
+      const r = await fetch('/api/profil', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'remove' }),
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        alert(j.error ?? 'Impossible de retirer');
+        return;
+      }
+      setMeAvatarUrl(null);
+      router.refresh();
+    } finally {
+      setAvatarBusy(false);
+    }
+  }
 
   return (
     <>
+      <AideLabel aide={AIDES.msgProfil}>
+        <button type="button" className="profil-btn" onClick={() => setShowProfil(true)}>
+          <AvatarBubble label={meInitiales} photo={meAvatarUrl} size={28} />
+          <span>
+            {meNom || 'Mon profil'} —{' '}
+            <span className="edit-mark">
+              {meAvatarUrl ? 'changer l’emoji' : 'ajouter un emoji'}
+            </span>
+          </span>
+        </button>
+      </AideLabel>
       <div className="chat">
         <div className="conv-list">
           <div className="conv-search">
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Rechercher un collègue…"
-            />
+            <AideLabel aide={AIDES.msgListe} as="div">
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Rechercher un collègue…"
+              />
+            </AideLabel>
           </div>
           {canAdd ? (
             <button type="button" className="conv-add" onClick={() => setShowAdd(true)}>
@@ -281,7 +335,7 @@ export function MessagesView({
               role="button"
               tabIndex={0}
             >
-              <AvatarBubble label={x.avatar} cls={x.cls} />
+              <AvatarBubble label={x.avatar} photo={x.photo} cls={x.cls} />
               <span className="txt">
                 <span className="nm">{x.titre}</span>
                 <span className="lst">{x.last}</span>
@@ -314,7 +368,7 @@ export function MessagesView({
         </div>
         <div className="thread">
           <div className="th-head">
-            <AvatarBubble label={c?.avatar ?? ''} cls={c?.cls} />
+            <AvatarBubble label={c?.avatar ?? ''} photo={c?.photo} cls={c?.cls} />
             <span className="th-head-txt">
               <h4>{c?.titre}</h4>
               <p>{c?.sousTitre}</p>
@@ -348,7 +402,6 @@ export function MessagesView({
                 );
               }
               const mine = m.auteurId === meId;
-              const canDel = mine || canAdd;
               const isImg =
                 m.fichier &&
                 /\.(jpe?g|png|webp|gif|heic)$/i.test(m.fichier);
@@ -357,6 +410,7 @@ export function MessagesView({
                   {!mine ? (
                     <AvatarBubble
                       label={m.auteur.initiales}
+                      photo={m.auteur.avatarUrl}
                       size={28}
                       cls="bub-av"
                     />
@@ -387,23 +441,14 @@ export function MessagesView({
                     })}
                     {mine ? ' ✓✓' : ''}
                   </div>
-                  <div className="bub-actions">
-                    {m.texte ? (
+                  {m.texte ? (
+                    <div className="bub-actions">
                       <button type="button" className="mk-task" onClick={() => makeTask(m)}>
                         + tâche
                       </button>
-                    ) : null}
-                    {canDel ? (
-                      <button
-                        type="button"
-                        className="msg-del"
-                        title="Supprimer le message"
-                        onClick={() => void deleteMessage(m)}
-                      >
-                        Supprimer
-                      </button>
-                    ) : null}
-                  </div>
+                      <AideTip text={AIDES.msgTache} placement="left" label="Aide — tâche" />
+                    </div>
+                  ) : null}
                 </div>
               );
             })}
@@ -462,8 +507,9 @@ export function MessagesView({
         </div>
       </div>
       <p className="hint">
-        Survolez un message pour en faire une tâche, ou le <b>supprimer</b>. Les décisions
-        d’équipe se prennent ici — pas dans la boîte mail.
+        Survolez un message pour en faire une tâche. Les messages restent en historique.
+        Les décisions d’équipe se prennent ici — pas dans la boîte mail.{' '}
+        <AideTip text={AIDES.msgComposer} placement="top" />
       </p>
 
       {showAdd ? (
@@ -534,6 +580,52 @@ export function MessagesView({
                 {adding ? 'Ajout…' : 'Ajouter'}
               </button>
             </form>
+          </div>
+        </>
+      ) : null}
+
+      {showProfil ? (
+        <>
+          <div className="scrim on" onClick={() => setShowProfil(false)} />
+          <div className="add-collab-sheet profil-sheet">
+            <button type="button" className="sheet-close" onClick={() => setShowProfil(false)}>
+              ✕
+            </button>
+            <span className="eyebrow">Mon profil</span>
+            <h3>{meNom}</h3>
+            <p className="hint">Emoji visible dans la messagerie et auprès de l&apos;équipe.</p>
+            <div className="avatar-preview">
+              <AvatarBubble label={meInitiales} photo={meAvatarUrl} size={88} />
+            </div>
+            <p className="eyebrow" style={{ marginTop: 14 }}>
+              Ajouter un emoji
+            </p>
+            <div className="emoji-grid" role="listbox" aria-label="Choisir un emoji">
+              {AVATAR_EMOJIS.map((em) => (
+                <button
+                  key={em}
+                  type="button"
+                  className={`emoji-pick${meAvatarUrl === em ? ' on' : ''}`}
+                  disabled={avatarBusy}
+                  onClick={() => void saveEmoji(em)}
+                  aria-label={`Choisir ${em}`}
+                >
+                  {em}
+                </button>
+              ))}
+            </div>
+            <div className="profil-actions">
+              {meAvatarUrl ? (
+                <button
+                  type="button"
+                  className="btn-note"
+                  disabled={avatarBusy}
+                  onClick={() => void removeEmoji()}
+                >
+                  Retirer l&apos;emoji
+                </button>
+              ) : null}
+            </div>
           </div>
         </>
       ) : null}

@@ -47,6 +47,7 @@ export type SlotInput = {
   type: string;
   label: string | null;
   affaireId?: string | null;
+  niveau?: number;
   affaire?: {
     id?: string;
     client: string;
@@ -123,6 +124,9 @@ export function toCalendarEvents(equipes: EquipeRowInput[]): PlanningEvent[] {
         const sourceType = mapSlotType(slot.type);
         const { start, end } = dayBounds(day.date);
         const isSyntheticTache = slot.id.startsWith('tache-');
+        const late =
+          sourceType === 'tache' &&
+          startOfDay(start).getTime() < startOfDay(new Date()).getTime();
         events.push({
           id: slot.id,
           sourceType,
@@ -133,8 +137,11 @@ export function toCalendarEvents(equipes: EquipeRowInput[]): PlanningEvent[] {
           allDay: true,
           resourceId: eq.id,
           resourceName: eq.nom,
-          color: PLANNING_COLORS[sourceType],
-          isAlert: sourceType === 'tache',
+          color:
+            sourceType === 'tache' && (slot.niveau ?? 2) >= 3
+              ? '#C0392B'
+              : PLANNING_COLORS[sourceType],
+          isAlert: sourceType === 'tache' && ((slot.niveau ?? 2) >= 3 || late),
           affaireId: slot.affaireId ?? slot.affaire?.id ?? null,
           raw: { slot, equipe: { id: eq.id, nom: eq.nom, categorie: eq.categorie }, day },
         });
