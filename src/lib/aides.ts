@@ -5,9 +5,10 @@ export const AIDES = {
     'Tableau de bord : vue d’ensemble (tâches, chantiers, affaires, clients, facturation). Cliquez le logo SETRIM pour y revenir.',
   who: 'Les 5 accès individuels bureau. Cliquez une pastille pour basculer (chacun a son mot de passe). Pastille Connecté = session en cours.',
   messagerie:
-    'Bouton vert → messagerie type WhatsApp. Équipe, fils chantier (même contenu que le Fil de la fiche) et messages privés. Avatars = initiales.',
+    'Messagerie type WhatsApp. Équipe SETRIM et messages privés. Aussi dans le menu à gauche (touche 8).',
   tutoriel: 'Guide complet du fonctionnement de la plateforme. Mis à jour quand l’outil évolue (dernière maj : Août 2026).',
   navAujourdhui: 'Vos tâches du jour et les chantiers planifiés aujourd’hui.',
+  navMessagerie: 'Équipe SETRIM et messages privés (style WhatsApp). Touche 8.',
   navPortefeuille: 'Toutes les affaires (commande → soldé). Cliquez une ligne pour ouvrir la fiche.',
   navClients:
     'Fiches clients : contact, téléphone, notes. Rattachez chaque chantier à un syndic / client. Touche 7.',
@@ -15,6 +16,8 @@ export const AIDES = {
     'Agenda des équipes : Jour / Semaine / Mois / Année. Vert = chantier, bleu = CE (½–1 j).',
   navContrats: 'Contrats d’entretien sur l’exercice (juillet → juin).',
   navFacturation: 'Acomptes, soldes et impayés à suivre.',
+  navPlus:
+    'Sur téléphone : autres écrans (Aujourd’hui, Clients, Facturation, Tutoriel), bascule « Je suis » et déconnexion.',
   tachesJour:
     'Sur le post-it : « C’est fait » coche la tâche (vous restez sur Aujourd’hui). « Voir l’affaire » ouvre la fiche chantier sans quitter la page. Rouge = urgent.',
   nouvelleTache:
@@ -31,7 +34,7 @@ export const AIDES = {
   clients:
     'Créez ou modifiez une fiche client (contact, tél., notes). Cliquez une ligne. Depuis un chantier → Modifier pour rattacher.',
   contrats:
-    'Mois contractuel = date anniversaire. Cliquez une ligne pour ouvrir l’affaire. « Lier exercice » = planning + alertes.',
+    'Mois contractuel = date anniversaire. Alerte J-15 avant l’entretien (RDV ½–1 j). Cliquez une ligne → fiche affaire. « Lier exercice » = planning + tâches.',
   facturation:
     'Suivi des acomptes et soldes. Cliquez une affaire pour ouvrir la fiche et facturer.',
   msgListe:

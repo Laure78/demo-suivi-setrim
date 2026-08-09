@@ -56,7 +56,7 @@ export function ContratsView({ contrats }: { contrats: ContratRow[] }) {
     setBusy(false);
     alert(
       j.ok
-        ? `Exercice lié : ${j.created ?? 0} affaire(s) CE créées (planning + alertes J-30 / J-15).`
+        ? `Exercice lié : ${j.created ?? 0} affaire(s) CE créées (planning · alerte J-15 avant entretien · RDV ½–1 j).`
         : j.error ?? 'Échec',
     );
     router.refresh();
@@ -67,10 +67,10 @@ export function ContratsView({ contrats }: { contrats: ContratRow[] }) {
       <p className="hint" style={{ marginBottom: 12 }}>
         <AideLabel aide={AIDES.contrats}>
           <span>
-            Exercice du 1<sup>er</sup> juillet 2026 au 30 juin 2027. Le mois de passage est
-            contractuel (date anniversaire) : chaque contrat crée une affaire liée, posée au planning
-            du mois, avec alertes à J-30 (caler la date) et J-15 (urgence). Cliquez une ligne pour
-            ouvrir l&apos;affaire.
+            Exercice du 1<sup>er</sup> juillet 2026 au 30 juin 2027. Mois contractuel = date
+            anniversaire. Chaque contrat crée une affaire : RDV de ½ journée à 1 journée, alerte
+            J-30 pour caler la date, puis tâche « Préparer l&apos;entretien annuel » à J-15 avant
+            le passage. Cliquez une ligne pour ouvrir l&apos;affaire.
           </span>
         </AideLabel>
       </p>

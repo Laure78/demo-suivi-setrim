@@ -115,6 +115,7 @@ export const ROLE_LABEL: Record<string, string> = {
 
 export const SCREENS = [
   { id: 'aujourdhui', href: '/aujourdhui', label: "Aujourd'hui", k: '1' },
+  { id: 'messages', href: '/messages', label: 'Messagerie', k: '8' },
   { id: 'portefeuille', href: '/portefeuille', label: 'Portefeuille', k: '2' },
   { id: 'clients', href: '/clients', label: 'Clients', k: '7' },
   { id: 'planning', href: '/planning', label: 'Planning', k: '3' },
@@ -123,8 +124,20 @@ export const SCREENS = [
   { id: 'tutoriel', href: '/tutoriel', label: 'Tutoriel', k: '6' },
 ] as const;
 
-/** Accès Messagerie depuis le bandeau (pas le menu latéral). */
+/** Raccourci bandeau + onglet mobile Messages. */
 export const MESSAGES_HREF = '/messages';
+
+/** Onglets bas mobile (max 5). Le reste va dans /plus. */
+export const MOBILE_TABS = [
+  { id: 'messages', href: MESSAGES_HREF, label: 'Messages' },
+  { id: 'planning', href: '/planning', label: 'Planning' },
+  { id: 'affaires', href: '/portefeuille', label: 'Affaires' },
+  { id: 'contrats', href: '/contrats', label: 'Contrats' },
+  { id: 'plus', href: '/plus', label: 'Plus' },
+] as const;
+
+/** Écrans du menu latéral desktop qui ne sont pas dans la barre d’onglets. */
+export const PLUS_MENU_IDS = ['aujourdhui', 'clients', 'facturation', 'tutoriel'] as const;
 
 export const MOIS_EXERCICE = [
   'Juil.',

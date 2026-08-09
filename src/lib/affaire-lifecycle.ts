@@ -93,7 +93,10 @@ export async function programmerAffaire(
   const a = await prisma.affaire.findUnique({ where: { id: affaireId } });
   if (!a) throw new Error('Affaire introuvable');
 
-  const jours = input.joursCharge ?? (a.joursCharge || 1);
+  // CE = RDV court (½ j à 1 j) → 1 jour ouvré max au planning
+  const isCe =
+    a.type === AffaireType.contrat_entretien || !!a.contratEntretienId;
+  const jours = isCe ? 1 : (input.joursCharge ?? (a.joursCharge || 1));
   const start = new Date(input.dateDebut);
   start.setUTCHours(12, 0, 0, 0);
   let end = new Date(start);
@@ -165,6 +168,48 @@ export async function programmerAffaire(
     },
     data: { fait: true, faitAt: new Date() },
   });
+
+  if (isCe) {
+    // Ancienne alerte « date non posée » → faite
+    await prisma.tache.updateMany({
+      where: {
+        affaireId,
+        titre: { contains: 'date CE non posée' },
+        fait: false,
+      },
+      data: { fait: true, faitAt: new Date() },
+    });
+    // Recaler l’alerte J-15 sur la vraie date d’entretien
+    const j15 = addDaysUTC(start, -15);
+    const existingJ15 = await prisma.tache.findFirst({
+      where: {
+        affaireId,
+        OR: [
+          { titre: { contains: 'entretien annuel (J-15)' } },
+          { titre: { contains: 'Préparer l\'entretien annuel' } },
+        ],
+      },
+    });
+    if (existingJ15) {
+      if (!existingJ15.fait) {
+        await prisma.tache.update({
+          where: { id: existingJ15.id },
+          data: { dateEcheance: j15 },
+        });
+      }
+    } else {
+      await prisma.tache.create({
+        data: {
+          titre: `Préparer l'entretien annuel (J-15)`,
+          affaireId,
+          libelleAffaire: `${a.client} · CE`,
+          responsableId: 'audrey',
+          dateEcheance: j15,
+          niveau: 3,
+        },
+      });
+    }
+  }
 
   const y = start.getUTCFullYear();
   const m = start.getUTCMonth();
@@ -363,67 +408,107 @@ export async function genererLiensContratsExercice(exercice: string) {
           client: c.syndic,
           adresse: c.immeuble,
           montantHt: c.montantHt,
-          joursCharge: Math.max(1, c.nbCompagnons > 1 ? 1 : 1),
+          // RDV entretien : ½ journée à 1 journée
+          joursCharge: 1,
           statut: AffaireStatut.commande,
           type: AffaireType.contrat_entretien,
           dateDevis: dateAnniversaire,
           dateDebut: c.datePosee ?? dateAnniversaire,
           contratEntretienId: c.id,
-          note: `CE — mois contractuel (anniversaire) ${calendarMonth + 1}/${year}`,
+          note: `CE — mois contractuel (anniversaire) ${calendarMonth + 1}/${year} · RDV ½ j à 1 j`,
         },
       });
       created++;
     } else if (!affaire.contratEntretienId) {
       await prisma.affaire.update({
         where: { id: affaire.id },
-        data: { contratEntretienId: c.id },
+        data: { contratEntretienId: c.id, joursCharge: 1 },
+      });
+    } else if (affaire.joursCharge !== 1) {
+      await prisma.affaire.update({
+        where: { id: affaire.id },
+        data: { joursCharge: 1 },
       });
     }
 
-    // Alertes J-30 / J-15
-    const tachesCe = [
+    // Date annuelle d’entretien = date posée, sinon 1er du mois contractuel
+    const dateEntretien = c.datePosee ?? dateAnniversaire;
+
+    // Alertes : J-30 caler la date · J-15 avant l’entretien · facture après
+    const tachesCe: {
+      titre: string;
+      echeance: Date;
+      niveau: number;
+      qui: string;
+      fait?: boolean;
+    }[] = [
       {
         titre: `Caler la date du contrat d'entretien (mois contractuel)`,
-        offset: -30,
+        echeance: addDaysUTC(dateAnniversaire, -30),
         niveau: 2,
         qui: 'audrey',
+        fait: !!c.datePosee,
       },
       {
-        titre: `Urgent — date CE non posée (J-15)`,
-        offset: -15,
+        titre: `Préparer l'entretien annuel (J-15)`,
+        echeance: addDaysUTC(dateEntretien, -15),
         niveau: 3,
         qui: 'audrey',
       },
       {
         titre: `Facture de solde — contrat d'entretien`,
-        offset: 1,
+        echeance: addDaysUTC(dateEntretien, 1),
         niveau: 3,
         qui: 'valerie',
       },
     ];
 
+    // Remplacer l’ancienne alerte « date non posée »
+    await prisma.tache.updateMany({
+      where: {
+        affaireId: affaire.id,
+        titre: { contains: 'date CE non posée' },
+        fait: false,
+      },
+      data: {
+        fait: true,
+        faitAt: new Date(),
+      },
+    });
+
     for (const t of tachesCe) {
       const exists = await prisma.tache.findFirst({
         where: { affaireId: affaire.id, titre: t.titre },
       });
-      if (exists) continue;
-      // Si date déjà posée, pas besoin de J-15
-      if (t.offset === -15 && c.datePosee) continue;
+      if (exists) {
+        if (!exists.fait) {
+          await prisma.tache.update({
+            where: { id: exists.id },
+            data: {
+              dateEcheance: t.echeance,
+              ...(t.fait
+                ? { fait: true, faitAt: exists.faitAt ?? new Date() }
+                : {}),
+            },
+          });
+        }
+        continue;
+      }
       await prisma.tache.create({
         data: {
           titre: t.titre,
           affaireId: affaire.id,
           libelleAffaire: `CE · ${c.syndic}`,
           responsableId: t.qui,
-          dateEcheance: addDaysUTC(dateAnniversaire, t.offset),
+          dateEcheance: t.echeance,
           niveau: t.niveau,
-          fait: t.offset === -30 && !!c.datePosee,
-          faitAt: t.offset === -30 && c.datePosee ? new Date() : null,
+          fait: !!t.fait,
+          faitAt: t.fait ? new Date() : null,
         },
       });
     }
 
-    // Si date posée ou mois anniversaire → programmer au planning
+    // Si date posée ou mois anniversaire → programmer au planning (1 j max)
     if (c.datePosee || c.etat === 'pose') {
       await programmerAffaire(affaire.id, {
         dateDebut: c.datePosee ?? dateAnniversaire,

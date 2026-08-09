@@ -2,18 +2,32 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
-import { SCREENS, MESSAGES_HREF, ROLE_LABEL } from '@/lib/format';
+import {
+  Briefcase,
+  CalendarDays,
+  FileText,
+  MessageSquare,
+  MoreHorizontal,
+} from 'lucide-react';
+import {
+  SCREENS,
+  MESSAGES_HREF,
+  ROLE_LABEL,
+  MOBILE_TABS,
+  PLUS_MENU_IDS,
+} from '@/lib/format';
 import { AIDES } from '@/lib/aides';
 import { AideTip } from '@/components/AideTip';
 import { WhoSwitcher } from '@/components/WhoSwitcher';
 import { SetrimFooter } from '@/components/SetrimFooter';
-import { useEffect, useState, type MouseEvent } from 'react';
 import { enableWebPush } from '@/lib/web-push-client';
+import { Suspense, useEffect, type MouseEvent, type ReactNode } from 'react';
 
 const NAV_AIDES: Record<string, string> = {
   aujourdhui: AIDES.navAujourdhui,
+  messages: AIDES.navMessagerie,
   portefeuille: AIDES.navPortefeuille,
   clients: AIDES.navClients,
   planning: AIDES.navPlanning,
@@ -22,6 +36,20 @@ const NAV_AIDES: Record<string, string> = {
   tutoriel: AIDES.tutoriel,
 };
 
+const TAB_ICONS: Record<string, ReactNode> = {
+  messages: <MessageSquare size={22} strokeWidth={1.75} aria-hidden />,
+  planning: <CalendarDays size={22} strokeWidth={1.75} aria-hidden />,
+  affaires: <Briefcase size={22} strokeWidth={1.75} aria-hidden />,
+  contrats: <FileText size={22} strokeWidth={1.75} aria-hidden />,
+  plus: <MoreHorizontal size={22} strokeWidth={1.75} aria-hidden />,
+};
+
+const PLUS_HREFS = new Set([
+  '/plus',
+  '/',
+  ...SCREENS.filter((s) => (PLUS_MENU_IDS as readonly string[]).includes(s.id)).map((s) => s.href),
+]);
+
 type Props = {
   children: React.ReactNode;
   lateCount?: number;
@@ -29,11 +57,42 @@ type Props = {
   title?: string;
 };
 
+function MobileBackSlot() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const detailBackHref = (() => {
+    if (searchParams.get('thread')) return MESSAGES_HREF;
+    if (searchParams.get('affaire') || searchParams.get('devis')) return '/portefeuille';
+    if (searchParams.get('client')) return '/clients';
+    return null;
+  })();
+
+  if (!detailBackHref) {
+    return <span className="mobile-bar-slot" aria-hidden />;
+  }
+
+  return (
+    <button
+      type="button"
+      className="mobile-back"
+      aria-label="Retour"
+      onClick={() => router.push(detailBackHref)}
+    >
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden>
+        <path
+          fill="currentColor"
+          d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"
+        />
+      </svg>
+    </button>
+  );
+}
+
 export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Props) {
   const pathname = usePathname();
   const { data } = useSession();
   const user = data?.user;
-  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -41,12 +100,7 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
   }, [user?.id]);
 
   useEffect(() => {
-    setMenuOpen(false);
-  }, [pathname]);
-
-  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMenuOpen(false);
       if (/INPUT|TEXTAREA/.test((e.target as HTMLElement)?.tagName ?? '')) return;
       const s = SCREENS.find((x) => x.k === e.key);
       if (s) window.location.href = s.href;
@@ -55,22 +109,15 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  useEffect(() => {
-    if (!menuOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [menuOpen]);
-
   const screenTitle =
     title ??
     (pathname === '/'
       ? 'Accueil'
-      : pathname.startsWith(MESSAGES_HREF)
-        ? 'Messagerie'
-        : SCREENS.find((s) => pathname === s.href || pathname.startsWith(s.href + '/'))?.label) ??
+      : pathname === '/plus'
+        ? 'Plus'
+        : pathname.startsWith(MESSAGES_HREF)
+          ? 'Messagerie'
+          : SCREENS.find((s) => pathname === s.href || pathname.startsWith(s.href + '/'))?.label) ??
     'Accueil';
 
   const today = new Date().toLocaleDateString('fr-FR', {
@@ -83,6 +130,19 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
   function stopAideClick(e: MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
+  }
+
+  function tabActive(tabId: string, href: string) {
+    if (tabId === 'plus') {
+      return PLUS_HREFS.has(pathname) || pathname.startsWith('/plus');
+    }
+    if (tabId === 'affaires') {
+      return pathname.startsWith('/portefeuille') || pathname.startsWith('/affaires');
+    }
+    if (tabId === 'messages') {
+      return pathname.startsWith(MESSAGES_HREF);
+    }
+    return pathname === href || pathname.startsWith(href + '/');
   }
 
   function DeskNav() {
@@ -103,6 +163,9 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
               {s.id === 'aujourdhui' && lateCount > 0 ? (
                 <span className="badge">{lateCount}</span>
               ) : null}
+              {s.id === 'messages' && unreadCount > 0 ? (
+                <span className="badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+              ) : null}
               {aide ? (
                 <span className="aide-nav" onClick={stopAideClick} onKeyDown={(e) => e.stopPropagation()}>
                   <AideTip text={aide} placement="right" />
@@ -111,41 +174,6 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
             </Link>
           );
         })}
-      </>
-    );
-  }
-
-  function MobileNav() {
-    return (
-      <>
-        {SCREENS.map((s) => {
-          const on = pathname === s.href || pathname.startsWith(s.href + '/');
-          return (
-            <Link
-              key={s.id}
-              href={s.href}
-              className={`nav-link${on ? ' on' : ''}`}
-              title={NAV_AIDES[s.id]}
-              onClick={() => setMenuOpen(false)}
-            >
-              <span className="k">{s.k}</span>
-              <span className="nav-label">{s.label}</span>
-              {s.id === 'aujourdhui' && lateCount > 0 ? (
-                <span className="badge">{lateCount}</span>
-              ) : null}
-            </Link>
-          );
-        })}
-        <Link
-          href={MESSAGES_HREF}
-          className={`nav-link${pathname.startsWith(MESSAGES_HREF) ? ' on' : ''}`}
-          title={AIDES.messagerie}
-          onClick={() => setMenuOpen(false)}
-        >
-          <span className="k">✉</span>
-          <span className="nav-label">Messagerie</span>
-          {unreadCount > 0 ? <span className="badge">{unreadCount}</span> : null}
-        </Link>
       </>
     );
   }
@@ -196,18 +224,8 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
       </aside>
 
       <div className="main">
-        <header className="bar">
-          <button
-            type="button"
-            className="hamburger"
-            aria-label={menuOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
-            aria-expanded={menuOpen}
-            onClick={() => setMenuOpen((o) => !o)}
-          >
-            <span />
-            <span />
-            <span />
-          </button>
+        {/* En-tête desktop — inchangé */}
+        <header className="bar desk-bar">
           <div className="bar-title">
             <h2 id="screenTitle">{screenTitle}</h2>
             <div className="date">{today}</div>
@@ -241,59 +259,57 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
             </span>
           </span>
         </header>
+
+        {/* En-tête mobile compact */}
+        <header className="bar mobile-bar" aria-label="En-tête">
+          <Suspense fallback={<span className="mobile-bar-slot" aria-hidden />}>
+            <MobileBackSlot />
+          </Suspense>
+          <div className="mobile-bar-center">
+            <Link href="/" className="mobile-logo-link" aria-label="Accueil SETRIM">
+              <Image
+                src="/logo-setrim.png"
+                alt="SETRIM"
+                width={110}
+                height={28}
+                className="mobile-logo"
+                priority
+              />
+            </Link>
+            <p className="mobile-page-title">{screenTitle}</p>
+          </div>
+          <span className="mobile-bar-slot" aria-hidden />
+        </header>
+
         <div className="content">{children}</div>
         <SetrimFooter />
       </div>
 
-      {menuOpen ? (
-        <>
-          <div className="menu-scrim" onClick={() => setMenuOpen(false)} aria-hidden />
-          <aside className="mobile-drawer" role="dialog" aria-label="Menu">
-            <div className="mobile-drawer-head">
-              <Link
-                href="/"
-                className="brand-link"
-                title="Accueil — tableau de bord"
-                aria-label="Accueil SETRIM"
-                onClick={() => setMenuOpen(false)}
-              >
-                <Image
-                  src="/logo-setrim.png"
-                  alt="SETRIM"
-                  width={120}
-                  height={34}
-                  className="logo"
-                />
-              </Link>
-              <button
-                type="button"
-                className="sheet-close"
-                aria-label="Fermer"
-                onClick={() => setMenuOpen(false)}
-              >
-                ✕
-              </button>
-            </div>
-            <nav className="nav mobile-drawer-nav">
-              <MobileNav />
-            </nav>
-            <div className="mobile-drawer-foot">
-              {user ? (
-                <>
-                  <div className="rail-who">
-                    <span className="rail-who-label">Connecté</span>
-                    <strong>{user.name}</strong>
-                    <span>{ROLE_LABEL[user.role] ?? user.role}</span>
-                  </div>
-                  <button type="button" onClick={() => signOut({ callbackUrl: '/login' })}>
-                    Se déconnecter
-                  </button>
-                </>
-              ) : null}
-            </div>
-          </aside>
-        </>
-      ) : null}
+      <nav className="mobile-tabbar" aria-label="Navigation principale">
+        {MOBILE_TABS.map((tab) => {
+          const on = tabActive(tab.id, tab.href);
+          return (
+            <Link
+              key={tab.id}
+              href={tab.href}
+              className={`mobile-tab${on ? ' on' : ''}`}
+              aria-current={on ? 'page' : undefined}
+              title={tab.id === 'plus' ? AIDES.navPlus : undefined}
+            >
+              <span className="mobile-tab-ico">
+                {TAB_ICONS[tab.id]}
+                {tab.id === 'messages' && unreadCount > 0 ? (
+                  <span className="mobile-tab-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+                ) : null}
+                {tab.id === 'plus' && lateCount > 0 ? (
+                  <span className="mobile-tab-badge">{lateCount > 99 ? '99+' : lateCount}</span>
+                ) : null}
+              </span>
+              <span className="mobile-tab-label">{tab.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
     </div>
   );
 }

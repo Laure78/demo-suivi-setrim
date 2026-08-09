@@ -98,16 +98,21 @@ const MOIS_CE = [
   'Juin',
 ];
 
+export type AffaireSheetTab = 'taches' | 'fil' | 'pieces' | 'plan' | 'fact';
+
 export function AffaireSheet({
   detail,
   onClose,
   onRefresh,
+  initialTab = 'taches',
 }: {
   detail: AffaireDetail | null;
   onClose: () => void;
   onRefresh: () => void;
+  /** Onglet ouvert à l’arrivée (ex. fact depuis Facturation). */
+  initialTab?: AffaireSheetTab;
 }) {
-  const [tab, setTab] = useState<'taches' | 'fil' | 'pieces' | 'plan' | 'fact'>('taches');
+  const [tab, setTab] = useState<AffaireSheetTab>(initialTab);
   const [newTask, setNewTask] = useState('');
   const [taskNiveau, setTaskNiveau] = useState(2);
   const [taskEcheance, setTaskEcheance] = useState(() => {
@@ -407,7 +412,8 @@ export function AffaireSheet({
       body: JSON.stringify({
         action: 'programmer',
         dateDebut,
-        joursCharge: jours ? Number(jours) : undefined,
+        // CE = RDV ½ j à 1 j (1 créneau jour)
+        joursCharge: isCe ? 1 : jours ? Number(jours) : undefined,
         equipeId: equipePlanId || undefined,
       }),
     });
@@ -703,8 +709,7 @@ export function AffaireSheet({
         </div>
         <p className="hint">
           Tout se dit ici, pas par mail. Denis et Philippe répondent depuis le chantier, photos
-          comprises. Ces messages apparaissent aussi dans la{' '}
-          <a href={`/messages?thread=${encodeURIComponent(a.numeroDevis)}`}>messagerie</a>.
+          comprises. Le Fil reste sur la fiche affaire (pas dans la messagerie interne).
         </p>
       </>
     );
@@ -826,7 +831,7 @@ export function AffaireSheet({
           <dt>Fin</dt>
           <dd>{formatDateFr(a.dateFin ?? null)}</dd>
           <dt>Charge</dt>
-          <dd>{a.joursCharge} j</dd>
+          <dd>{isCe ? '½ j à 1 j' : `${a.joursCharge} j`}</dd>
           <dt>Équipe</dt>
           <dd>{a.equipe?.nom ?? '—'}</dd>
           {a.contratEntretien ? (
@@ -924,15 +929,21 @@ export function AffaireSheet({
             style={{ flex: '1 1 140px' }}
             aria-label="Date de début"
           />
-          <input
-            type="number"
-            min={1}
-            placeholder="Jours"
-            value={jours}
-            onChange={(e) => setJours(e.target.value)}
-            style={{ width: 72 }}
-            aria-label="Nombre de jours"
-          />
+          {isCe ? (
+            <span className="hint" style={{ margin: 0, alignSelf: 'center' }}>
+              RDV ½ j à 1 j
+            </span>
+          ) : (
+            <input
+              type="number"
+              min={1}
+              placeholder="Jours"
+              value={jours}
+              onChange={(e) => setJours(e.target.value)}
+              style={{ width: 72 }}
+              aria-label="Nombre de jours"
+            />
+          )}
           <select
             value={equipePlanId}
             onChange={(e) => setEquipePlanId(e.target.value)}

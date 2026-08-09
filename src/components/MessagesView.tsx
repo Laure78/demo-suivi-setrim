@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AvatarBubble } from '@/components/AvatarBubble';
 import { AideLabel, AideTip } from '@/components/AideTip';
-import { AffaireSheet, type AffaireDetail } from '@/components/AffaireSheet';
 import { AIDES } from '@/lib/aides';
 
 /** Comptes bureau protégés — non suppressibles */
@@ -12,8 +11,7 @@ const BUREAU_IDS = new Set(['audrey', 'melissa', 'valerie', 'denis', 'philippe']
 
 type Conv = {
   id: string;
-  kind?: 'gen' | 'user' | 'affaire';
-  affaireId?: string | null;
+  kind?: 'gen' | 'user';
   titre: string;
   sousTitre: string;
   avatar: string;
@@ -71,12 +69,10 @@ export function MessagesView({
   const router = useRouter();
   const c = convs.find((x) => x.id === conv) ?? convs[0] ?? null;
   const [uploading, setUploading] = useState(false);
-  const [sheetId, setSheetId] = useState<string | null>(null);
-  const [detail, setDetail] = useState<AffaireDetail | null>(null);
 
   function canDeleteConv(id: string) {
     const c0 = convs.find((x) => x.id === id);
-    if (c0?.kind === 'affaire' || c0?.kind === 'gen') return false;
+    if (c0?.kind === 'gen') return false;
     return canAdd && id !== 'gen' && id !== meId && !BUREAU_IDS.has(id);
   }
 
@@ -87,15 +83,12 @@ export function MessagesView({
       (x) =>
         x.titre.toLowerCase().includes(s) ||
         x.sousTitre.toLowerCase().includes(s) ||
-        x.avatar.toLowerCase().includes(s) ||
-        (x.affaireId ?? '').toLowerCase().includes(s),
+        x.avatar.toLowerCase().includes(s),
     );
   }, [convs, q]);
 
   async function load(id: string) {
-    const c0 = convs.find((x) => x.id === id);
     const qs = new URLSearchParams({ thread: id });
-    if (c0?.affaireId) qs.set('affaireId', c0.affaireId);
     const r = await fetch(`/api/messages?${qs}`);
     if (!r.ok) return;
     const j = await r.json();
@@ -133,7 +126,6 @@ export function MessagesView({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         threadKey: conv,
-        affaireId: c.affaireId ?? null,
         texte: v,
       }),
     });
@@ -159,7 +151,6 @@ export function MessagesView({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           threadKey: conv,
-          affaireId: c.affaireId ?? null,
           photoLabel: j.name,
           fichier: j.url,
           texte:
@@ -182,13 +173,6 @@ export function MessagesView({
     if (file) void sendFile(file, kind);
   }
 
-  async function openAffaire(id: string) {
-    setSheetId(id);
-    setDetail(null);
-    const r = await fetch(`/api/affaires/${id}`);
-    if (r.ok) setDetail(await r.json());
-  }
-
   async function makeTask(m: Msg) {
     if (!m.texte || !c) return;
     await fetch('/api/taches', {
@@ -198,7 +182,6 @@ export function MessagesView({
         titre: m.texte.slice(0, 64),
         niveau: 2,
         threadKey: conv,
-        affaireId: c.affaireId ?? null,
         fromMessage: true,
       }),
     });
@@ -387,15 +370,6 @@ export function MessagesView({
                     onClick={() => void deleteCollaborateur(c.id, c.titre)}
                   >
                     Retirer
-                  </button>
-                ) : c.kind === 'affaire' && c.affaireId ? (
-                  <button
-                    type="button"
-                    className="wa-head-action"
-                    style={{ color: 'var(--bleu)', borderColor: 'var(--trait)' }}
-                    onClick={() => void openAffaire(c.affaireId!)}
-                  >
-                    Fiche affaire
                   </button>
                 ) : (
                   <AideTip text={AIDES.msgComposer} placement="left" />
@@ -634,22 +608,6 @@ export function MessagesView({
             </form>
           </div>
         </>
-      ) : null}
-
-      {sheetId ? (
-        <AffaireSheet
-          detail={detail}
-          onClose={() => {
-            setSheetId(null);
-            setDetail(null);
-            router.refresh();
-          }}
-          onRefresh={async () => {
-            const r = await fetch(`/api/affaires/${sheetId}`);
-            if (r.ok) setDetail(await r.json());
-            router.refresh();
-          }}
-        />
       ) : null}
     </div>
   );

@@ -2,7 +2,7 @@
 
 import { signIn, useSession } from 'next-auth/react';
 import { useEffect, useMemo, useState } from 'react';
-import { isEmojiAvatar, isImageAvatar } from '@/lib/avatar';
+import { isImageAvatar } from '@/lib/avatar';
 import { ROLE_LABEL } from '@/lib/format';
 import { BUREAU_ACCES, bureauPasswordFor } from '@/lib/bureau-acces';
 
@@ -113,8 +113,6 @@ export function WhoSwitcher() {
             >
               {busy ? (
                 '…'
-              ) : isEmojiAvatar(u.avatarUrl) ? (
-                <span className="who-emoji">{u.avatarUrl}</span>
               ) : isImageAvatar(u.avatarUrl) ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={u.avatarUrl!} alt={u.initiales} className="who-photo" />

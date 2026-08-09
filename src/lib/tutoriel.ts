@@ -24,7 +24,7 @@ export const TUTORIEL_SECTIONS: TutorielSection[] = [
     id: 'accueil',
     titre: 'Accueil (tableau de bord)',
     resume:
-      'Cliquez le logo SETRIM (menu latéral ou drawer mobile) pour ouvrir l’accueil : indicateurs et accès rapide à tous les écrans.',
+      'Cliquez le logo SETRIM (menu latéral sur ordinateur, en-tête sur téléphone) pour ouvrir l’accueil : indicateurs et accès rapide à tous les écrans.',
     points: [
       'Cartes cliquables : tâches, chantiers du jour, affaires, clients, planning, facturation, contrats, messagerie.',
       'Les alertes en haut signalent retards et points à traiter.',
@@ -41,6 +41,7 @@ export const TUTORIEL_SECTIONS: TutorielSection[] = [
       '5 accès individuels : Audrey, Mélissa, Valérie, Denis, Philippe — chacun son email et son mot de passe.',
       'Sur l’écran de connexion, cliquez une personne ou saisissez ses identifiants.',
       'Le sélecteur « Je suis » (pastilles AU · ME · VA…) bascule entre les 5 comptes bureau ; la pastille « Connecté » rappelle qui est en session.',
+      'Sur téléphone : le sélecteur « Je suis » et la déconnexion sont dans l’écran Plus (barre du bas).',
       'Les équipes chantier du planning ne sont pas les comptes bureau : ce sont les équipes terrain.',
     ],
   },
@@ -48,14 +49,27 @@ export const TUTORIEL_SECTIONS: TutorielSection[] = [
     id: 'bandeau',
     titre: 'Bandeau et messagerie',
     resume:
-      'En haut à droite : bascule « Je suis » et bouton Messagerie (vert, bien visible).',
+      'Sur ordinateur : menu latéral (dont Messagerie), bascule « Je suis » et bouton Messagerie (vert) en haut à droite. Sur téléphone : barre d’onglets en bas.',
     points: [
-      'Le bouton vert « Messagerie » ouvre la messagerie interne (icône bulle + libellé).',
-      'S’il y a des messages non lus, un badge blanc affiche le nombre.',
-      'Quand vous êtes déjà sur la messagerie, le bouton passe en bleu.',
-      'Sur téléphone, le bouton reste accessible dans le bandeau (menu hamburger pour le reste).',
+      'Ordinateur : Messagerie via le menu à gauche (touche 8) ou le bouton vert du bandeau.',
+      'S’il y a des messages non lus, un badge affiche le nombre.',
+      'Quand vous êtes déjà sur la messagerie, le bouton (ordinateur) passe en bleu.',
+      'Téléphone : Messages est le premier onglet de la barre navy en bas ; le logo SETRIM reste en haut.',
     ],
     lien: { href: '/messages', label: 'Ouvrir la messagerie' },
+  },
+  {
+    id: 'nav-mobile',
+    titre: 'Navigation téléphone',
+    resume:
+      'Sous 768 px, le menu latéral disparaît. Une barre d’onglets fixe en bas donne accès aux écrans principaux.',
+    points: [
+      'Cinq onglets : Messages, Planning, Affaires, Contrats, Plus.',
+      'L’onglet actif est en bleu (#0079C2) ; la barre est navy comme le menu bureau.',
+      'Plus regroupe Aujourd’hui, Clients, Facturation, Tutoriel, Accueil, « Je suis » et déconnexion.',
+      'En détail (ex. fiche via lien ?affaire=… ou conversation ?thread=…), une flèche retour apparaît à gauche de l’en-tête.',
+    ],
+    lien: { href: '/plus', label: 'Ouvrir Plus' },
   },
   {
     id: 'aujourdhui',
@@ -76,7 +90,7 @@ export const TUTORIEL_SECTIONS: TutorielSection[] = [
     resume: 'Toutes les affaires : commande, programmé, en cours, soldé.',
     points: [
       'Ouvrez une fiche pour voir tâches, fil chantier, pièces jointes, planning et factures.',
-      'Le Fil chantier : messages partagés avec l’équipe — ils apparaissent aussi dans la Messagerie.',
+      'Le Fil chantier : messages partagés avec l’équipe — uniquement sur la fiche affaire.',
       'Sur une tâche de la fiche : cocher = faite (pas besoin de supprimer).',
       'Bouton Modifier : infos de l’affaire, rattachement à une fiche client (ou création d’une nouvelle fiche).',
       'Onglet Planning de la fiche : dates, équipe, recalage — l’agenda général se met à jour.',
@@ -119,8 +133,9 @@ export const TUTORIEL_SECTIONS: TutorielSection[] = [
     points: [
       'Visualisez les passages et l’avancement par contrat (mois contractuel = date anniversaire).',
       'Cliquez une ligne pour ouvrir l’affaire liée.',
-      'Bouton « Lier exercice » : génère planning et alertes (caler la date, etc.).',
-      'Au planning, un CE apparaît en bleu (intervention courte ½ j à 1 j).',
+      'Bouton « Lier exercice » : génère l’affaire, le créneau planning et les alertes.',
+      'Alerte J-30 : caler la date du passage. Tâche J-15 : préparer l’entretien annuel (avant la date posée ou le 1er du mois contractuel).',
+      'RDV d’entretien : ½ journée à 1 journée (bleu au planning).',
     ],
     lien: { href: '/contrats', label: 'Ouvrir les contrats' },
   },
@@ -141,11 +156,9 @@ export const TUTORIEL_SECTIONS: TutorielSection[] = [
     resume:
       'Fil « Équipe SETRIM » et conversations privées. Interface type WhatsApp. Les messages restent en historique.',
     points: [
-      'Accès : bouton vert « Messagerie » du bandeau, ou carte Accueil, ou entrée du menu mobile.',
-      'À gauche : Équipe SETRIM, fils chantier (ex. BERYL · 42241), puis conversations privées.',
-      'Les messages du Fil d’une fiche affaire apparaissent aussi ici (même conversation).',
+      'Accès : menu latéral « Messagerie » (touche 8), bouton vert du bandeau (ordinateur), onglet Messages (téléphone), ou carte Accueil.',
+      'À gauche : Équipe SETRIM, puis conversations privées (pas les fils chantier — ceux-ci restent sur la fiche affaire).',
       'À droite : conversation, bulles (vertes pour vous / blanches pour les autres), horaires et ✓✓.',
-      'Sur un fil chantier : bouton « Fiche affaire » pour ouvrir la fiche sans quitter la messagerie.',
       'Sur téléphone : une vue à la fois (liste ou conversation) — flèche retour pour revenir à la liste.',
       'En bas : joindre un document ou une photo, écrire, envoyer avec le bouton rond vert.',
       'Survolez un message pour en faire une tâche (+ tâche) sur Aujourd’hui.',
@@ -171,6 +184,7 @@ export const TUTORIEL_SECTIONS: TutorielSection[] = [
     resume: 'Sur ordinateur, les touches numériques ouvrent les écrans principaux.',
     points: [
       '1 — Aujourd’hui',
+      '8 — Messagerie',
       '2 — Portefeuille',
       '3 — Planning',
       '4 — Contrats d’entretien',
