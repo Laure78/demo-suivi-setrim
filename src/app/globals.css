@@ -248,7 +248,7 @@ a.btn-messages.on .btn-messages-badge{color:#0A6EA8}
 /* ---------- 1. post-its ---------- */
 .wall{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px}
 .postit{
-  position:relative;background:var(--postit);padding:16px 16px 40px;border-radius:var(--radius-sm);
+  position:relative;background:var(--postit);padding:16px 16px 48px;border-radius:var(--radius-sm);
   box-shadow:0 1px 0 rgba(0,0,0,.1), 0 12px 24px -14px rgba(0,0,0,.35);
   transition:transform .18s ease, opacity .35s ease;
 }
@@ -264,8 +264,16 @@ a.btn-messages.on .btn-messages-badge{color:#0A6EA8}
 .postit.n1{background:#DCE3DC}
 .postit.gone{opacity:0;transform:rotate(6deg) translateY(-26px);pointer-events:none}
 .pi-aff{font-family:"IBM Plex Mono",monospace;font-size:12px;color:#7A6412;letter-spacing:.03em;
-  text-transform:uppercase}
-.pi-title{font-family:"Archivo",sans-serif;font-weight:700;font-size:17px;line-height:1.25;margin:6px 0 8px}
+  text-transform:uppercase;margin-top:8px}
+.pi-aff-link{
+  display:block;margin-top:8px;padding:0;border:none;background:none;cursor:pointer;
+  font-family:"IBM Plex Mono",monospace;font-size:12px;color:#7A6412;letter-spacing:.02em;
+  text-align:left;text-decoration:underline;text-underline-offset:2px;
+}
+.postit.n3 .pi-aff-link{color:#F7D9CF}
+.pi-aff-link:hover{color:var(--bleu)}
+.postit.n3 .pi-aff-link:hover{color:#fff}
+.pi-title{font-family:"Archivo",sans-serif;font-weight:700;font-size:17px;line-height:1.25;margin:0 0 8px}
 .pi-meta{font-size:13px;color:#6E5B10;display:flex;gap:8px;flex-wrap:wrap}
 .pi-check{
   position:absolute;left:16px;bottom:12px;display:flex;align-items:center;gap:8px;

@@ -16,7 +16,7 @@ export const AIDES = {
   navContrats: 'Contrats d’entretien sur l’exercice (juillet → juin).',
   navFacturation: 'Acomptes, soldes et impayés à suivre.',
   tachesJour:
-    'Cochez « C’est fait » quand la tâche est terminée. Le rouge = urgent, le jaune = à faire.',
+    'Sur le post-it : « C’est fait » coche la tâche (vous restez sur Aujourd’hui). « Voir l’affaire » ouvre la fiche chantier sans quitter la page. Rouge = urgent.',
   nouvelleTache:
     'Créez une tâche pour vous. Vous pouvez la lier à une affaire du portefeuille.',
   chantiersJour: 'Cliquez un chantier pour ouvrir l’affaire dans le portefeuille.',

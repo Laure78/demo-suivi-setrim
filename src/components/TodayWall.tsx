@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { daysLate, formatDateShort, NIVEAU_LABEL } from '@/lib/format';
 import { AIDES } from '@/lib/aides';
 import { AideLabel } from '@/components/AideTip';
+import { AffaireSheet, type AffaireDetail } from '@/components/AffaireSheet';
 
 export type PostitTache = {
   id: string;
@@ -58,6 +59,8 @@ export function TodayWall({
   >([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [sheetId, setSheetId] = useState<string | null>(null);
+  const [detail, setDetail] = useState<AffaireDetail | null>(null);
 
   const mine = taches
     .filter((t) => !t.fait && !gone[t.id])
@@ -80,6 +83,15 @@ export function TodayWall({
     setGone((g) => ({ ...g, [id]: true }));
     await fetch(`/api/taches/${id}/toggle`, { method: 'POST' });
     setTimeout(() => router.refresh(), 340);
+  }
+
+  async function openAffaire(id: string, e?: React.MouseEvent) {
+    e?.preventDefault();
+    e?.stopPropagation();
+    setSheetId(id);
+    setDetail(null);
+    const r = await fetch(`/api/affaires/${id}`);
+    if (r.ok) setDetail(await r.json());
   }
 
   async function addTask(e?: React.FormEvent) {
@@ -135,6 +147,10 @@ export function TodayWall({
           </span>
         </AideLabel>
       </div>
+      <p className="hint" style={{ marginBottom: 10 }}>
+        Cochez « C&apos;est fait » sur le post-it. Pour ouvrir le chantier lié, utilisez le lien
+        « Voir l&apos;affaire » (la fiche s&apos;ouvre ici, sans quitter Aujourd&apos;hui).
+      </p>
 
       <form className="today-add-task" onSubmit={(e) => void addTask(e)}>
         <AideLabel aide={AIDES.nouvelleTache}>
@@ -181,7 +197,11 @@ export function TodayWall({
             {busy ? '…' : 'Ajouter'}
           </button>
         </div>
-        {err ? <p className="hint" style={{ color: 'var(--flamme)', margin: 0 }}>{err}</p> : null}
+        {err ? (
+          <p className="hint" style={{ color: 'var(--flamme)', margin: 0 }}>
+            {err}
+          </p>
+        ) : null}
       </form>
 
       <div className="wall" style={{ marginTop: 18 }}>
@@ -203,13 +223,27 @@ export function TodayWall({
                 {late > 0 ? (
                   <span className="pi-late">EN RETARD · {late} j</span>
                 ) : null}
-                <div className="pi-aff">{t.libelle}</div>
                 <div className="pi-title">{t.titre}</div>
                 <div className="pi-meta">
                   <span className="mono">Échéance {formatDateShort(t.dateEcheance)}</span>
                   <span>{NIVEAU_LABEL[t.niveau] ?? 'À faire'}</span>
                 </div>
-                <button type="button" className="pi-check" onClick={() => check(t.id)}>
+                {t.affaireId ? (
+                  <button
+                    type="button"
+                    className="pi-aff-link"
+                    onClick={(e) => void openAffaire(t.affaireId!, e)}
+                  >
+                    {t.libelle} · Voir l&apos;affaire →
+                  </button>
+                ) : (
+                  <div className="pi-aff">{t.libelle}</div>
+                )}
+                <button
+                  type="button"
+                  className="pi-check"
+                  onClick={() => void check(t.id)}
+                >
                   <span className="box" /> C&apos;est fait
                 </button>
               </div>
@@ -248,6 +282,22 @@ export function TodayWall({
           </Link>
         ))}
       </div>
+
+      {sheetId ? (
+        <AffaireSheet
+          detail={detail}
+          onClose={() => {
+            setSheetId(null);
+            setDetail(null);
+            router.refresh();
+          }}
+          onRefresh={async () => {
+            const r = await fetch(`/api/affaires/${sheetId}`);
+            if (r.ok) setDetail(await r.json());
+            router.refresh();
+          }}
+        />
+      ) : null}
     </>
   );
 }

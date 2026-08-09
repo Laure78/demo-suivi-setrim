@@ -62,9 +62,10 @@ export const TUTORIEL_SECTIONS: TutorielSection[] = [
     titre: "Aujourd'hui",
     resume: 'Le tableau de bord du jour : vos tâches et les chantiers / interventions du jour.',
     points: [
-      'Cochez une tâche pour la marquer faite.',
+      'Cochez « C’est fait » sur le post-it : la tâche est terminée, vous restez sur Aujourd’hui.',
+      'Si la tâche est liée à un chantier : « Voir l’affaire » ouvre la fiche ici (panneau), sans passer par le portefeuille.',
       'Créez une nouvelle tâche depuis le formulaire (échéance, niveau, affaire liée éventuelle).',
-      'Les pastilles « chantiers du jour » renvoient vers la fiche affaire.',
+      'Les cartes « chantiers du jour » (plus bas) ouvrent l’affaire dans le portefeuille — ce ne sont pas les post-it tâches.',
       'Un badge dans le menu signale les tâches en retard.',
     ],
     lien: { href: '/aujourdhui', label: "Ouvrir Aujourd'hui" },
