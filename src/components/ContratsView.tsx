@@ -60,6 +60,19 @@ export function ContratsView({ contrats }: { contrats: ContratRow[] }) {
     return enriched.filter((c) => c.st.cle === filtre);
   }, [contrats, filtre]);
 
+  const nbAlerte = useMemo(
+    () =>
+      contrats.filter((c) => {
+        const st = statutContratAffichage({
+          etat: c.etat,
+          datePosee: c.datePosee,
+          moisContractuel: c.moisContractuel,
+        });
+        return st.cle === 'a_programmer' && st.alerteRetard;
+      }).length,
+    [contrats],
+  );
+
   async function openAffaire(id: string) {
     setSheetId(id);
     setDetail(null);
@@ -102,6 +115,23 @@ export function ContratsView({ contrats }: { contrats: ContratRow[] }) {
           </span>
         </AideLabel>
       </p>
+
+      {nbAlerte > 0 ? (
+        <p
+          className="hint"
+          style={{
+            marginBottom: 12,
+            padding: '10px 12px',
+            background: 'rgba(196, 70, 40, 0.08)',
+            borderLeft: '3px solid var(--flamme)',
+            color: 'var(--flamme)',
+            fontWeight: 600,
+          }}
+        >
+          ▲ {nbAlerte} contrat{nbAlerte > 1 ? 's' : ''} non programmé
+          {nbAlerte > 1 ? 's' : ''} dont le mois contractuel est en cours ou passé.
+        </p>
+      ) : null}
 
       <div className="import-bar" style={{ marginBottom: 12, flexWrap: 'wrap' }}>
         <button
@@ -256,6 +286,7 @@ export function ContratsView({ contrats }: { contrats: ContratRow[] }) {
             router.refresh();
           }}
           onRefresh={refreshDetail}
+          initialTab="plan"
         />
       ) : null}
     </>

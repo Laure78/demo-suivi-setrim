@@ -733,7 +733,10 @@ export async function genererLiensContratsExercice(exercice: string) {
           statut: AffaireStatut.commande,
         },
       });
-      // Pas de sync planning tant qu’aucune date n’est fixée
+      // Retirer d’éventuels créneaux orphelins (pas de date posée = pas au planning)
+      await prisma.planningSlot.deleteMany({
+        where: { affaireId: affaire.id, type: { in: ['chantier', 'ce'] } },
+      });
     }
 
     // Mettre à jour état alerte si mois dépassé / en cours sans date

@@ -165,6 +165,7 @@ export function EventDetailPanel({
             dateDebut: form.date.slice(0, 10),
             joursCharge: form.type === 'ce' ? Math.min(nJours, 1) : nJours,
             equipeId: form.equipeId || undefined,
+            dureeCe: form.type === 'ce' ? 'demi' : undefined,
           }),
         });
         if (!r.ok) {
@@ -172,6 +173,8 @@ export function EventDetailPanel({
           setErr(j.error ?? 'Impossible de modifier les dates du chantier');
           return;
         }
+        const j = await r.json().catch(() => ({}));
+        if (j.warning) alert(j.warning);
       } else if (isCreate) {
         const r = await fetch('/api/planning/slots', {
           method: 'POST',

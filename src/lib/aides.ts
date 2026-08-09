@@ -14,7 +14,8 @@ export const AIDES = {
     'Fiches clients : contact, téléphone, notes. Rattachez chaque chantier à un syndic / client. Touche 7.',
   navPlanning:
     'Agenda des équipes : Jour / Semaine / Mois / Année. Vert = chantier, bleu = CE (½–1 j).',
-  navContrats: 'Contrats d’entretien sur l’exercice (juillet → juin).',
+  navContrats:
+    'Contrats d’entretien (juillet → juin). Date ↔ planning synchronisés. Filtre par statut.',
   navFacturation: 'Acomptes, soldes et impayés à suivre.',
   navPlus:
     'Sur téléphone : autres écrans (Aujourd’hui, Clients, Facturation, Tutoriel), bascule « Je suis » et déconnexion.',
@@ -24,7 +25,7 @@ export const AIDES = {
     'Créez une tâche pour vous. Vous pouvez la lier à une affaire du portefeuille.',
   chantiersJour: 'Cliquez un chantier pour ouvrir l’affaire dans le portefeuille.',
   planning:
-    'Vert = chantier (travaux). Bleu = contrat d’entretien (½ j à 1 j). Cliquez un créneau pour changer les dates. + = tâche post-it.',
+    'Vert = chantier (travaux). Bleu = contrat d’entretien (½ j à 1 j). Déplacer un CE met à jour la date du contrat. Supprimer un CE → contrat à reprogrammer.',
   planDates:
     'Chantier lié à une affaire : date de début + nombre de jours → Enregistrer les dates (toute la période se recalcule, week-ends exclus).',
   planTache:
@@ -34,7 +35,7 @@ export const AIDES = {
   clients:
     'Créez ou modifiez une fiche client (contact, tél., notes). Cliquez une ligne. Depuis un chantier → Modifier pour rattacher.',
   contrats:
-    'Date posée → créneau bleu au planning (sync dans les deux sens). Colonnes Date / Statut + filtre. Hors mois = avertissement.',
+    'Mois contractuel = obligation. Posez la date sur la fiche → créneau bleu au planning. Statuts : À programmer / Programmé / Réalisé. Filtre + alerte si mois en cours/passé sans date.',
   facturation:
     'Suivi des acomptes et soldes. Cliquez une affaire pour ouvrir la fiche et facturer.',
   msgListe:
