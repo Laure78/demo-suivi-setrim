@@ -156,6 +156,8 @@ export async function POST(req: Request) {
         title: `${session.user.name}`,
         body: preview.slice(0, 120),
         url: '/messages',
+        alertType: 'messages',
+        priority: 'normal',
       });
     }
   }
@@ -173,6 +175,9 @@ export async function POST(req: Request) {
         title: `${session.user.name} vous a mentionné`,
         body: texte.slice(0, 120),
         url: '/messages',
+        alertType: 'messages',
+        priority: 'urgent',
+        niveau: 3,
       });
     }
   }

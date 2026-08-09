@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { eur, STATUT_LABEL } from '@/lib/format';
 import { AIDES } from '@/lib/aides';
@@ -26,6 +26,16 @@ export type ClientRow = {
   }[];
 };
 
+export type AffaireOption = {
+  id: string;
+  numeroDevis: string;
+  client: string;
+  clientId: string | null;
+  adresse: string;
+  statut: string;
+  montantHt: number;
+};
+
 const EMPTY_FORM = {
   nom: '',
   contact: '',
@@ -35,15 +45,32 @@ const EMPTY_FORM = {
   note: '',
 };
 
-export function ClientsView({ clients: initial }: { clients: ClientRow[] }) {
+export function ClientsView({
+  clients: initial,
+  affaires = [],
+}: {
+  clients: ClientRow[];
+  affaires?: AffaireOption[];
+}) {
   const router = useRouter();
   const [q, setQ] = useState('');
   const [sheet, setSheet] = useState<'new' | ClientRow | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [linkId, setLinkId] = useState('');
+  const [linkBusy, setLinkBusy] = useState(false);
+  const [linkErr, setLinkErr] = useState('');
   const [affaireId, setAffaireId] = useState<string | null>(null);
   const [detail, setDetail] = useState<AffaireDetail | null>(null);
+
+  // Garde la fiche ouverte à jour après refresh serveur
+  const sheetId = sheet && sheet !== 'new' ? sheet.id : null;
+  useEffect(() => {
+    if (!sheetId) return;
+    const fresh = initial.find((c) => c.id === sheetId);
+    if (fresh) setSheet(fresh);
+  }, [initial, sheetId]);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -58,9 +85,17 @@ export function ClientsView({ clients: initial }: { clients: ClientRow[] }) {
     );
   }, [initial, q]);
 
+  const linkables = useMemo(() => {
+    if (!sheet || sheet === 'new') return [];
+    const linked = new Set(sheet.affaires.map((a) => a.id));
+    return affaires.filter((a) => !linked.has(a.id));
+  }, [affaires, sheet]);
+
   function openNew() {
     setForm(EMPTY_FORM);
     setErr('');
+    setLinkErr('');
+    setLinkId('');
     setSheet('new');
   }
 
@@ -74,6 +109,8 @@ export function ClientsView({ clients: initial }: { clients: ClientRow[] }) {
       note: c.note,
     });
     setErr('');
+    setLinkErr('');
+    setLinkId('');
     setSheet(c);
   }
 
@@ -129,6 +166,47 @@ export function ClientsView({ clients: initial }: { clients: ClientRow[] }) {
     await fetch(`/api/clients/${c.id}`, { method: 'DELETE' });
     setBusy(false);
     setSheet(null);
+    router.refresh();
+  }
+
+  async function linkAffaire() {
+    if (!sheet || sheet === 'new' || !linkId) {
+      setLinkErr('Choisissez un chantier.');
+      return;
+    }
+    setLinkBusy(true);
+    setLinkErr('');
+    const r = await fetch(`/api/clients/${sheet.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ affaireId: linkId }),
+    });
+    const j = await r.json().catch(() => ({}));
+    setLinkBusy(false);
+    if (!r.ok) {
+      setLinkErr(j.error ?? 'Rattachement impossible');
+      return;
+    }
+    setLinkId('');
+    router.refresh();
+  }
+
+  async function unlinkAffaire(a: ClientRow['affaires'][0]) {
+    if (!sheet || sheet === 'new') return;
+    if (!confirm(`Retirer le chantier ${a.numeroDevis} de cette fiche ?`)) return;
+    setLinkBusy(true);
+    setLinkErr('');
+    const r = await fetch(`/api/clients/${sheet.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ detachAffaireId: a.id }),
+    });
+    const j = await r.json().catch(() => ({}));
+    setLinkBusy(false);
+    if (!r.ok) {
+      setLinkErr(j.error ?? 'Détachement impossible');
+      return;
+    }
     router.refresh();
   }
 
@@ -304,25 +382,94 @@ export function ClientsView({ clients: initial }: { clients: ClientRow[] }) {
                 </div>
               </form>
 
-              {sheet !== 'new' && sheet.affaires.length > 0 ? (
+              {sheet !== 'new' ? (
                 <div style={{ marginTop: 22 }}>
                   <span className="eyebrow">Chantiers liés</span>
-                  <ul className="client-affaires">
-                    {sheet.affaires.map((a) => (
-                      <li key={a.id}>
-                        <button type="button" className="client-aff-btn" onClick={() => void openAffaire(a.id)}>
-                          <strong>
-                            {a.numeroDevis} · {STATUT_LABEL[a.statut] ?? a.statut}
-                          </strong>
-                          <small>
-                            {a.adresse} · {eur(a.montantHt)}
-                          </small>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+
+                  <div className="client-link-bar">
+                    <label className="client-link-label">
+                      Lier un chantier
+                      <select
+                        value={linkId}
+                        onChange={(e) => setLinkId(e.target.value)}
+                        disabled={linkBusy || !linkables.length}
+                        aria-label="Choisir un chantier à lier"
+                      >
+                        <option value="">
+                          {linkables.length
+                            ? 'Choisir un devis / chantier…'
+                            : 'Tous les chantiers sont déjà liés'}
+                        </option>
+                        {linkables.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.numeroDevis} · {a.client}
+                            {a.clientId && a.clientId !== sheet.id ? ' (autre fiche)' : ''}
+                            {' — '}
+                            {STATUT_LABEL[a.statut] ?? a.statut}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      disabled={linkBusy || !linkId}
+                      onClick={() => void linkAffaire()}
+                    >
+                      {linkBusy ? '…' : 'Lier'}
+                    </button>
+                  </div>
+                  {linkErr ? (
+                    <p className="hint" style={{ color: 'var(--flamme)' }}>
+                      {linkErr}
+                    </p>
+                  ) : (
+                    <p className="hint" style={{ marginTop: 6 }}>
+                      Un chantier déjà rattaché à une autre fiche sera basculé ici.
+                    </p>
+                  )}
+
+                  {sheet.affaires.length ? (
+                    <ul className="client-affaires">
+                      {sheet.affaires.map((a) => (
+                        <li key={a.id}>
+                          <div className="client-aff-row">
+                            <button
+                              type="button"
+                              className="client-aff-btn"
+                              onClick={() => void openAffaire(a.id)}
+                            >
+                              <strong>
+                                {a.numeroDevis} · {STATUT_LABEL[a.statut] ?? a.statut}
+                              </strong>
+                              <small>
+                                {a.adresse} · {eur(a.montantHt)}
+                              </small>
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-edit"
+                              disabled={linkBusy}
+                              onClick={() => void unlinkAffaire(a)}
+                              title="Retirer de cette fiche"
+                            >
+                              Retirer
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="hint" style={{ marginTop: 10 }}>
+                      Aucun chantier lié pour l’instant.
+                    </p>
+                  )}
                 </div>
-              ) : null}
+              ) : (
+                <p className="hint" style={{ marginTop: 18 }}>
+                  Enregistrez la fiche pour pouvoir y lier des chantiers.
+                </p>
+              )}
             </div>
           </div>
         </>

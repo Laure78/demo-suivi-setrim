@@ -18,8 +18,23 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
   }
 }
 
+export function getNotificationPermission(): NotificationPermission | 'unsupported' {
+  if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported';
+  return Notification.permission;
+}
+
+export function isPushSupported(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    'Notification' in window &&
+    'PushManager' in window &&
+    'serviceWorker' in navigator
+  );
+}
+
+/** Abonnement push — à appeler uniquement après geste explicite (Paramètres). */
 export async function enableWebPush(userId: string): Promise<{ ok: boolean; error?: string }> {
-  if (!('Notification' in window) || !('PushManager' in window)) {
+  if (!isPushSupported()) {
     return { ok: false, error: 'Notifications push non supportées sur cet appareil' };
   }
   const perm = await Notification.requestPermission();
@@ -43,4 +58,35 @@ export async function enableWebPush(userId: string): Promise<{ ok: boolean; erro
     body: JSON.stringify({ userId, subscription: sub.toJSON() }),
   });
   return { ok: true };
+}
+
+export async function disableWebPush(): Promise<{ ok: boolean; error?: string }> {
+  if (!('serviceWorker' in navigator)) return { ok: true };
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sub = await reg?.pushManager.getSubscription();
+    if (sub) {
+      const endpoint = sub.endpoint;
+      await sub.unsubscribe().catch(() => undefined);
+      await fetch('/api/push/subscribe', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint }),
+      });
+    }
+    return { ok: true };
+  } catch {
+    return { ok: false, error: 'Impossible de désactiver les alertes sur cet appareil' };
+  }
+}
+
+export async function hasActivePushSubscription(): Promise<boolean> {
+  if (!isPushSupported()) return false;
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sub = await reg?.pushManager.getSubscription();
+    return Boolean(sub);
+  } catch {
+    return false;
+  }
 }

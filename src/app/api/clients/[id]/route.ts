@@ -71,11 +71,9 @@ export async function PATCH(
   if (typeof body.adresse === 'string') data.adresse = body.adresse.trim();
   if (typeof body.note === 'string') data.note = body.note.trim();
 
-  if (!Object.keys(data).length) {
-    return NextResponse.json({ error: 'Rien à mettre à jour' }, { status: 400 });
-  }
-
-  const updated = await prisma.client.update({ where: { id }, data });
+  const updated = Object.keys(data).length
+    ? await prisma.client.update({ where: { id }, data })
+    : existing;
 
   // Aligner le libellé « client » des affaires liées si le nom change
   if (data.nom) {
@@ -85,14 +83,28 @@ export async function PATCH(
     });
   }
 
-  // Rattacher / détacher une affaire
-  if (body.affaireId === null) {
-    // no-op batch
-  } else if (typeof body.affaireId === 'string' && body.affaireId) {
+  // Rattacher une affaire
+  if (typeof body.affaireId === 'string' && body.affaireId) {
     await prisma.affaire.update({
       where: { id: body.affaireId },
       data: { clientId: id, client: updated.nom },
     });
+  }
+
+  // Détacher une affaire
+  if (typeof body.detachAffaireId === 'string' && body.detachAffaireId) {
+    await prisma.affaire.updateMany({
+      where: { id: body.detachAffaireId, clientId: id },
+      data: { clientId: null },
+    });
+  }
+
+  if (
+    !Object.keys(data).length &&
+    !(typeof body.affaireId === 'string' && body.affaireId) &&
+    !(typeof body.detachAffaireId === 'string' && body.detachAffaireId)
+  ) {
+    return NextResponse.json({ error: 'Rien à mettre à jour' }, { status: 400 });
   }
 
   return NextResponse.json(updated);

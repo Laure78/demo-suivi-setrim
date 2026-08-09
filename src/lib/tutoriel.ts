@@ -27,8 +27,8 @@ export const TUTORIEL_SECTIONS: TutorielSection[] = [
       'Cliquez le logo SETRIM (menu latéral sur ordinateur, en-tête sur téléphone) pour ouvrir l’accueil : indicateurs et accès rapide à tous les écrans.',
     points: [
       'Cartes cliquables : tâches, chantiers du jour, affaires, clients, planning, facturation, contrats, messagerie.',
-      'Les alertes en haut signalent retards et points à traiter.',
-      'Après connexion, vous arrivez sur cet accueil.',
+      'Les alertes en haut signalent retards et points à traiter. La cloche (en-tête) ouvre les urgences du jour.',
+      'Après connexion, vous arrivez sur cet accueil — les urgences s’affichent à la 1ʳᵉ ouverture du jour s’il y en a.',
     ],
     lien: { href: '/', label: 'Ouvrir l’accueil' },
   },
@@ -50,14 +50,30 @@ export const TUTORIEL_SECTIONS: TutorielSection[] = [
     id: 'bandeau',
     titre: 'Bandeau et messagerie',
     resume:
-      'Sur ordinateur : menu latéral (dont Messagerie), bascule « Je suis » et bouton Messagerie (vert) en haut à droite. Sur téléphone : barre d’onglets en bas.',
+      'Sur ordinateur : menu latéral (dont Messagerie), bascule « Je suis », cloche des urgences et bouton Messagerie (vert) en haut à droite. Sur téléphone : barre d’onglets en bas + cloche dans l’en-tête.',
     points: [
       'Ordinateur : Messagerie via le menu à gauche (touche 8) ou le bouton vert du bandeau.',
+      'Cloche : ouvre à tout moment « Vos urgences du jour » (pastille = nombre d’urgences).',
       'S’il y a des messages non lus, un badge affiche le nombre.',
       'Quand vous êtes déjà sur la messagerie, le bouton (ordinateur) passe en bleu.',
       'Téléphone : Messages est le premier onglet de la barre navy en bas ; le logo SETRIM reste en haut.',
     ],
     lien: { href: '/messages', label: 'Ouvrir la messagerie' },
+  },
+  {
+    id: 'urgences',
+    titre: 'Urgences du jour (3 niveaux)',
+    resume:
+      'À la première connexion de la journée, une fenêtre récapitule ce qui vous concerne. Sur téléphone, elle glisse depuis le bas. Les alertes urgentes peuvent aussi arriver sur l’appareil (navigateur / app installée).',
+    points: [
+      'Trois blocs : En retard (rouge, nb de jours) · Aujourd’hui (interventions, échéances, mentions) · À anticiper (7 jours).',
+      'Chaque ligne : objet, chantier/contrat, responsable — gestes Fait, Reporter (demain / 3 jours / date), Ouvrir la fiche.',
+      'Filtrage : vous voyez ce dont vous êtes responsable, ou les messages où vous êtes mentionné ; le planning du jour est partagé au bureau.',
+      'Si rien à traiter : pas de fenêtre automatique (ou message positif court si vous rouvrez la cloche).',
+      'Après fermeture : ne se rouvre pas le même jour. Ce qui est coché / reporté dans la fenêtre ne redéclenche pas de notification push le même jour.',
+      'Niveau push : urgent = immédiat (même en plage de silence) ; normal = résumé le matin. Activation dans Paramètres → Notifications (pas au premier chargement).',
+      'Bannière discrète pour installer l’app sur le bureau ; refermable 30 jours. Une fois installée, les clics ouvrent la bonne fiche.',
+    ],
   },
   {
     id: 'nav-mobile',
@@ -108,7 +124,7 @@ export const TUTORIEL_SECTIONS: TutorielSection[] = [
       'Sur une fiche : nom, contact, téléphone, e-mail, adresse siège, notes.',
       'Les noms déjà présents sur les affaires du portefeuille génèrent une fiche automatiquement au premier passage.',
       'Depuis une fiche affaire (Modifier), choisissez une fiche existante ou créez-en une nouvelle.',
-      'Dans la fiche client, la liste « Chantiers liés » ouvre directement l’affaire.',
+      'Dans la fiche client : lier un chantier (liste déroulante + Lier), retirer un lien, ou ouvrir l’affaire.',
     ],
     lien: { href: '/clients', label: 'Ouvrir les clients' },
   },
@@ -206,7 +222,7 @@ export const TUTORIEL_SECTIONS: TutorielSection[] = [
     points: [
       'Accès : menu « Paramètres » (touche 9) ou Plus sur téléphone.',
       'Mon profil : prénom, nom, email, mobile, initiales, mot de passe, déconnexion de toutes les sessions. Rôle en lecture seule.',
-      'Notifications : canaux (push, email), types d’alertes, urgence minimum, plage de silence.',
+      'Notifications : activer les alertes sur cet appareil (geste explicite), état permission / app installée, types d’alertes, urgence minimum, plage de silence (sauf urgent).',
       'Support : coordonnées, formulaire « Signaler un problème » (n° de suivi), historique, 5 gestes de base.',
       'Administrateurs : Utilisateurs (comptes + quota formule), Entreprise et facturation, Abonnement.',
       'Changer de formule / ajouter des users / résilier = demande au support (pas de paiement en ligne).',

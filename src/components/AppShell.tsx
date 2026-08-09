@@ -22,9 +22,11 @@ import { AIDES } from '@/lib/aides';
 import { AideTip } from '@/components/AideTip';
 import { WhoSwitcher } from '@/components/WhoSwitcher';
 import { SetrimFooter } from '@/components/SetrimFooter';
-import { enableWebPush } from '@/lib/web-push-client';
+import { registerServiceWorker } from '@/lib/web-push-client';
 import { ACCES_LABEL, isAdministrateur } from '@/lib/acces-labels';
-import { Suspense, useEffect, type MouseEvent, type ReactNode } from 'react';
+import { UrgencesBell, UrgencesDuJour } from '@/components/UrgencesDuJour';
+import { InstallBanner } from '@/components/InstallBanner';
+import { Suspense, useCallback, useEffect, useState, type MouseEvent, type ReactNode } from 'react';
 
 const NAV_AIDES: Record<string, string> = {
   aujourdhui: AIDES.navAujourdhui,
@@ -100,11 +102,19 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
   const { data } = useSession();
   const user = data?.user;
   const isAdmin = isAdministrateur(user?.acces);
+  const [urgencesOpen, setUrgencesOpen] = useState(false);
+  const [urgenceCount, setUrgenceCount] = useState(lateCount);
+
+  const onUrgenceCount = useCallback((n: number) => setUrgenceCount(n), []);
 
   useEffect(() => {
-    if (!user?.id) return;
-    enableWebPush(user.id).catch(() => undefined);
-  }, [user?.id]);
+    // Enregistre le SW pour la PWA sans demander la permission push
+    registerServiceWorker().catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    setUrgenceCount((c) => (c > 0 ? c : lateCount));
+  }, [lateCount]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -178,8 +188,8 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
             >
               <span className="k">{s.k}</span>
               <span className="nav-label">{s.label}</span>
-              {s.id === 'aujourdhui' && lateCount > 0 ? (
-                <span className="badge">{lateCount}</span>
+              {s.id === 'aujourdhui' && (urgenceCount > 0 || lateCount > 0) ? (
+                <span className="badge">{urgenceCount || lateCount}</span>
               ) : null}
               {s.id === 'messages' && unreadCount > 0 ? (
                 <span className="badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
@@ -263,6 +273,10 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
             <div className="date">{today}</div>
           </div>
           <div className="spacer" />
+          <UrgencesBell
+            count={urgenceCount}
+            onOpen={() => setUrgencesOpen(true)}
+          />
           <span className="aide-label desk-only-inline" style={{ marginRight: 4 }}>
             <AideTip text={AIDES.who} placement="bottom" label="Aide — Je suis" />
           </span>
@@ -310,8 +324,20 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
             </Link>
             <p className="mobile-page-title">{screenTitle}</p>
           </div>
-          <span className="mobile-bar-slot" aria-hidden />
+          <span className="mobile-bar-slot mobile-bar-urgences">
+            <UrgencesBell
+              count={urgenceCount}
+              onOpen={() => setUrgencesOpen(true)}
+            />
+          </span>
         </header>
+
+        <InstallBanner />
+        <UrgencesDuJour
+          open={urgencesOpen}
+          onOpenChange={setUrgencesOpen}
+          onCountChange={onUrgenceCount}
+        />
 
         <div className="content">{children}</div>
         <SetrimFooter />
@@ -333,8 +359,10 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
                 {tab.id === 'messages' && unreadCount > 0 ? (
                   <span className="mobile-tab-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
                 ) : null}
-                {tab.id === 'plus' && lateCount > 0 ? (
-                  <span className="mobile-tab-badge">{lateCount > 99 ? '99+' : lateCount}</span>
+                {tab.id === 'plus' && (urgenceCount > 0 || lateCount > 0) ? (
+                  <span className="mobile-tab-badge">
+                    {(urgenceCount || lateCount) > 99 ? '99+' : urgenceCount || lateCount}
+                  </span>
                 ) : null}
               </span>
               <span className="mobile-tab-label">{tab.label}</span>

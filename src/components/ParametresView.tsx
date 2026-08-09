@@ -333,10 +333,31 @@ function TabProfil() {
 }
 
 function TabNotifications() {
+  const { data: session } = useSession();
   const [prefs, setPrefs] = useState<NotifPrefs | null>(null);
   const [busy, setBusy] = useState(false);
   const [info, setInfo] = useState('');
   const [err, setErr] = useState('');
+  const [device, setDevice] = useState<{
+    permission: string;
+    subscribed: boolean;
+    installed: boolean;
+    supported: boolean;
+  } | null>(null);
+  const [pushBusy, setPushBusy] = useState(false);
+
+  async function refreshDevice() {
+    const { getNotificationPermission, hasActivePushSubscription, isPushSupported } =
+      await import('@/lib/web-push-client');
+    const { isAppInstalled } = await import('@/components/InstallBanner');
+    const subscribed = await hasActivePushSubscription();
+    setDevice({
+      permission: getNotificationPermission(),
+      subscribed,
+      installed: isAppInstalled(),
+      supported: isPushSupported(),
+    });
+  }
 
   useEffect(() => {
     void (async () => {
@@ -348,6 +369,7 @@ function TabNotifications() {
       }
       setPrefs(j);
     })();
+    void refreshDevice();
   }, []);
 
   async function save(e: React.FormEvent) {
@@ -370,20 +392,107 @@ function TabNotifications() {
     setInfo('Préférences enregistrées.');
   }
 
+  async function activerPush() {
+    if (!session?.user?.id) return;
+    setPushBusy(true);
+    setErr('');
+    setInfo('');
+    const { enableWebPush } = await import('@/lib/web-push-client');
+    const res = await enableWebPush(session.user.id);
+    setPushBusy(false);
+    if (!res.ok) {
+      setErr(res.error ?? 'Activation impossible');
+      await refreshDevice();
+      return;
+    }
+    setPrefs((p) => (p ? { ...p, pushEnabled: true } : p));
+    setInfo('Alertes activées sur cet appareil.');
+    await refreshDevice();
+  }
+
+  async function desactiverPush() {
+    setPushBusy(true);
+    const { disableWebPush } = await import('@/lib/web-push-client');
+    const res = await disableWebPush();
+    setPushBusy(false);
+    if (!res.ok) {
+      setErr(res.error ?? 'Désactivation impossible');
+      return;
+    }
+    setInfo('Alertes désactivées sur cet appareil.');
+    await refreshDevice();
+  }
+
   if (!prefs) return <p className="hint">{err || 'Chargement…'}</p>;
+
+  const permLabel =
+    device?.permission === 'granted'
+      ? 'Autorisées'
+      : device?.permission === 'denied'
+        ? 'Refusées par le navigateur'
+        : device?.permission === 'unsupported'
+          ? 'Non supportées sur cet appareil'
+          : 'Pas encore demandées';
 
   return (
     <form className="param-card" onSubmit={(e) => void save(e)}>
       {err ? <p className="err">{err}</p> : null}
       {info ? <p className="param-flash">{info}</p> : null}
-      <h3>Canaux</h3>
+
+      <h3>Cet appareil</h3>
+      <p className="hint" style={{ marginBottom: 10 }}>
+        Les alertes sur cet appareil (cloche système) ne s’activent qu’après votre accord.
+        Vous resterez informé même si l’onglet est fermé, une fois l’application ou le navigateur
+        autorisé.
+      </p>
+      <ul className="param-device-status">
+        <li>
+          Permission navigateur : <strong>{permLabel}</strong>
+        </li>
+        <li>
+          Abonnement push :{' '}
+          <strong>{device?.subscribed ? 'Actif sur cet appareil' : 'Inactif'}</strong>
+        </li>
+        <li>
+          Application installée :{' '}
+          <strong>{device?.installed ? 'Oui (mode bureau / écran d’accueil)' : 'Non'}</strong>
+        </li>
+      </ul>
+      {device?.permission === 'denied' ? (
+        <p className="hint" style={{ marginTop: 8 }}>
+          Pour réactiver : réglages du navigateur → Notifications → autoriser ce site, puis
+          revenez ici et cliquez sur Activer.
+        </p>
+      ) : null}
+      <div className="param-push-actions">
+        <button
+          type="button"
+          className="btn-primary"
+          disabled={pushBusy || !device?.supported || device?.permission === 'denied'}
+          onClick={() => void activerPush()}
+        >
+          Activer les alertes sur cet appareil
+        </button>
+        {device?.subscribed ? (
+          <button
+            type="button"
+            className="urgence-btn"
+            disabled={pushBusy}
+            onClick={() => void desactiverPush()}
+          >
+            Désactiver sur cet appareil
+          </button>
+        ) : null}
+      </div>
+
+      <h3 style={{ marginTop: 22 }}>Canaux</h3>
       <label className="param-check">
         <input
           type="checkbox"
           checked={prefs.pushEnabled}
           onChange={(e) => setPrefs({ ...prefs, pushEnabled: e.target.checked })}
         />
-        Notifications push (navigateur / téléphone)
+        Recevoir les notifications push (tous appareils abonnés)
       </label>
       <label className="param-check">
         <input
@@ -457,7 +566,10 @@ function TabNotifications() {
           />
         </label>
       </div>
-      <p className="hint">Pas d’alerte push entre ces heures (ex. 22:00 → 07:00).</p>
+      <p className="hint">
+        Pas d’alerte push « normale » entre ces heures (ex. 22:00 → 07:00). Les urgences
+        passent quand même.
+      </p>
 
       <button type="submit" className="btn-primary" disabled={busy} style={{ marginTop: 14 }}>
         Enregistrer

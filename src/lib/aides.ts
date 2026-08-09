@@ -6,6 +6,8 @@ export const AIDES = {
   who: 'Les 5 accès individuels bureau. Cliquez une pastille pour basculer (chacun a son mot de passe). Pastille Connecté = session en cours.',
   messagerie:
     'Messagerie type WhatsApp. Discussions les plus récentes en haut (reçus et envoyés). Aussi dans le menu à gauche (touche 8).',
+  urgences:
+    'Cloche : urgences du jour (en retard, aujourd’hui, à anticiper). S’ouvre à la 1ʳᵉ connexion du jour. Fait / Reporter / Ouvrir la fiche.',
   tutoriel: 'Guide complet du fonctionnement de la plateforme. Mis à jour quand l’outil évolue (dernière maj : Août 2026).',
   navAujourdhui: 'Vos tâches du jour et les chantiers planifiés aujourd’hui.',
   navMessagerie: 'Équipe SETRIM et messages privés (style WhatsApp). Fils chantier sur la fiche affaire. Touche 8.',
@@ -37,7 +39,7 @@ export const AIDES = {
   portefeuille:
     'Le devis validé = l’affaire. Modifier : infos + fiche client. Onglet Planning : créneaux et recalage → agenda à jour.',
   clients:
-    'Créez ou modifiez une fiche client (contact, tél., notes). Cliquez une ligne. Depuis un chantier → Modifier pour rattacher.',
+    'Fiche client : contact, tél., notes. Section Chantiers liés : Lier / Retirer un chantier du portefeuille.',
   contrats:
     'Mois contractuel = obligation. Posez la date sur la fiche → créneau bleu au planning. Statuts : À programmer / Programmé / Réalisé. Filtre + alerte si mois en cours/passé sans date.',
   facturation:

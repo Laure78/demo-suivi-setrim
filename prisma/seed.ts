@@ -16,6 +16,7 @@ function parseFr(s: string, year = 2026) {
 
 async function main() {
   await prisma.notificationLog.deleteMany();
+  await prisma.urgenceTraitement.deleteMany();
   await prisma.pushSubscription.deleteMany();
   await prisma.remarque.deleteMany();
   await prisma.supportTicket.deleteMany();

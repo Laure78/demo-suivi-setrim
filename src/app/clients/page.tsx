@@ -8,22 +8,36 @@ export const dynamic = 'force-dynamic';
 export default async function ClientsPage() {
   await assurerFichesClients();
 
-  const clients = await prisma.client.findMany({
-    orderBy: { nom: 'asc' },
-    include: {
-      affaires: {
-        select: {
-          id: true,
-          numeroDevis: true,
-          adresse: true,
-          statut: true,
-          type: true,
-          montantHt: true,
+  const [clients, toutesAffaires] = await Promise.all([
+    prisma.client.findMany({
+      orderBy: { nom: 'asc' },
+      include: {
+        affaires: {
+          select: {
+            id: true,
+            numeroDevis: true,
+            adresse: true,
+            statut: true,
+            type: true,
+            montantHt: true,
+          },
+          orderBy: { dateDevis: 'desc' },
         },
-        orderBy: { dateDevis: 'desc' },
       },
-    },
-  });
+    }),
+    prisma.affaire.findMany({
+      select: {
+        id: true,
+        numeroDevis: true,
+        client: true,
+        clientId: true,
+        adresse: true,
+        statut: true,
+        montantHt: true,
+      },
+      orderBy: { numeroDevis: 'desc' },
+    }),
+  ]);
 
   return (
     <Shell title="Clients">
@@ -45,6 +59,15 @@ export default async function ClientsPage() {
             type: a.type,
             montantHt: Number(a.montantHt),
           })),
+        }))}
+        affaires={toutesAffaires.map((a) => ({
+          id: a.id,
+          numeroDevis: a.numeroDevis,
+          client: a.client,
+          clientId: a.clientId,
+          adresse: a.adresse,
+          statut: a.statut,
+          montantHt: Number(a.montantHt),
         }))}
       />
     </Shell>

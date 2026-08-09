@@ -1,14 +1,16 @@
 {
   "name": "SETRIM — Suivi d'affaires",
   "short_name": "SETRIM",
-  "description": "Aujourd'hui, affaires, planning, contrats d'entretien, facturation.",
-  "start_url": "/aujourdhui",
+  "description": "Aujourd'hui, affaires, planning, contrats d'entretien, facturation. Alertes bureau et chantier.",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#0B3A57",
   "theme_color": "#0B3A57",
   "lang": "fr",
+  "dir": "ltr",
+  "categories": ["business", "productivity"],
   "icons": [
     {
       "src": "/icon-192.png",
@@ -20,7 +22,13 @@
       "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

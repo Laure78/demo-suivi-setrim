@@ -74,6 +74,7 @@ model User {
   messages        Message[]
   pushSubs        PushSubscription[]
   notifications   NotificationLog[]
+  urgenceTraitements UrgenceTraitement[]
   piecesUploadees Piece[]            @relation("PieceAuteur")
   remarques       Remarque[]
   adminAudits     AdminAuditLog[]    @relation("AdminAuteur")
@@ -373,15 +374,34 @@ model PushSubscription {
 }
 
 model NotificationLog {
-  id      String   @id @default(cuid())
-  userId  String
-  tacheId String
-  kind    String
-  sentAt  DateTime @default(now())
+  id       String   @id @default(cuid())
+  userId   String
+  tacheId  String?
+  /// Clé stable d’événement (tache:…, planning:…, mention:…) — dédup push / popup
+  eventKey String   @default("")
+  kind     String
+  sentAt   DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([tacheId, kind, sentAt])
+  @@index([userId, eventKey, kind, sentAt])
+}
+
+/// Action « fait » / « reporter » depuis la pop-up Urgences (bloque le push le même jour)
+model UrgenceTraitement {
+  id        String   @id @default(cuid())
+  userId    String
+  eventKey  String
+  /// done | snooze
+  action    String
+  until     DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventKey])
+  @@index([userId, until])
 }
 
 model Remarque {
