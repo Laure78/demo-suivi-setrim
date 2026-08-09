@@ -56,7 +56,7 @@ export function EventBlock({
         <span className="agenda-evt-meta">
           {showTeam && event.resourceName ? `${event.resourceName} · ` : ''}
           {event.sourceType === 'contrat_entretien'
-            ? 'CE · ½–1 j'
+            ? ceMeta(event)
             : event.sourceType === 'chantier'
               ? 'Chantier'
               : event.sourceType === 'presta'
@@ -68,4 +68,13 @@ export function EventBlock({
       ) : null}
     </button>
   );
+}
+
+function ceMeta(event: PlanningEvent): string {
+  const raw = event.raw as { slot?: { label?: string | null } } | null;
+  const label = raw?.slot?.label ?? '';
+  const gars = label.match(/(\d+)\s+compagnon/);
+  const duree = /½\s*j/.test(label) ? '½ j' : /1\s*j/.test(label) ? '1 j' : '½–1 j';
+  if (gars) return `Contrat d'entretien · ${duree} · ${gars[1]} compagnon${Number(gars[1]) > 1 ? 's' : ''}`;
+  return `Contrat d'entretien · ${duree}`;
 }

@@ -37,6 +37,7 @@ export default async function ContratsPage() {
           etat: c.etat,
           note: c.note,
           datePosee: c.datePosee?.toISOString() ?? null,
+          exercice: c.exercice,
           affaire: c.affaires[0]
             ? {
                 id: c.affaires[0].id,

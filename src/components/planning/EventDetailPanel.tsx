@@ -242,6 +242,11 @@ export function EventDetailPanel({
         setErr(j.error ?? 'Suppression impossible');
         return;
       }
+      const j = await r.json().catch(() => ({}));
+      if (j.signal) {
+        // Contrat CE : signal explicite (repasse à programmer)
+        alert(j.signal);
+      }
       onClose();
       router.refresh();
     } finally {
