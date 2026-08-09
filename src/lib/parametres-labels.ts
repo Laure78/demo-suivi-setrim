@@ -44,7 +44,7 @@ export const GESTES_BASE = [
   },
   {
     titre: 'Messagerie',
-    texte: 'Menu Messagerie (touche 8) : Équipe SETRIM, directs et fils chantier.',
+    texte: 'Menu Messagerie (touche 8) : Équipe SETRIM et messages directs. Fils chantier sur la fiche affaire.',
   },
   {
     titre: 'Aujourd’hui',

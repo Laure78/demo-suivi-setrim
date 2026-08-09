@@ -151,8 +151,6 @@ export default async function MessagesPage({
     {
       id: 'gen',
       kind: 'gen' as const,
-      affaireId: null as string | null,
-      affaireStatut: null as string | null,
       titre: genMeta.titre,
       sousTitre: genMeta.sousTitre,
       avatar: genMeta.avatar,
@@ -190,8 +188,6 @@ export default async function MessagesPage({
         return {
           id: u.id,
           kind: 'user' as const,
-          affaireId: null as string | null,
-          affaireStatut: null as string | null,
           titre: u.nom,
           sousTitre: u.terrain
             ? `Sur chantier — ${ROLE_LABEL[u.role] ?? u.role}`
