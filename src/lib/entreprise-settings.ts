@@ -21,11 +21,14 @@ export async function ensureEntrepriseSettings() {
       referenceCommande: '',
       modeReglement: ModeReglement.prelevement,
       periodicite: PeriodiciteAbo.mensuelle,
-      supportEmail: 'support@bework.app',
-      supportTelephone: '01 89 71 00 20',
+      supportEmail: 'contact@bework.fr',
+      supportTelephone: '06 95 66 18 18',
       supportHoraires: 'Lun–Ven 9h–18h',
     },
-    update: {},
+    update: {
+      supportEmail: 'contact@bework.fr',
+      supportTelephone: '06 95 66 18 18',
+    },
   });
 
   const now = new Date();

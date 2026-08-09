@@ -141,8 +141,8 @@ model Entreprise {
   referenceCommande    String         @default("")
   modeReglement        ModeReglement  @default(prelevement)
   periodicite          PeriodiciteAbo @default(mensuelle)
-  supportEmail         String         @default("support@bework.app")
-  supportTelephone     String         @default("01 89 71 00 20")
+  supportEmail         String         @default("contact@bework.fr")
+  supportTelephone     String         @default("06 95 66 18 18")
   supportHoraires      String         @default("Lun–Ven 9h–18h")
   updatedAt            DateTime       @updatedAt
 
