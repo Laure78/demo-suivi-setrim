@@ -7,6 +7,7 @@ import type { EquipeRowInput, PlanningEvent } from '@/lib/planning/toCalendarEve
 import { toIsoDay } from '@/lib/planning/dates';
 import { AideTip } from '@/components/AideTip';
 import { AIDES } from '@/lib/aides';
+import { filterResponsablesBureau } from '@/lib/bureau-acces';
 
 const SLOT_TYPES = [
   { value: 'chantier', label: 'Chantier (travaux)' },
@@ -101,8 +102,8 @@ export function EventDetailPanel({
     fetch('/api/collaborateurs')
       .then((r) => (r.ok ? r.json() : []))
       .then((list: { id: string; nom: string; terrain?: boolean }[]) => {
-        const bureauOnly = Array.isArray(list) ? list.filter((u) => !u.terrain) : [];
-        const users = bureauOnly.length ? bureauOnly : Array.isArray(list) ? list : [];
+        const responsables = Array.isArray(list) ? filterResponsablesBureau(list) : [];
+        const users = responsables.length ? responsables : Array.isArray(list) ? list : [];
         setBureau(users.map((u) => ({ id: u.id, nom: u.nom })));
         if (users[0]) setTaskResp(users[0].id);
       })

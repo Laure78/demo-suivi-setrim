@@ -76,6 +76,7 @@ export const TUTORIEL_SECTIONS: TutorielSection[] = [
     resume: 'Toutes les affaires : commande, programmé, en cours, soldé.',
     points: [
       'Ouvrez une fiche pour voir tâches, fil chantier, pièces jointes, planning et factures.',
+      'Le Fil chantier : messages partagés avec l’équipe — ils apparaissent aussi dans la Messagerie.',
       'Sur une tâche de la fiche : cocher = faite (pas besoin de supprimer).',
       'Bouton Modifier : infos de l’affaire, rattachement à une fiche client (ou création d’une nouvelle fiche).',
       'Onglet Planning de la fiche : dates, équipe, recalage — l’agenda général se met à jour.',
@@ -141,8 +142,10 @@ export const TUTORIEL_SECTIONS: TutorielSection[] = [
       'Fil « Équipe SETRIM » et conversations privées. Interface type WhatsApp. Les messages restent en historique.',
     points: [
       'Accès : bouton vert « Messagerie » du bandeau, ou carte Accueil, ou entrée du menu mobile.',
-      'À gauche : liste « Discussions », recherche, avatars = initiales rondes.',
+      'À gauche : Équipe SETRIM, fils chantier (ex. BERYL · 42241), puis conversations privées.',
+      'Les messages du Fil d’une fiche affaire apparaissent aussi ici (même conversation).',
       'À droite : conversation, bulles (vertes pour vous / blanches pour les autres), horaires et ✓✓.',
+      'Sur un fil chantier : bouton « Fiche affaire » pour ouvrir la fiche sans quitter la messagerie.',
       'Sur téléphone : une vue à la fois (liste ou conversation) — flèche retour pour revenir à la liste.',
       'En bas : joindre un document ou une photo, écrire, envoyer avec le bouton rond vert.',
       'Survolez un message pour en faire une tâche (+ tâche) sur Aujourd’hui.',

@@ -15,6 +15,7 @@ import {
   factureTraitement,
   type FactureTraitement,
 } from '@/lib/format';
+import { filterResponsablesBureau } from '@/lib/bureau-acces';
 
 export type AffaireDetail = {
   id: string;
@@ -150,9 +151,9 @@ export function AffaireSheet({
     void fetch('/api/collaborateurs')
       .then((r) => (r.ok ? r.json() : []))
       .then((list: { id: string; nom: string; terrain?: boolean }[]) => {
-        const bureauOnly = list.filter((u) => !u.terrain);
-        setBureau(bureauOnly.length ? bureauOnly : list);
-        if (!taskResp && list[0]) setTaskResp(list[0].id);
+        const responsables = filterResponsablesBureau(list);
+        setBureau(responsables.length ? responsables : list);
+        if (!taskResp && responsables[0]) setTaskResp(responsables[0].id);
       })
       .catch(() => {});
     void fetch('/api/equipes')
@@ -702,7 +703,8 @@ export function AffaireSheet({
         </div>
         <p className="hint">
           Tout se dit ici, pas par mail. Denis et Philippe répondent depuis le chantier, photos
-          comprises.
+          comprises. Ces messages apparaissent aussi dans la{' '}
+          <a href={`/messages?thread=${encodeURIComponent(a.numeroDevis)}`}>messagerie</a>.
         </p>
       </>
     );

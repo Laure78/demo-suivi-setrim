@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AvatarBubble } from '@/components/AvatarBubble';
 import { AideLabel, AideTip } from '@/components/AideTip';
+import { AffaireSheet, type AffaireDetail } from '@/components/AffaireSheet';
 import { AIDES } from '@/lib/aides';
 
 /** Comptes bureau protégés — non suppressibles */
@@ -70,6 +71,8 @@ export function MessagesView({
   const router = useRouter();
   const c = convs.find((x) => x.id === conv) ?? convs[0] ?? null;
   const [uploading, setUploading] = useState(false);
+  const [sheetId, setSheetId] = useState<string | null>(null);
+  const [detail, setDetail] = useState<AffaireDetail | null>(null);
 
   function canDeleteConv(id: string) {
     const c0 = convs.find((x) => x.id === id);
@@ -177,6 +180,13 @@ export function MessagesView({
     const file = e.target.files?.[0];
     e.target.value = '';
     if (file) void sendFile(file, kind);
+  }
+
+  async function openAffaire(id: string) {
+    setSheetId(id);
+    setDetail(null);
+    const r = await fetch(`/api/affaires/${id}`);
+    if (r.ok) setDetail(await r.json());
   }
 
   async function makeTask(m: Msg) {
@@ -377,6 +387,15 @@ export function MessagesView({
                     onClick={() => void deleteCollaborateur(c.id, c.titre)}
                   >
                     Retirer
+                  </button>
+                ) : c.kind === 'affaire' && c.affaireId ? (
+                  <button
+                    type="button"
+                    className="wa-head-action"
+                    style={{ color: 'var(--bleu)', borderColor: 'var(--trait)' }}
+                    onClick={() => void openAffaire(c.affaireId!)}
+                  >
+                    Fiche affaire
                   </button>
                 ) : (
                   <AideTip text={AIDES.msgComposer} placement="left" />
@@ -615,6 +634,22 @@ export function MessagesView({
             </form>
           </div>
         </>
+      ) : null}
+
+      {sheetId ? (
+        <AffaireSheet
+          detail={detail}
+          onClose={() => {
+            setSheetId(null);
+            setDetail(null);
+            router.refresh();
+          }}
+          onRefresh={async () => {
+            const r = await fetch(`/api/affaires/${sheetId}`);
+            if (r.ok) setDetail(await r.json());
+            router.refresh();
+          }}
+        />
       ) : null}
     </div>
   );

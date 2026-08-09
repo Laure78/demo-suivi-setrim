@@ -69,3 +69,17 @@ export function bureauPasswordFor(idOrEmail: string): string | null {
   );
   return u?.password ?? null;
 }
+
+const BUREAU_IDS = new Set(BUREAU_ACCES.map((u) => u.id));
+
+/** Les 5 du bureau (y compris Denis / Philippe) — pour listes « Responsable ». */
+export function isBureauAccesId(id: string): boolean {
+  return BUREAU_IDS.has(id);
+}
+
+/** Responsables possibles : les 5 bureau + collaborateurs collaborateurs non terrain. */
+export function filterResponsablesBureau<T extends { id: string; terrain?: boolean }>(
+  users: T[],
+): T[] {
+  return users.filter((u) => isBureauAccesId(u.id) || !u.terrain);
+}

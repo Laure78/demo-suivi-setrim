@@ -48,7 +48,9 @@ export async function GET(
   if (!a) return NextResponse.json({ error: 'Introuvable' }, { status: 404 });
 
   const threadMsgs = await prisma.message.findMany({
-    where: { threadKey: a.numeroDevis },
+    where: {
+      OR: [{ threadKey: a.numeroDevis }, { affaireId: a.id }],
+    },
     include: { auteur: { select: { nom: true } } },
     orderBy: { createdAt: 'asc' },
   });

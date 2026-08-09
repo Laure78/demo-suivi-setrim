@@ -5,7 +5,7 @@ export const AIDES = {
     'Tableau de bord : vue d’ensemble (tâches, chantiers, affaires, clients, facturation). Cliquez le logo SETRIM pour y revenir.',
   who: 'Les 5 accès individuels bureau. Cliquez une pastille pour basculer (chacun a son mot de passe). Pastille Connecté = session en cours.',
   messagerie:
-    'Bouton vert du bandeau → messagerie type WhatsApp (discussions à gauche, conversation à droite). Avatars = initiales. Historique conservé.',
+    'Bouton vert → messagerie type WhatsApp. Équipe, fils chantier (même contenu que le Fil de la fiche) et messages privés. Avatars = initiales.',
   tutoriel: 'Guide complet du fonctionnement de la plateforme. Mis à jour quand l’outil évolue (dernière maj : Août 2026).',
   navAujourdhui: 'Vos tâches du jour et les chantiers planifiés aujourd’hui.',
   navPortefeuille: 'Toutes les affaires (commande → soldé). Cliquez une ligne pour ouvrir la fiche.',

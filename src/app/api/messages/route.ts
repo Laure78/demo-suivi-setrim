@@ -80,6 +80,30 @@ export async function POST(req: Request) {
     },
   });
 
+  // Fil chantier → visible aussi dans la messagerie (conversation dédiée)
+  if (affaire) {
+    const avatar = affaire.type === 'contrat_entretien' ? 'CE' : 'CH';
+    const cls = affaire.type === 'contrat_entretien' ? 'ce' : 'cha';
+    await prisma.threadMeta.upsert({
+      where: { id: threadKey },
+      create: {
+        id: threadKey,
+        titre: `${affaire.client} · ${affaire.numeroDevis}`,
+        sousTitre: affaire.adresse.split(',')[0] ?? affaire.adresse,
+        avatar,
+        cls,
+        pin: '',
+        ordre: 50,
+      },
+      update: {
+        titre: `${affaire.client} · ${affaire.numeroDevis}`,
+        sousTitre: affaire.adresse.split(',')[0] ?? affaire.adresse,
+        avatar,
+        cls,
+      },
+    });
+  }
+
   const preview =
     texte ||
     (fichier && photoLabel
@@ -88,8 +112,19 @@ export async function POST(req: Request) {
         ? `📷 ${photoLabel}`
         : 'Nouveau message');
 
-  // Notifs : uniquement messagerie interne (pas les fils chantier)
-  if (!affaireId && threadKey === 'gen') {
+  // Notifs : messagerie interne + fil chantier (tout le bureau)
+  if (affaireId) {
+    const others = await prisma.user.findMany({
+      where: { actif: true, id: { not: session.user.id } },
+      select: { id: true },
+    });
+    await notifyUsers({
+      userIds: others.map((u) => u.id),
+      title: `${affaire?.client ?? 'Chantier'} — ${session.user.name}`,
+      body: preview.slice(0, 120),
+      url: `/messages?thread=${encodeURIComponent(threadKey)}`,
+    });
+  } else if (threadKey === 'gen') {
     const others = await prisma.user.findMany({
       where: { actif: true, id: { not: session.user.id } },
       select: { id: true },
@@ -100,7 +135,7 @@ export async function POST(req: Request) {
       body: preview.slice(0, 120),
       url: '/messages',
     });
-  } else if (!affaireId && threadKey !== 'gen') {
+  } else if (threadKey !== 'gen') {
     const isUser = await prisma.user.findUnique({ where: { id: threadKey } });
     if (isUser) {
       await notifyUsers({
