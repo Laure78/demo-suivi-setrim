@@ -1,11 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { eur, MOIS_EXERCICE } from '@/lib/format';
+import { eur, MOIS_EXERCICE, formatDateFr } from '@/lib/format';
 import { AIDES } from '@/lib/aides';
 import { AideLabel } from '@/components/AideTip';
 import { AffaireSheet, type AffaireDetail } from '@/components/AffaireSheet';
+import {
+  labelStatutListe,
+  statutContratAffichage,
+  type CeStatutCle,
+} from '@/lib/ce-statut';
 
 type ContratRow = {
   id: string;
@@ -25,11 +30,35 @@ type ContratRow = {
   } | null;
 };
 
+type FiltreStatut = 'tous' | CeStatutCle | 'hors_mois';
+
 export function ContratsView({ contrats }: { contrats: ContratRow[] }) {
   const [sheetId, setSheetId] = useState<string | null>(null);
   const [detail, setDetail] = useState<AffaireDetail | null>(null);
   const [busy, setBusy] = useState(false);
+  const [filtre, setFiltre] = useState<FiltreStatut>('tous');
   const router = useRouter();
+
+  const rows = useMemo(() => {
+    const enriched = contrats.map((c) => {
+      const st = statutContratAffichage({
+        etat: c.etat,
+        datePosee: c.datePosee,
+        moisContractuel: c.moisContractuel,
+        exercice: '2026-2027',
+      });
+      return { ...c, st, statutLabel: labelStatutListe(st) };
+    });
+    enriched.sort((a, b) => {
+      if (a.moisContractuel !== b.moisContractuel) {
+        return a.moisContractuel - b.moisContractuel;
+      }
+      return a.syndic.localeCompare(b.syndic, 'fr');
+    });
+    if (filtre === 'tous') return enriched;
+    if (filtre === 'hors_mois') return enriched.filter((c) => c.st.horsMois);
+    return enriched.filter((c) => c.st.cle === filtre);
+  }, [contrats, filtre]);
 
   async function openAffaire(id: string) {
     setSheetId(id);
@@ -56,7 +85,7 @@ export function ContratsView({ contrats }: { contrats: ContratRow[] }) {
     setBusy(false);
     alert(
       j.ok
-        ? `Exercice lié : ${j.created ?? 0} affaire(s) CE créées (planning · alerte J-15 avant entretien · RDV ½–1 j).`
+        ? `Exercice lié : ${j.created ?? 0} affaire(s) CE (planning synchronisé · alertes J-15).`
         : j.error ?? 'Échec',
     );
     router.refresh();
@@ -67,15 +96,14 @@ export function ContratsView({ contrats }: { contrats: ContratRow[] }) {
       <p className="hint" style={{ marginBottom: 12 }}>
         <AideLabel aide={AIDES.contrats}>
           <span>
-            Exercice du 1<sup>er</sup> juillet 2026 au 30 juin 2027. Mois contractuel = date
-            anniversaire. Chaque contrat crée une affaire : RDV de ½ journée à 1 journée, alerte
-            J-30 pour caler la date, puis tâche « Préparer l&apos;entretien annuel » à J-15 avant
-            le passage. Cliquez une ligne pour ouvrir l&apos;affaire.
+            Exercice du 1<sup>er</sup> juillet 2026 au 30 juin 2027. Posez la date sur la fiche :
+            le créneau apparaît au planning (bleu). Modifier le planning met à jour le contrat, et
+            l&apos;inverse aussi. Cliquez une ligne pour ouvrir l&apos;affaire.
           </span>
         </AideLabel>
       </p>
 
-      <div className="import-bar" style={{ marginBottom: 12 }}>
+      <div className="import-bar" style={{ marginBottom: 12, flexWrap: 'wrap' }}>
         <button
           type="button"
           className="btn-primary"
@@ -84,6 +112,20 @@ export function ContratsView({ contrats }: { contrats: ContratRow[] }) {
         >
           Lier exercice → affaires / planning / alertes
         </button>
+        <label className="filter-client" style={{ marginLeft: 'auto' }}>
+          <span className="eyebrow">Statut</span>
+          <select
+            value={filtre}
+            onChange={(e) => setFiltre(e.target.value as FiltreStatut)}
+            aria-label="Filtrer par statut"
+          >
+            <option value="tous">Tous</option>
+            <option value="a_programmer">À programmer</option>
+            <option value="programme">Programmé</option>
+            <option value="realise">Réalisé</option>
+            <option value="hors_mois">Hors mois contractuel</option>
+          </select>
+        </label>
       </div>
 
       <div className="plan-wrap">
@@ -96,30 +138,38 @@ export function ContratsView({ contrats }: { contrats: ContratRow[] }) {
               </th>
               <th className="gars">Compagnons</th>
               <th>Affaire</th>
+              <th>Date programmée</th>
+              <th>Statut</th>
               {MOIS_EXERCICE.map((m) => (
                 <th key={m}>{m}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {contrats.map((c) => (
+            {rows.map((c) => (
               <tr
                 key={c.id}
                 className="row"
-                style={{ cursor: c.affaire ? 'pointer' : undefined }}
+                style={{
+                  cursor: c.affaire ? 'pointer' : undefined,
+                  background: c.st.alerteRetard
+                    ? 'rgba(196, 74, 42, 0.06)'
+                    : c.st.horsMois
+                      ? 'rgba(245, 200, 66, 0.12)'
+                      : undefined,
+                }}
                 onClick={() => c.affaire && openAffaire(c.affaire.id)}
               >
                 <td className="lbl">
                   <span className="cli">{c.syndic}</span>
                   <div className="adr">{c.immeuble}</div>
-                  {c.note ? (
-                    <div
-                      className="adr"
-                      style={{
-                        color: c.etat === 'alert' ? 'var(--flamme)' : 'var(--zinc)',
-                      }}
-                    >
-                      {c.etat === 'alert' ? '▲ ' : ''}
+                  {c.st.alerteRetard ? (
+                    <div className="adr" style={{ color: 'var(--flamme)' }}>
+                      ▲ Mois contractuel en cours ou passé — à programmer
+                    </div>
+                  ) : null}
+                  {c.note && !c.st.alerteRetard ? (
+                    <div className="adr" style={{ color: 'var(--zinc)' }}>
                       {c.note}
                     </div>
                   ) : null}
@@ -135,9 +185,39 @@ export function ContratsView({ contrats }: { contrats: ContratRow[] }) {
                     '—'
                   )}
                 </td>
+                <td className="mono">
+                  {c.datePosee ? formatDateFr(c.datePosee) : '—'}
+                </td>
+                <td>
+                  <span
+                    className={`pill${
+                      c.st.cle === 'realise'
+                        ? ' ok'
+                        : c.st.alerteRetard || c.st.horsMois
+                          ? ' no'
+                          : c.st.cle === 'programme'
+                            ? ' wait'
+                            : ''
+                    }`}
+                  >
+                    {c.statutLabel}
+                  </span>
+                </td>
                 {MOIS_EXERCICE.map((_, i) => (
                   <td key={i}>
-                    <span className={`mk ${i === c.moisContractuel ? c.etat : ''}`} />
+                    <span
+                      className={`mk ${
+                        i === c.moisContractuel
+                          ? c.st.cle === 'realise'
+                            ? 'done'
+                            : c.st.cle === 'programme'
+                              ? 'pose'
+                              : c.st.alerteRetard
+                                ? 'alert'
+                                : 'contract'
+                          : ''
+                      }`}
+                    />
                   </td>
                 ))}
               </tr>
@@ -145,6 +225,9 @@ export function ContratsView({ contrats }: { contrats: ContratRow[] }) {
           </tbody>
         </table>
       </div>
+      {!rows.length ? (
+        <p className="hint">Aucun contrat pour ce filtre.</p>
+      ) : null}
       <div className="legend">
         <span>
           <i style={{ background: 'var(--bleu)' }} />
@@ -160,7 +243,7 @@ export function ContratsView({ contrats }: { contrats: ContratRow[] }) {
         </span>
         <span>
           <i style={{ background: 'var(--flamme)' }} />
-          Échéance dépassée sans date
+          À programmer (mois en cours / passé)
         </span>
       </div>
 

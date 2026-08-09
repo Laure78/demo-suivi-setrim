@@ -16,6 +16,12 @@ import {
   type FactureTraitement,
 } from '@/lib/format';
 import { filterResponsablesBureau } from '@/lib/bureau-acces';
+import {
+  isHorsMoisContractuel,
+  labelMoisContractuel,
+  messageHorsMois,
+  parseDureeCeFromNote,
+} from '@/lib/ce-statut';
 
 export type AffaireDetail = {
   id: string;
@@ -46,6 +52,8 @@ export type AffaireDetail = {
     exercice: string;
     datePosee: string | null;
     etat: string;
+    nbCompagnons?: number;
+    note?: string;
   } | null;
   planning?: {
     id: string;
@@ -128,6 +136,9 @@ export function AffaireSheet({
   const [msg, setMsg] = useState('');
   const [dateDebut, setDateDebut] = useState('');
   const [jours, setJours] = useState('');
+  const [dureeCe, setDureeCe] = useState<'demi' | 'jour'>('demi');
+  const [nbCompagnons, setNbCompagnons] = useState('1');
+  const [planWarning, setPlanWarning] = useState<string | null>(null);
   const [equipePlanId, setEquipePlanId] = useState('');
   const [equipes, setEquipes] = useState<{ id: string; nom: string }[]>([]);
   const [slotDrafts, setSlotDrafts] = useState<
@@ -172,9 +183,28 @@ export function AffaireSheet({
 
   useEffect(() => {
     if (!detail) return;
-    if (detail.dateDebut) setDateDebut(detail.dateDebut.slice(0, 10));
+    if (detail.dateDebut) {
+      const d = new Date(detail.dateDebut);
+      const hasTime =
+        d.getUTCHours() !== 12 || d.getUTCMinutes() !== 0;
+      if (hasTime && detail.type === 'contrat_entretien') {
+        const pad = (n: number) => String(n).padStart(2, '0');
+        setDateDebut(
+          `${detail.dateDebut.slice(0, 10)}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`,
+        );
+      } else {
+        setDateDebut(detail.dateDebut.slice(0, 10));
+      }
+    } else if (detail.contratEntretien?.datePosee) {
+      setDateDebut(detail.contratEntretien.datePosee.slice(0, 10));
+    }
     setJours(String(detail.joursCharge || 1));
+    setDureeCe(parseDureeCeFromNote(detail.note));
+    setNbCompagnons(
+      String(detail.contratEntretien?.nbCompagnons ?? 1),
+    );
     setEquipePlanId(detail.equipe?.id ?? '');
+    setPlanWarning(null);
     const drafts: Record<string, { date: string; equipeId: string }> = {};
     for (const s of detail.planning ?? []) {
       drafts[s.id] = {
@@ -406,7 +436,8 @@ export function AffaireSheet({
   async function programmer() {
     if (!dateDebut) return;
     setBusy(true);
-    await fetch(`/api/affaires/${a.id}`, {
+    setPlanWarning(null);
+    const r = await fetch(`/api/affaires/${a.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -415,9 +446,55 @@ export function AffaireSheet({
         // CE = RDV ½ j à 1 j (1 créneau jour)
         joursCharge: isCe ? 1 : jours ? Number(jours) : undefined,
         equipeId: equipePlanId || undefined,
+        dureeCe: isCe ? dureeCe : undefined,
+        nbCompagnons: isCe ? Number(nbCompagnons) || 1 : undefined,
       }),
     });
+    const j = await r.json().catch(() => ({}));
     setBusy(false);
+    if (j.warning) setPlanWarning(String(j.warning));
+    else if (
+      isCe &&
+      a.contratEntretien &&
+      isHorsMoisContractuel(
+        dateDebut.slice(0, 10),
+        a.contratEntretien.moisContractuel,
+        a.contratEntretien.exercice,
+      )
+    ) {
+      setPlanWarning(messageHorsMois(a.contratEntretien.moisContractuel));
+    }
+    onRefresh();
+  }
+
+  async function marquerRealise() {
+    if (!confirm('Marquer ce passage comme réalisé pour l’exercice ?')) return;
+    setBusy(true);
+    await fetch(`/api/affaires/${a.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'ce-realise' }),
+    });
+    setBusy(false);
+    onRefresh();
+  }
+
+  async function retirerDuPlanning() {
+    if (
+      !confirm(
+        'Retirer le créneau du planning ? Le contrat repasse « À programmer » (il n’est pas supprimé).',
+      )
+    )
+      return;
+    setBusy(true);
+    const r = await fetch(`/api/affaires/${a.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'ce-deprogrammer' }),
+    });
+    const j = await r.json().catch(() => ({}));
+    setBusy(false);
+    if (j.signal) alert(j.signal);
     onRefresh();
   }
 
@@ -458,6 +535,8 @@ export function AffaireSheet({
       alert(j.error ?? 'Suppression impossible');
       return;
     }
+    const j = await r.json().catch(() => ({}));
+    if (j.signal) alert(j.signal);
     onRefresh();
   }
 
@@ -819,11 +898,30 @@ export function AffaireSheet({
 
   if (tab === 'plan') {
     const slots = a.planning ?? [];
+    const datePosee = a.contratEntretien?.datePosee ?? a.dateDebut;
+    const horsMoisPreview =
+      isCe &&
+      a.contratEntretien &&
+      dateDebut &&
+      isHorsMoisContractuel(
+        dateDebut.slice(0, 10),
+        a.contratEntretien.moisContractuel,
+        a.contratEntretien.exercice,
+      );
+    const planningHref = datePosee
+      ? (() => {
+          const d = new Date(datePosee);
+          return `/planning?annee=${d.getUTCFullYear()}&mois=${d.getUTCMonth() + 1}&vue=month`;
+        })()
+      : '/planning';
+    const ceRealise = a.contratEntretien?.etat === 'done';
+
     body = (
       <>
         <p className="hint" style={{ marginBottom: 12 }}>
-          Modifiez dates et équipe ici : le planning général se met à jour automatiquement
-          (même affaire, mêmes créneaux).
+          {isCe
+            ? 'Fixez la date d’intervention : le créneau apparaît en bleu au planning (contrat d’entretien). Déplacer le créneau dans le planning met à jour cette fiche.'
+            : 'Modifiez dates et équipe ici : le planning général se met à jour automatiquement (même affaire, mêmes créneaux).'}
         </p>
         <dl className="kv">
           <dt>Début</dt>
@@ -831,7 +929,13 @@ export function AffaireSheet({
           <dt>Fin</dt>
           <dd>{formatDateFr(a.dateFin ?? null)}</dd>
           <dt>Charge</dt>
-          <dd>{isCe ? '½ j à 1 j' : `${a.joursCharge} j`}</dd>
+          <dd>
+            {isCe
+              ? dureeCe === 'jour'
+                ? '1 journée'
+                : '½ journée'
+              : `${a.joursCharge} j`}
+          </dd>
           <dt>Équipe</dt>
           <dd>{a.equipe?.nom ?? '—'}</dd>
           {a.contratEntretien ? (
@@ -840,6 +944,20 @@ export function AffaireSheet({
               <dd>
                 {MOIS_CE[a.contratEntretien.moisContractuel] ?? '—'} ·{' '}
                 {a.contratEntretien.exercice}
+                <span className="hint" style={{ display: 'block', margin: '4px 0 0' }}>
+                  Obligation : passage en{' '}
+                  {labelMoisContractuel(a.contratEntretien.moisContractuel)}
+                </span>
+              </dd>
+              <dt>Compagnons</dt>
+              <dd>{a.contratEntretien.nbCompagnons ?? '—'}</dd>
+              <dt>Statut CE</dt>
+              <dd>
+                {ceRealise
+                  ? 'Réalisé pour l’exercice'
+                  : a.contratEntretien.datePosee || a.contratEntretien.etat === 'pose'
+                    ? 'Programmé'
+                    : 'À programmer'}
               </dd>
             </>
           ) : null}
@@ -890,7 +1008,7 @@ export function AffaireSheet({
                         ))}
                       </select>
                     </label>
-                    <small>{s.type === 'ce' ? 'Contrat entretien' : 'Chantier'}</small>
+                    <small>{s.type === 'ce' ? "Contrat d'entretien" : 'Chantier'}</small>
                   </div>
                   <div className="plan-slot-actions">
                     <button
@@ -914,6 +1032,11 @@ export function AffaireSheet({
                 </div>
               );
             })}
+            {isCe && (a.contratEntretien?.datePosee || slots.length) ? (
+              <p style={{ marginTop: 10 }}>
+                <a href={planningHref}>Voir dans le planning →</a>
+              </p>
+            ) : null}
           </div>
         ) : (
           <p className="hint" style={{ marginTop: 12 }}>
@@ -923,16 +1046,44 @@ export function AffaireSheet({
 
         <div className="add-task plan-program" style={{ marginTop: 16, flexWrap: 'wrap' }}>
           <input
-            type="date"
+            type={isCe ? 'datetime-local' : 'date'}
             value={dateDebut}
             onChange={(e) => setDateDebut(e.target.value)}
-            style={{ flex: '1 1 140px' }}
-            aria-label="Date de début"
+            style={{ flex: '1 1 180px' }}
+            aria-label={isCe ? "Date d'intervention" : 'Date de début'}
           />
           {isCe ? (
-            <span className="hint" style={{ margin: 0, alignSelf: 'center' }}>
-              RDV ½ j à 1 j
-            </span>
+            <>
+              <select
+                value={dureeCe}
+                onChange={(e) => setDureeCe(e.target.value as 'demi' | 'jour')}
+                style={{ flex: '0 1 110px' }}
+                aria-label="Durée"
+              >
+                <option value="demi">½ journée</option>
+                <option value="jour">1 journée</option>
+              </select>
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  flex: '0 1 140px',
+                  fontSize: 13,
+                }}
+              >
+                Compagnons
+                <input
+                  type="number"
+                  min={1}
+                  max={15}
+                  value={nbCompagnons}
+                  onChange={(e) => setNbCompagnons(e.target.value)}
+                  style={{ width: 56 }}
+                  aria-label="Équipe / compagnons affectés"
+                />
+              </label>
+            </>
           ) : (
             <input
               type="number"
@@ -961,10 +1112,67 @@ export function AffaireSheet({
             {slots.length ? 'Recaler le planning' : 'Programmer'}
           </button>
         </div>
+
+        {(planWarning || horsMoisPreview) && (
+          <p
+            className="hint"
+            style={{
+              marginTop: 10,
+              color: 'var(--flamme)',
+              fontWeight: 600,
+            }}
+          >
+            ▲ {planWarning || messageHorsMois(a.contratEntretien!.moisContractuel)}
+            {' '}
+            (enregistrement possible — marqué « Hors mois contractuel ».)
+          </p>
+        )}
+
+        {isCe ? (
+          <div
+            style={{
+              marginTop: 14,
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 8,
+              alignItems: 'center',
+            }}
+          >
+            {(a.contratEntretien?.datePosee || slots.length > 0) && !ceRealise ? (
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={busy}
+                onClick={() => void marquerRealise()}
+              >
+                Réalisée
+              </button>
+            ) : null}
+            {(a.contratEntretien?.datePosee || slots.length > 0) && !ceRealise ? (
+              <button
+                type="button"
+                className="btn-note"
+                disabled={busy}
+                onClick={() => void retirerDuPlanning()}
+              >
+                Retirer du planning
+              </button>
+            ) : null}
+            {ceRealise ? (
+              <span className="pill ok">Réalisé pour l’exercice</span>
+            ) : null}
+            {(a.contratEntretien?.datePosee || slots.length > 0) ? (
+              <a href={planningHref} className="hint" style={{ margin: 0 }}>
+                Voir dans le planning →
+              </a>
+            ) : null}
+          </div>
+        ) : null}
+
         <p className="hint">
-          Programmer / Recaler = statut PROGRAMMÉ + créneaux au planning + tâches (benne,
-          autorisation, factures) recalées sur la date d&apos;intervention. Les changements
-          apparaissent tout de suite dans l&apos;agenda Planning.
+          {isCe
+            ? 'Programmer = statut Programmé + créneau bleu au planning + tâches (J-15, facture) recalées. Supprimer le créneau → contrat « À programmer ».'
+            : 'Programmer / Recaler = statut PROGRAMMÉ + créneaux au planning + tâches (benne, autorisation, factures) recalées sur la date d’intervention. Les changements apparaissent tout de suite dans l’agenda Planning.'}
         </p>
       </>
     );

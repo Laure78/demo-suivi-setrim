@@ -23,11 +23,21 @@ import { fr } from 'date-fns/locale';
 
 export const WEEK_STARTS_ON = 1 as const;
 
-/** Parse `yyyy-MM-dd` → midi UTC (évite le décalage fuseau sur le planning). */
+/**
+ * Parse `yyyy-MM-dd` → midi UTC (évite le décalage fuseau sur le planning).
+ * Si `yyyy-MM-ddTHH:mm` (ou ISO complet) → conserve l’heure (UTC).
+ */
 export function parsePlanningDate(iso: string): Date {
-  const s = String(iso).slice(0, 10);
-  const [y, m, d] = s.split('-').map(Number);
+  const raw = String(iso).trim();
+  const dayPart = raw.slice(0, 10);
+  const [y, m, d] = dayPart.split('-').map(Number);
   if (!y || !m || !d) return new Date(NaN);
+  const timeMatch = raw.match(/T(\d{1,2}):(\d{2})/);
+  if (timeMatch) {
+    return new Date(
+      Date.UTC(y, m - 1, d, Number(timeMatch[1]), Number(timeMatch[2]), 0),
+    );
+  }
   return new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
 }
 

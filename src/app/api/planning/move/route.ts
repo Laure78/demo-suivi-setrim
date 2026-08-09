@@ -2,6 +2,7 @@ import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { parsePlanningDate } from '@/lib/planning/dates';
+import { programmerAffaire, syncContratDepuisSlots } from '@/lib/affaire-lifecycle';
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -19,22 +20,37 @@ export async function POST(req: Request) {
 
   const day = parsePlanningDate(String(date));
 
+  const existing = await prisma.planningSlot.findUnique({ where: { id: slotId } });
+  if (!existing) return NextResponse.json({ error: 'Introuvable' }, { status: 404 });
+
+  // CE lié à une affaire : reprogrammer (sync datePosee + créneau)
+  if (existing.affaireId && existing.type === 'ce') {
+    await programmerAffaire(existing.affaireId, {
+      dateDebut: day,
+      equipeId: String(equipeId),
+      joursCharge: 1,
+    });
+    return NextResponse.json({ ok: true, reprogrammed: true });
+  }
+
   const updated = await prisma.planningSlot.update({
     where: { id: slotId },
     data: {
-      equipeId,
+      equipeId: String(equipeId),
       date: day,
     },
   });
 
-  // Si une affaire était en commande et reçoit une date → PROGRAMMÉ
   if (updated.affaireId) {
     const aff = await prisma.affaire.findUnique({ where: { id: updated.affaireId } });
-    if (aff?.statut === 'commande') {
-      await prisma.affaire.update({
-        where: { id: aff.id },
-        data: { statut: 'programme', dateDebut: day },
+    if (aff?.type === 'contrat_entretien') {
+      await programmerAffaire(updated.affaireId, {
+        dateDebut: day,
+        equipeId: String(equipeId),
+        joursCharge: 1,
       });
+    } else {
+      await syncContratDepuisSlots(updated.affaireId);
     }
   }
 

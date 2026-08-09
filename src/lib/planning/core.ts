@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { labelSlotCe, parseDureeCeFromNote } from '@/lib/ce-statut';
 
 /** Garantit les 2 prestataires externes SETRIM. */
 export async function ensurePrestataires() {
@@ -108,8 +109,18 @@ export async function syncChantiersAuPlanning(year: number, month: number) {
   const chantiers = await prisma.affaire.findMany({
     where: {
       statut: { in: ['programme', 'encours'] },
-      type: { in: ['travaux', 'contrat_entretien'] },
+      OR: [
+        { type: 'travaux' },
+        {
+          type: 'contrat_entretien',
+          contratEntretien: {
+            datePosee: { not: null },
+            etat: { in: ['pose', 'done'] },
+          },
+        },
+      ],
     },
+    include: { contratEntretien: { select: { nbCompagnons: true } } },
   });
 
   let eqIdx = 0;
@@ -175,14 +186,23 @@ export async function syncChantiersAuPlanning(year: number, month: number) {
           type: { in: ['chantier', 'ce'] },
         },
       });
+      const isCe = a.type === 'contrat_entretien';
+      const label = isCe
+        ? labelSlotCe({
+            client: a.client,
+            adresse: a.adresse,
+            nbCompagnons: a.contratEntretien?.nbCompagnons,
+            duree: parseDureeCeFromNote(a.note),
+          })
+        : `${a.client} · ${a.adresse}`;
       if (existing) {
-        // Mettre à jour l'adresse si besoin
-        if (existing.equipeId !== equipeId || !existing.label?.includes(a.adresse)) {
+        if (existing.equipeId !== equipeId || existing.label !== label) {
           await prisma.planningSlot.update({
             where: { id: existing.id },
             data: {
               equipeId,
-              label: `${a.client} · ${a.adresse}`,
+              label,
+              type: isCe ? 'ce' : 'chantier',
             },
           });
         }
@@ -194,8 +214,8 @@ export async function syncChantiersAuPlanning(year: number, month: number) {
           equipeId,
           date: new Date(Date.UTC(year, month, day)),
           affaireId: a.id,
-          type: a.type === 'contrat_entretien' ? 'ce' : 'chantier',
-          label: `${a.client} · ${a.adresse}`,
+          type: isCe ? 'ce' : 'chantier',
+          label,
         },
       });
     }
@@ -206,8 +226,14 @@ export async function syncChantiersAuPlanning(year: number, month: number) {
  * Recrée les créneaux chantier/CE d’une affaire à partir de dateDébut / dateFin / équipe.
  * Les anciens créneaux liés sont remplacés → l’agenda /planning se met à jour.
  */
-export async function resyncAffaireSlots(affaireId: string) {
-  const a = await prisma.affaire.findUnique({ where: { id: affaireId } });
+export async function resyncAffaireSlots(
+  affaireId: string,
+  opts?: { dureeCe?: 'demi' | 'jour'; nbCompagnons?: number },
+) {
+  const a = await prisma.affaire.findUnique({
+    where: { id: affaireId },
+    include: { contratEntretien: { select: { nbCompagnons: true } } },
+  });
   if (!a?.dateDebut) return { ok: false as const, reason: 'pas_de_debut' };
 
   let equipeId = a.equipeId;
@@ -230,8 +256,18 @@ export async function resyncAffaireSlots(affaireId: string) {
     where: { affaireId, type: { in: ['chantier', 'ce'] } },
   });
 
-  const type = a.type === 'contrat_entretien' ? 'ce' : 'chantier';
-  const label = `${a.client} · ${a.adresse}`;
+  const isCe = a.type === 'contrat_entretien';
+  const type = isCe ? 'ce' : 'chantier';
+  const duree = opts?.dureeCe ?? (isCe ? parseDureeCeFromNote(a.note) : undefined);
+  const nb = opts?.nbCompagnons ?? a.contratEntretien?.nbCompagnons;
+  const label = isCe
+    ? labelSlotCe({
+        client: a.client,
+        adresse: a.adresse,
+        nbCompagnons: nb,
+        duree,
+      })
+    : `${a.client} · ${a.adresse}`;
   const cursor = new Date(start);
   let created = 0;
 

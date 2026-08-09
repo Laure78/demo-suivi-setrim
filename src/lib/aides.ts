@@ -34,7 +34,7 @@ export const AIDES = {
   clients:
     'Créez ou modifiez une fiche client (contact, tél., notes). Cliquez une ligne. Depuis un chantier → Modifier pour rattacher.',
   contrats:
-    'Mois contractuel = date anniversaire. Alerte J-15 avant l’entretien (RDV ½–1 j). Cliquez une ligne → fiche affaire. « Lier exercice » = planning + tâches.',
+    'Date posée → créneau bleu au planning (sync dans les deux sens). Colonnes Date / Statut + filtre. Hors mois = avertissement.',
   facturation:
     'Suivi des acomptes et soldes. Cliquez une affaire pour ouvrir la fiche et facturer.',
   msgListe:

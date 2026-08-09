@@ -8,6 +8,13 @@ import { AffaireStatut, AffaireType, FactureType } from '@prisma/client';
 import { MODELES_TACHES } from '@/lib/format';
 import { syncChantiersAuPlanning, resyncAffaireSlots } from '@/lib/planning';
 import { assurerFichesClients } from '@/lib/clients';
+import {
+  isHorsMoisContractuel,
+  labelMoisContractuel,
+  messageHorsMois,
+  moisContractuelCourant,
+  parseDureeCeFromNote,
+} from '@/lib/ce-statut';
 
 function addDaysUTC(d: Date, n: number) {
   const x = new Date(d);
@@ -81,6 +88,7 @@ export async function creerTachesDepuisDevis(
 /**
  * Programmer l'affaire au planning = date d'intervention posée.
  * Statut → PROGRAMMÉ, créneaux planning, échéances des tâches recalées.
+ * CE : sync datePosee + état « pose », créneau type `ce` (bleu).
  */
 export async function programmerAffaire(
   affaireId: string,
@@ -88,9 +96,15 @@ export async function programmerAffaire(
     dateDebut: Date;
     joursCharge?: number;
     equipeId?: string;
+    /** CE uniquement : ½ journée ou journée entière (1 créneau jour au planning). */
+    dureeCe?: 'demi' | 'jour';
+    nbCompagnons?: number;
   },
 ) {
-  const a = await prisma.affaire.findUnique({ where: { id: affaireId } });
+  const a = await prisma.affaire.findUnique({
+    where: { id: affaireId },
+    include: { contratEntretien: true },
+  });
   if (!a) throw new Error('Affaire introuvable');
 
   // CE = RDV court (½ j à 1 j) → 1 jour ouvré max au planning
@@ -98,7 +112,14 @@ export async function programmerAffaire(
     a.type === AffaireType.contrat_entretien || !!a.contratEntretienId;
   const jours = isCe ? 1 : (input.joursCharge ?? (a.joursCharge || 1));
   const start = new Date(input.dateDebut);
-  start.setUTCHours(12, 0, 0, 0);
+  // Conserve l’heure si fournie, sinon midi UTC
+  if (
+    start.getUTCHours() === 0 &&
+    start.getUTCMinutes() === 0 &&
+    start.getUTCSeconds() === 0
+  ) {
+    start.setUTCHours(12, 0, 0, 0);
+  }
   let end = new Date(start);
   let added = 0;
   while (added < Math.max(0, jours - 1)) {
@@ -116,6 +137,25 @@ export async function programmerAffaire(
     equipeId = eq?.id ?? null;
   }
 
+  const dureeCe =
+    input.dureeCe ??
+    (isCe ? parseDureeCeFromNote(a.note) : undefined);
+  const nbCompagnons =
+    input.nbCompagnons ?? a.contratEntretien?.nbCompagnons ?? undefined;
+
+  let note = a.note;
+  if (isCe && a.contratEntretien) {
+    const moisLab = labelMoisContractuel(a.contratEntretien.moisContractuel);
+    const dureeTxt = dureeCe === 'jour' ? '1 j' : '½ j';
+    const base = `CE — mois contractuel (anniversaire) ${moisLab} · RDV ${dureeTxt}`;
+    const hors = isHorsMoisContractuel(
+      start,
+      a.contratEntretien.moisContractuel,
+      a.contratEntretien.exercice,
+    );
+    note = hors ? `${base} · Hors mois contractuel` : base;
+  }
+
   const updated = await prisma.affaire.update({
     where: { id: affaireId },
     data: {
@@ -123,18 +163,45 @@ export async function programmerAffaire(
       dateFin: end,
       joursCharge: jours,
       equipeId,
+      note,
       statut:
         a.statut === AffaireStatut.solde || a.statut === AffaireStatut.encours
           ? a.statut
           : AffaireStatut.programme,
-      // Si CE et date posée → contrat en "pose"
     },
   });
 
   if (a.contratEntretienId) {
+    const contratData: {
+      datePosee: Date;
+      etat: string;
+      nbCompagnons?: number;
+      note?: string;
+    } = {
+      datePosee: start,
+      etat: a.contratEntretien?.etat === 'done' ? 'done' : 'pose',
+    };
+    if (input.nbCompagnons != null && input.nbCompagnons > 0) {
+      contratData.nbCompagnons = Math.floor(input.nbCompagnons);
+    }
+    // Signaler hors mois sans bloquer
+    if (
+      a.contratEntretien &&
+      isHorsMoisContractuel(
+        start,
+        a.contratEntretien.moisContractuel,
+        a.contratEntretien.exercice,
+      )
+    ) {
+      const warn = messageHorsMois(a.contratEntretien.moisContractuel);
+      const prev = a.contratEntretien.note ?? '';
+      if (!prev.includes('Hors mois') && !prev.includes(warn)) {
+        contratData.note = prev ? `${prev} · ${warn}` : warn;
+      }
+    }
     await prisma.contratEntretien.update({
       where: { id: a.contratEntretienId },
-      data: { datePosee: start, etat: 'pose' },
+      data: contratData,
     });
   }
 
@@ -213,7 +280,10 @@ export async function programmerAffaire(
 
   const y = start.getUTCFullYear();
   const m = start.getUTCMonth();
-  await resyncAffaireSlots(affaireId);
+  await resyncAffaireSlots(affaireId, {
+    dureeCe: isCe ? dureeCe : undefined,
+    nbCompagnons: isCe ? nbCompagnons : undefined,
+  });
   // Mois voisin si la période déborde (sécurité agenda mensuel)
   await syncChantiersAuPlanning(y, m);
   if (end.getUTCMonth() !== m || end.getUTCFullYear() !== y) {
@@ -221,6 +291,144 @@ export async function programmerAffaire(
   }
 
   return updated;
+}
+
+/**
+ * Retire le passage du planning : le contrat repasse « À programmer »
+ * (le contrat n’est pas supprimé). Signale dans la note.
+ */
+export async function deprogrammerCe(affaireId: string) {
+  const a = await prisma.affaire.findUnique({
+    where: { id: affaireId },
+    include: { contratEntretien: true },
+  });
+  if (!a?.contratEntretienId || !a.contratEntretien) {
+    return { ok: false as const, reason: 'pas_ce' };
+  }
+  if (a.contratEntretien.etat === 'done') {
+    return { ok: false as const, reason: 'deja_realise' };
+  }
+
+  await prisma.planningSlot.deleteMany({
+    where: { affaireId, type: { in: ['chantier', 'ce'] } },
+  });
+
+  const now = new Date();
+  const courant = moisContractuelCourant(now, a.contratEntretien.exercice);
+  const enRetard =
+    courant != null && a.contratEntretien.moisContractuel <= courant;
+  const signal = 'Créneau planning retiré — à reprogrammer';
+  const prevNote = a.contratEntretien.note ?? '';
+  const note = prevNote.includes('à reprogrammer')
+    ? prevNote
+    : prevNote
+      ? `${prevNote} · ${signal}`
+      : signal;
+
+  await prisma.contratEntretien.update({
+    where: { id: a.contratEntretienId },
+    data: {
+      datePosee: null,
+      etat: enRetard ? 'alert' : 'contract',
+      note,
+    },
+  });
+
+  await prisma.affaire.update({
+    where: { id: affaireId },
+    data: {
+      statut: AffaireStatut.commande,
+      // garde une date de référence (mois contractuel) sans créneau
+    },
+  });
+
+  return { ok: true as const };
+}
+
+/** Marque le passage CE réalisé pour l’exercice → disparaît des « à programmer ». */
+export async function marquerCeRealise(affaireId: string) {
+  const a = await prisma.affaire.findUnique({
+    where: { id: affaireId },
+    include: { contratEntretien: true },
+  });
+  if (!a?.contratEntretienId) throw new Error('Pas un contrat d’entretien');
+
+  await prisma.contratEntretien.update({
+    where: { id: a.contratEntretienId },
+    data: { etat: 'done' },
+  });
+
+  await prisma.affaire.update({
+    where: { id: affaireId },
+    data: {
+      statut: AffaireStatut.solde,
+      dateFin: a.dateFin ?? a.dateDebut ?? new Date(),
+    },
+  });
+
+  // Éteindre les tâches CE ouvertes liées au passage
+  await prisma.tache.updateMany({
+    where: {
+      affaireId,
+      fait: false,
+      OR: [
+        { titre: { contains: 'Caler la date' } },
+        { titre: { contains: 'entretien annuel' } },
+      ],
+    },
+    data: { fait: true, faitAt: new Date() },
+  });
+
+  return { ok: true as const };
+}
+
+/**
+ * Après déplacement / recalage d’un créneau CE : aligne datePosee + affaire.
+ */
+export async function syncContratDepuisSlots(affaireId: string) {
+  const a = await prisma.affaire.findUnique({
+    where: { id: affaireId },
+    include: { contratEntretien: true },
+  });
+  if (!a) return;
+
+  const slots = await prisma.planningSlot.findMany({
+    where: { affaireId, type: { in: ['chantier', 'ce'] } },
+    orderBy: { date: 'asc' },
+  });
+
+  if (!slots.length) {
+    if (a.contratEntretienId && a.contratEntretien?.etat !== 'done') {
+      await deprogrammerCe(affaireId);
+    }
+    return;
+  }
+
+  const start = slots[0].date;
+  const end = slots[slots.length - 1].date;
+
+  await prisma.affaire.update({
+    where: { id: affaireId },
+    data: {
+      dateDebut: start,
+      dateFin: end,
+      joursCharge: Math.max(1, a.type === AffaireType.contrat_entretien ? 1 : slots.length),
+      equipeId: slots[0].equipeId,
+      statut:
+        a.statut === AffaireStatut.commande
+          ? AffaireStatut.programme
+          : a.statut === AffaireStatut.solde
+            ? a.statut
+            : a.statut,
+    },
+  });
+
+  if (a.contratEntretienId && a.contratEntretien?.etat !== 'done') {
+    await prisma.contratEntretien.update({
+      where: { id: a.contratEntretienId },
+      data: { datePosee: start, etat: 'pose' },
+    });
+  }
 }
 
 /** Émettre une facture liée à l'affaire + cocher la tâche associée. */
@@ -508,35 +716,45 @@ export async function genererLiensContratsExercice(exercice: string) {
       });
     }
 
-    // Si date posée ou mois anniversaire → programmer au planning (1 j max)
+    // Si date posée → programmer au planning (1 j max). Sinon : à programmer, pas de créneau.
     if (c.datePosee || c.etat === 'pose') {
       await programmerAffaire(affaire.id, {
         dateDebut: c.datePosee ?? dateAnniversaire,
         joursCharge: 1,
+        dureeCe: parseDureeCeFromNote(affaire.note),
+        nbCompagnons: c.nbCompagnons,
       });
-    } else {
-      // Au moins positionner le mois anniversaire comme programmé pour sync planning
+    } else if (c.etat !== 'done') {
       await prisma.affaire.update({
         where: { id: affaire.id },
         data: {
           dateDebut: dateAnniversaire,
           dateFin: dateAnniversaire,
-          statut: AffaireStatut.programme,
+          statut: AffaireStatut.commande,
         },
       });
-      await syncChantiersAuPlanning(year, calendarMonth);
+      // Pas de sync planning tant qu’aucune date n’est fixée
     }
 
-    // Mettre à jour état alerte si mois dépassé sans date
+    // Mettre à jour état alerte si mois dépassé / en cours sans date
     const now = new Date();
-    if (!c.datePosee && dateAnniversaire < now && c.etat !== 'pose') {
+    const courant = moisContractuelCourant(now, exercice);
+    if (
+      !c.datePosee &&
+      c.etat !== 'pose' &&
+      c.etat !== 'done' &&
+      (dateAnniversaire < now ||
+        (courant != null && c.moisContractuel <= courant))
+    ) {
       await prisma.contratEntretien.update({
         where: { id: c.id },
         data: {
           etat: 'alert',
-          note: c.note.includes('dépassé')
+          note: c.note.includes('dépassé') || c.note.includes('À programmer')
             ? c.note
-            : `Mois contractuel dépassé — aucune date posée`,
+            : c.note
+              ? `${c.note} · Mois contractuel en cours ou dépassé — aucune date posée`
+              : `Mois contractuel en cours ou dépassé — aucune date posée`,
         },
       });
     }

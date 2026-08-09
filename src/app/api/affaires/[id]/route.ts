@@ -2,7 +2,7 @@ import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { daysLate } from '@/lib/format';
-import { emettreFacture, programmerAffaire, setFactureTraitement } from '@/lib/affaire-lifecycle';
+import { emettreFacture, programmerAffaire, setFactureTraitement, marquerCeRealise, deprogrammerCe } from '@/lib/affaire-lifecycle';
 
 export async function GET(
   _req: Request,
@@ -36,6 +36,8 @@ export async function GET(
           exercice: true,
           datePosee: true,
           etat: true,
+          nbCompagnons: true,
+          note: true,
         },
       },
       slots: {
@@ -132,12 +134,54 @@ export async function PATCH(
       return NextResponse.json({ error: 'dateDebut requise' }, { status: 400 });
     }
     const { parsePlanningDate } = await import('@/lib/planning/dates');
+    const dureeCe =
+      body.dureeCe === 'jour' || body.dureeCe === 'demi' ? body.dureeCe : undefined;
     const updated = await programmerAffaire(id, {
       dateDebut: parsePlanningDate(String(body.dateDebut)),
       joursCharge: body.joursCharge ? Number(body.joursCharge) : undefined,
       equipeId: body.equipeId || undefined,
+      dureeCe,
+      nbCompagnons: body.nbCompagnons != null ? Number(body.nbCompagnons) : undefined,
     });
-    return NextResponse.json({ ok: true, statut: updated.statut });
+    const horsMois = updated.contratEntretienId
+      ? await (async () => {
+          const c = await prisma.contratEntretien.findUnique({
+            where: { id: updated.contratEntretienId! },
+          });
+          if (!c?.datePosee) return false;
+          const { isHorsMoisContractuel, messageHorsMois } = await import('@/lib/ce-statut');
+          const hors = isHorsMoisContractuel(c.datePosee, c.moisContractuel, c.exercice);
+          return hors ? messageHorsMois(c.moisContractuel) : false;
+        })()
+      : false;
+    return NextResponse.json({
+      ok: true,
+      statut: updated.statut,
+      warning: horsMois || undefined,
+    });
+  }
+
+  if (body.action === 'ce-realise') {
+    try {
+      await marquerCeRealise(id);
+      return NextResponse.json({ ok: true, etat: 'done' });
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : 'Échec' },
+        { status: 400 },
+      );
+    }
+  }
+
+  if (body.action === 'ce-deprogrammer') {
+    const r = await deprogrammerCe(id);
+    if (!r.ok) {
+      return NextResponse.json({ error: r.reason }, { status: 400 });
+    }
+    return NextResponse.json({
+      ok: true,
+      signal: 'Créneau retiré — contrat à reprogrammer',
+    });
   }
 
   if (body.action === 'facturer') {

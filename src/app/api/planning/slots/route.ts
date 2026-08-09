@@ -1,31 +1,8 @@
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
-import { AffaireStatut } from '@prisma/client';
 import { parsePlanningDate } from '@/lib/planning/dates';
-
-async function refreshAffaireFromSlots(affaireId: string) {
-  const slots = await prisma.planningSlot.findMany({
-    where: { affaireId, type: { in: ['chantier', 'ce'] } },
-    orderBy: { date: 'asc' },
-  });
-  if (!slots.length) return;
-
-  const aff = await prisma.affaire.findUnique({ where: { id: affaireId } });
-  if (!aff) return;
-
-  await prisma.affaire.update({
-    where: { id: affaireId },
-    data: {
-      dateDebut: slots[0].date,
-      dateFin: slots[slots.length - 1].date,
-      joursCharge: Math.max(1, slots.length),
-      equipeId: slots[0].equipeId,
-      statut:
-        aff.statut === AffaireStatut.commande ? AffaireStatut.programme : aff.statut,
-    },
-  });
-}
+import { syncContratDepuisSlots } from '@/lib/affaire-lifecycle';
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -53,7 +30,7 @@ export async function POST(req: Request) {
   });
 
   if (affaireId) {
-    await refreshAffaireFromSlots(affaireId);
+    await syncContratDepuisSlots(affaireId);
   }
 
   return NextResponse.json(slot);
@@ -86,15 +63,37 @@ export async function PATCH(req: Request) {
 
   const updated = await prisma.planningSlot.update({ where: { id }, data });
 
+  const linkedAffaireId = updated.affaireId ?? existing.affaireId;
   if (updated.affaireId) {
-    const aff = await prisma.affaire.findUnique({ where: { id: updated.affaireId } });
+    const aff = await prisma.affaire.findUnique({
+      where: { id: updated.affaireId },
+      include: { contratEntretien: { select: { nbCompagnons: true } } },
+    });
     if (aff && (body.date || body.equipeId)) {
+      const isCe = aff.type === 'contrat_entretien' || updated.type === 'ce';
+      const label = isCe
+        ? (
+            await import('@/lib/ce-statut')
+          ).labelSlotCe({
+            client: aff.client,
+            adresse: aff.adresse,
+            nbCompagnons: aff.contratEntretien?.nbCompagnons,
+            duree: (await import('@/lib/ce-statut')).parseDureeCeFromNote(aff.note),
+          })
+        : `${aff.client} · ${aff.adresse}`;
       await prisma.planningSlot.update({
         where: { id: updated.id },
-        data: { label: `${aff.client} · ${aff.adresse}` },
+        data: { label },
       });
     }
-    await refreshAffaireFromSlots(updated.affaireId);
+    await syncContratDepuisSlots(updated.affaireId);
+  } else if (existing.affaireId && !updated.affaireId) {
+    await syncContratDepuisSlots(existing.affaireId);
+  }
+
+  // Affaire précédente détachée
+  if (linkedAffaireId && linkedAffaireId !== updated.affaireId) {
+    await syncContratDepuisSlots(linkedAffaireId);
   }
 
   return NextResponse.json(updated);
@@ -115,8 +114,14 @@ export async function DELETE(req: Request) {
 
   await prisma.planningSlot.delete({ where: { id } });
   if (existing.affaireId) {
-    await refreshAffaireFromSlots(existing.affaireId);
+    await syncContratDepuisSlots(existing.affaireId);
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({
+    ok: true,
+    signal:
+      existing.type === 'ce'
+        ? 'Créneau CE retiré — le contrat repasse à programmer si plus aucun créneau.'
+        : undefined,
+  });
 }
