@@ -769,7 +769,7 @@ export function MessagesView({
                   const showDay =
                     !prev || !sameDay(prev.createdAt, m.createdAt);
                   const mine = m.auteurId === meId;
-                  const isGroup = c.kind === 'gen' || c.kind === 'affaire';
+                  const isGroup = c.kind === 'gen';
                   const showAuthor =
                     isGroup &&
                     !mine &&
@@ -1029,7 +1029,7 @@ export function MessagesView({
               <input
                 value={composeQ}
                 onChange={(e) => setComposeQ(e.target.value)}
-                placeholder="Nom, chantier…"
+                placeholder="Nom du collaborateur…"
                 autoComplete="off"
               />
             </label>
@@ -1049,11 +1049,7 @@ export function MessagesView({
                   <span>
                     <strong>{x.titre}</strong>
                     <small>
-                      {x.kind === 'gen'
-                        ? 'Équipe'
-                        : x.kind === 'affaire'
-                          ? 'Chantier'
-                          : 'Direct'}
+                      {x.kind === 'gen' ? 'Équipe' : 'Direct'}
                       {x.sousTitre ? ` · ${x.sousTitre}` : ''}
                     </small>
                   </span>
