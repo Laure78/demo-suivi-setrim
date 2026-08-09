@@ -116,6 +116,7 @@ export const ROLE_LABEL: Record<string, string> = {
 export const SCREENS = [
   { id: 'aujourdhui', href: '/aujourdhui', label: "Aujourd'hui", k: '1' },
   { id: 'portefeuille', href: '/portefeuille', label: 'Portefeuille', k: '2' },
+  { id: 'clients', href: '/clients', label: 'Clients', k: '7' },
   { id: 'planning', href: '/planning', label: 'Planning', k: '3' },
   { id: 'contrats', href: '/contrats', label: "Contrats d'entretien", k: '4' },
   { id: 'facturation', href: '/facturation', label: 'Facturation', k: '5' },

@@ -101,6 +101,11 @@ export default async function AccueilPage() {
             detail: 'Affaires et fiches devis',
           },
           {
+            href: '/clients',
+            label: 'Clients',
+            detail: 'Fiches syndics / clients',
+          },
+          {
             href: '/planning',
             label: 'Planning',
             detail: 'Agenda des équipes chantier',

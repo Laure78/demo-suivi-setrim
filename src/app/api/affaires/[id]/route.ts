@@ -26,6 +26,9 @@ export async function GET(
       pieces: { orderBy: { createdAt: 'desc' } },
       factures: true,
       equipe: { select: { id: true, nom: true } },
+      ficheClient: {
+        select: { id: true, nom: true, contact: true, telephone: true, email: true },
+      },
       contratEntretien: {
         select: {
           id: true,
@@ -54,6 +57,8 @@ export async function GET(
     id: a.id,
     numeroDevis: a.numeroDevis,
     client: a.client,
+    clientId: a.clientId,
+    ficheClient: a.ficheClient,
     adresse: a.adresse,
     montantHt: Number(a.montantHt),
     acompteHt: Number(a.acompteHt),
@@ -124,8 +129,9 @@ export async function PATCH(
     if (!body.dateDebut) {
       return NextResponse.json({ error: 'dateDebut requise' }, { status: 400 });
     }
+    const { parsePlanningDate } = await import('@/lib/planning/dates');
     const updated = await programmerAffaire(id, {
-      dateDebut: new Date(body.dateDebut),
+      dateDebut: parsePlanningDate(String(body.dateDebut)),
       joursCharge: body.joursCharge ? Number(body.joursCharge) : undefined,
       equipeId: body.equipeId || undefined,
     });
@@ -159,6 +165,16 @@ export async function PATCH(
   if (body.statut) data.statut = body.statut;
   if (typeof body.note === 'string') data.note = body.note;
   if (typeof body.client === 'string') data.client = body.client.trim();
+  if (body.clientId === null) data.clientId = null;
+  else if (typeof body.clientId === 'string') {
+    if (body.clientId) {
+      data.clientId = body.clientId;
+      const fiche = await prisma.client.findUnique({ where: { id: body.clientId } });
+      if (fiche && typeof body.client !== 'string') data.client = fiche.nom;
+    } else {
+      data.clientId = null;
+    }
+  }
   if (typeof body.adresse === 'string') data.adresse = body.adresse.trim();
   if (body.joursCharge != null) data.joursCharge = Number(body.joursCharge);
   if (body.montantHt != null) data.montantHt = Number(body.montantHt);

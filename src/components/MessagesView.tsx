@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AvatarBubble } from '@/components/AvatarBubble';
 import { AideLabel, AideTip } from '@/components/AideTip';
-import { AVATAR_EMOJIS } from '@/lib/avatar';
 import { AIDES } from '@/lib/aides';
 
 /** Comptes bureau protégés — non suppressibles */
@@ -33,24 +32,18 @@ type Msg = {
   systeme: boolean;
   createdAt: string;
   auteurId: string;
-  auteur: { nom: string; initiales: string; avatarUrl?: string | null };
+  auteur: { nom: string; initiales: string };
 };
 
 export function MessagesView({
   convs: initialConvs,
   initialThread,
   meId,
-  meNom,
-  meInitiales,
-  meAvatarUrl: meAvatarInitial,
   canAdd,
 }: {
   convs: Conv[];
   initialThread: string;
   meId: string;
-  meNom: string;
-  meInitiales: string;
-  meAvatarUrl: string | null;
   canAdd: boolean;
 }) {
   const [convs, setConvs] = useState(initialConvs);
@@ -63,9 +56,7 @@ export function MessagesView({
   const [addErr, setAddErr] = useState('');
   const [adding, setAdding] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [showProfil, setShowProfil] = useState(false);
-  const [meAvatarUrl, setMeAvatarUrl] = useState<string | null>(meAvatarInitial);
-  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [mobileThread, setMobileThread] = useState(false);
   const [form, setForm] = useState({
     nom: '',
     initiales: '',
@@ -77,7 +68,7 @@ export function MessagesView({
   const pjRef = useRef<HTMLInputElement>(null);
   const photoRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
-  const c = convs.find((x) => x.id === conv) ?? convs[0];
+  const c = convs.find((x) => x.id === conv) ?? convs[0] ?? null;
   const [uploading, setUploading] = useState(false);
 
   function canDeleteConv(id: string) {
@@ -118,26 +109,28 @@ export function MessagesView({
   }, [initialThread]);
 
   useEffect(() => {
-    setMeAvatarUrl(meAvatarInitial);
-  }, [meAvatarInitial]);
-
-  useEffect(() => {
-    load(conv);
+    void load(conv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conv]);
 
   useEffect(() => {
     if (streamRef.current) streamRef.current.scrollTop = streamRef.current.scrollHeight;
   }, [msgs]);
 
+  function selectConv(id: string) {
+    setConv(id);
+    setMobileThread(true);
+  }
+
   async function send() {
     const v = text.trim();
-    if (!v) return;
+    if (!v || !c) return;
     await fetch('/api/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         threadKey: conv,
-        affaireId: c?.affaireId ?? null,
+        affaireId: c.affaireId ?? null,
         texte: v,
       }),
     });
@@ -147,6 +140,7 @@ export function MessagesView({
   }
 
   async function sendFile(file: File, kind: 'photo' | 'pj') {
+    if (!c) return;
     setUploading(true);
     try {
       const fd = new FormData();
@@ -162,7 +156,7 @@ export function MessagesView({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           threadKey: conv,
-          affaireId: c?.affaireId ?? null,
+          affaireId: c.affaireId ?? null,
           photoLabel: j.name,
           fichier: j.url,
           texte:
@@ -179,17 +173,14 @@ export function MessagesView({
     }
   }
 
-  function onPick(
-    e: React.ChangeEvent<HTMLInputElement>,
-    kind: 'photo' | 'pj',
-  ) {
+  function onPick(e: React.ChangeEvent<HTMLInputElement>, kind: 'photo' | 'pj') {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (file) void sendFile(file, kind);
   }
 
   async function makeTask(m: Msg) {
-    if (!m.texte) return;
+    if (!m.texte || !c) return;
     await fetch('/api/taches', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -197,7 +188,7 @@ export function MessagesView({
         titre: m.texte.slice(0, 64),
         niveau: 2,
         threadKey: conv,
-        affaireId: c?.affaireId ?? null,
+        affaireId: c.affaireId ?? null,
         fromMessage: true,
       }),
     });
@@ -222,7 +213,10 @@ export function MessagesView({
     setShowAdd(false);
     setForm({ nom: '', initiales: '', email: '', role: 'assistante', terrain: false });
     router.refresh();
-    if (j.user?.id) setConv(j.user.id);
+    if (j.user?.id) {
+      setConv(j.user.id);
+      setMobileThread(true);
+    }
   }
 
   async function deleteCollaborateur(id: string, nom: string) {
@@ -254,263 +248,302 @@ export function MessagesView({
       return;
     }
     setConvs((prev) => prev.filter((x) => x.id !== id));
-    if (conv === id) setConv('gen');
+    if (conv === id) {
+      setConv('gen');
+      setMobileThread(false);
+    }
     router.refresh();
   }
 
-  async function saveEmoji(emoji: string) {
-    setAvatarBusy(true);
-    try {
-      const r = await fetch('/api/profil', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'emoji', emoji }),
-      });
-      const j = await r.json();
-      if (!r.ok) {
-        alert(j.error ?? 'Impossible d’enregistrer');
-        return;
-      }
-      setMeAvatarUrl(j.avatarUrl ?? emoji);
-      router.refresh();
-    } finally {
-      setAvatarBusy(false);
-    }
-  }
-
-  async function removeEmoji() {
-    setAvatarBusy(true);
-    try {
-      const r = await fetch('/api/profil', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'remove' }),
-      });
-      if (!r.ok) {
-        const j = await r.json().catch(() => ({}));
-        alert(j.error ?? 'Impossible de retirer');
-        return;
-      }
-      setMeAvatarUrl(null);
-      router.refresh();
-    } finally {
-      setAvatarBusy(false);
-    }
-  }
-
   return (
-    <>
-      <AideLabel aide={AIDES.msgProfil}>
-        <button type="button" className="profil-btn" onClick={() => setShowProfil(true)}>
-          <AvatarBubble label={meInitiales} photo={meAvatarUrl} size={28} />
-          <span>
-            {meNom || 'Mon profil'} —{' '}
-            <span className="edit-mark">
-              {meAvatarUrl ? 'changer l’emoji' : 'ajouter un emoji'}
-            </span>
-          </span>
-        </button>
-      </AideLabel>
-      <div className="chat">
-        <div className="conv-list">
-          <div className="conv-search">
-            <AideLabel aide={AIDES.msgListe} as="div">
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Rechercher un collègue…"
-              />
-            </AideLabel>
-          </div>
-          {canAdd ? (
-            <button type="button" className="conv-add" onClick={() => setShowAdd(true)}>
-              + Ajouter un collaborateur
-            </button>
-          ) : null}
-          {filtered.map((x) => (
-            <div
-              key={x.id}
-              className={`conv${conv === x.id ? ' on' : ''}${canDeleteConv(x.id) ? ' conv-deletable' : ''}`}
-              onClick={() => setConv(x.id)}
-              role="button"
-              tabIndex={0}
-            >
-              <AvatarBubble label={x.avatar} photo={x.photo} cls={x.cls} />
-              <span className="txt">
-                <span className="nm">{x.titre}</span>
-                <span className="lst">{x.last}</span>
-              </span>
-              <span className="rt">
-                <span className="hr">{x.hr}</span>
-                {x.nb ? (
-                  <>
-                    <br />
-                    <span className="nb">{x.nb}</span>
-                  </>
-                ) : null}
-                {canDeleteConv(x.id) ? (
-                  <button
-                    type="button"
-                    className="conv-del"
-                    title={`Retirer ${x.titre}`}
-                    disabled={deleting}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void deleteCollaborateur(x.id, x.titre);
-                    }}
-                  >
-                    ✕
-                  </button>
-                ) : null}
-              </span>
+    <div className={`wa-page${mobileThread ? ' wa-show-thread' : ''}`}>
+      <div className="chat wa">
+        <aside className="wa-sidebar" aria-label="Discussions">
+          <header className="wa-side-head">
+            <div className="wa-side-head-txt">
+              <AideLabel aide={AIDES.msgListe} as="div">
+                <h2>Discussions</h2>
+              </AideLabel>
             </div>
-          ))}
-        </div>
-        <div className="thread">
-          <div className="th-head">
-            <AvatarBubble label={c?.avatar ?? ''} photo={c?.photo} cls={c?.cls} />
-            <span className="th-head-txt">
-              <h4>{c?.titre}</h4>
-              <p>{c?.sousTitre}</p>
-            </span>
-            {c && canDeleteConv(c.id) ? (
+            {canAdd ? (
               <button
                 type="button"
-                className="btn-note conv-del-head"
-                disabled={deleting}
-                onClick={() => void deleteCollaborateur(c.id, c.titre)}
+                className="wa-icon-btn"
+                title="Ajouter un collaborateur"
+                aria-label="Ajouter un collaborateur"
+                onClick={() => setShowAdd(true)}
               >
-                Retirer
+                <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden>
+                  <path
+                    fill="currentColor"
+                    d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"
+                  />
+                </svg>
               </button>
             ) : null}
+          </header>
+
+          <div className="wa-search">
+            <span className="wa-search-ico" aria-hidden>
+              <svg viewBox="0 0 24 24" width="16" height="16">
+                <path
+                  fill="currentColor"
+                  d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"
+                />
+              </svg>
+            </span>
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Rechercher"
+              aria-label="Rechercher une discussion"
+            />
           </div>
-          {pin ? (
-            <div className="pinned">
-              📌{' '}
-              <span>
-                <b>Épinglé —</b> {pin}
-              </span>
-            </div>
-          ) : null}
-          <div className="stream" id="stream" ref={streamRef}>
-            {msgs.map((m) => {
-              if (m.systeme) {
-                return (
-                  <div className="sys" key={m.id}>
-                    ✓ {m.texte}
-                  </div>
-                );
-              }
-              const mine = m.auteurId === meId;
-              const isImg =
-                m.fichier &&
-                /\.(jpe?g|png|webp|gif|heic)$/i.test(m.fichier);
-              return (
-                <div className={`bub${mine ? ' me' : ''}`} key={m.id}>
-                  {!mine ? (
-                    <AvatarBubble
-                      label={m.auteur.initiales}
-                      photo={m.auteur.avatarUrl}
-                      size={28}
-                      cls="bub-av"
+
+          <div className="wa-convs">
+            {filtered.map((x) => (
+              <button
+                key={x.id}
+                type="button"
+                className={`wa-conv${conv === x.id ? ' on' : ''}${x.nb ? ' unread' : ''}`}
+                onClick={() => selectConv(x.id)}
+              >
+                <AvatarBubble label={x.avatar} cls={`wa-av ${x.cls}`.trim()} size={49} />
+                <span className="wa-conv-body">
+                  <span className="wa-conv-top">
+                    <span className="wa-conv-name">{x.titre}</span>
+                    <span className={`wa-conv-time${x.nb ? ' hi' : ''}`}>{x.hr}</span>
+                  </span>
+                  <span className="wa-conv-bottom">
+                    <span className="wa-conv-last">{x.last}</span>
+                    {x.nb ? <span className="wa-badge">{x.nb}</span> : null}
+                    {canDeleteConv(x.id) ? (
+                      <span
+                        className="wa-conv-del"
+                        role="button"
+                        tabIndex={0}
+                        title={`Retirer ${x.titre}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void deleteCollaborateur(x.id, x.titre);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.stopPropagation();
+                            void deleteCollaborateur(x.id, x.titre);
+                          }
+                        }}
+                      >
+                        ✕
+                      </span>
+                    ) : null}
+                  </span>
+                </span>
+              </button>
+            ))}
+            {!filtered.length ? (
+              <p className="wa-empty-list">Aucune discussion</p>
+            ) : null}
+          </div>
+        </aside>
+
+        <section className="wa-main" aria-label="Conversation">
+          {c ? (
+            <>
+              <header className="wa-chat-head">
+                <button
+                  type="button"
+                  className="wa-back"
+                  aria-label="Retour aux discussions"
+                  onClick={() => setMobileThread(false)}
+                >
+                  <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden>
+                    <path
+                      fill="currentColor"
+                      d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"
                     />
-                  ) : null}
-                  <div className="au">{m.auteur.nom}</div>
-                  {m.fichier && isImg ? (
-                    <a href={m.fichier} target="_blank" rel="noreferrer" className="photo-link">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={m.fichier} alt={m.photoLabel ?? 'Photo'} className="photo-img" />
-                    </a>
-                  ) : m.fichier ? (
-                    <a
-                      href={m.fichier}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="photo pj"
-                    >
-                      📎 {m.photoLabel ?? 'Pièce jointe'}
-                    </a>
-                  ) : m.photoLabel ? (
-                    <div className="photo">📷 {m.photoLabel}</div>
-                  ) : null}
-                  {m.texte ? <p>{m.texte}</p> : null}
-                  <div className="hr">
-                    {new Date(m.createdAt).toLocaleTimeString('fr-FR', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                    {mine ? ' ✓✓' : ''}
-                  </div>
-                  {m.texte ? (
-                    <div className="bub-actions">
-                      <button type="button" className="mk-task" onClick={() => makeTask(m)}>
-                        + tâche
-                      </button>
-                      <AideTip text={AIDES.msgTache} placement="left" label="Aide — tâche" />
-                    </div>
-                  ) : null}
+                  </svg>
+                </button>
+                <AvatarBubble label={c.avatar} cls={`wa-av ${c.cls}`.trim()} size={40} />
+                <div className="wa-chat-head-txt">
+                  <h3>{c.titre}</h3>
+                  <p>{c.sousTitre}</p>
                 </div>
-              );
-            })}
-          </div>
-          <div className="composer">
-            <input
-              ref={pjRef}
-              type="file"
-              hidden
-              accept=".pdf,.doc,.docx,.xls,.xlsx,application/pdf,image/*"
-              onChange={(e) => onPick(e, 'pj')}
-            />
-            <input
-              ref={photoRef}
-              type="file"
-              hidden
-              accept="image/*"
-              capture="environment"
-              onChange={(e) => onPick(e, 'photo')}
-            />
-            <button
-              type="button"
-              className="ic"
-              title="Joindre un document (PDF, Word…)"
-              aria-label="Pièce jointe"
-              disabled={uploading}
-              onClick={() => pjRef.current?.click()}
-            >
-              📎
-            </button>
-            <button
-              type="button"
-              className="ic"
-              title="Prendre ou envoyer une photo"
-              aria-label="Photo"
-              disabled={uploading}
-              onClick={() => photoRef.current?.click()}
-            >
-              📷
-            </button>
-            <input
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder={
-                uploading
-                  ? 'Envoi en cours…'
-                  : `Écrire à ${c?.titre ?? ''}…`
-              }
-              disabled={uploading}
-              onKeyDown={(e) => e.key === 'Enter' && send()}
-            />
-            <button type="button" className="send" onClick={send} disabled={uploading}>
-              Envoyer
-            </button>
-          </div>
-        </div>
+                {canDeleteConv(c.id) ? (
+                  <button
+                    type="button"
+                    className="wa-head-action"
+                    disabled={deleting}
+                    onClick={() => void deleteCollaborateur(c.id, c.titre)}
+                  >
+                    Retirer
+                  </button>
+                ) : (
+                  <AideTip text={AIDES.msgComposer} placement="left" />
+                )}
+              </header>
+
+              {pin ? (
+                <div className="wa-pinned">
+                  <span className="wa-pin-ico" aria-hidden>
+                    📌
+                  </span>
+                  <span>
+                    <b>Épinglé —</b> {pin}
+                  </span>
+                </div>
+              ) : null}
+
+              <div className="wa-stream" ref={streamRef}>
+                {msgs.length === 0 ? (
+                  <div className="wa-day-chip">Aucun message pour l’instant</div>
+                ) : null}
+                {msgs.map((m) => {
+                  if (m.systeme) {
+                    return (
+                      <div className="wa-sys" key={m.id}>
+                        {m.texte}
+                      </div>
+                    );
+                  }
+                  const mine = m.auteurId === meId;
+                  const isImg =
+                    m.fichier && /\.(jpe?g|png|webp|gif|heic)$/i.test(m.fichier);
+                  return (
+                    <div className={`wa-bub${mine ? ' me' : ''}`} key={m.id}>
+                      {!mine ? (
+                        <span className="wa-bub-author">{m.auteur.nom}</span>
+                      ) : null}
+                      {m.fichier && isImg ? (
+                        <a
+                          href={m.fichier}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="wa-photo-link"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={m.fichier}
+                            alt={m.photoLabel ?? 'Photo'}
+                            className="wa-photo-img"
+                          />
+                        </a>
+                      ) : m.fichier ? (
+                        <a
+                          href={m.fichier}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="wa-pj"
+                        >
+                          📎 {m.photoLabel ?? 'Pièce jointe'}
+                        </a>
+                      ) : m.photoLabel ? (
+                        <div className="wa-pj">📷 {m.photoLabel}</div>
+                      ) : null}
+                      {m.texte ? <p>{m.texte}</p> : null}
+                      <span className="wa-bub-meta">
+                        {new Date(m.createdAt).toLocaleTimeString('fr-FR', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                        {mine ? (
+                          <span className="wa-ticks" aria-hidden>
+                            ✓✓
+                          </span>
+                        ) : null}
+                      </span>
+                      {m.texte ? (
+                        <div className="wa-bub-actions">
+                          <button type="button" onClick={() => void makeTask(m)}>
+                            + tâche
+                          </button>
+                          <AideTip text={AIDES.msgTache} placement="left" label="Aide — tâche" />
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="wa-composer">
+                <input
+                  ref={pjRef}
+                  type="file"
+                  hidden
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,application/pdf,image/*"
+                  onChange={(e) => onPick(e, 'pj')}
+                />
+                <input
+                  ref={photoRef}
+                  type="file"
+                  hidden
+                  accept="image/*"
+                  capture="environment"
+                  onChange={(e) => onPick(e, 'photo')}
+                />
+                <button
+                  type="button"
+                  className="wa-attach"
+                  title="Joindre un document"
+                  aria-label="Pièce jointe"
+                  disabled={uploading}
+                  onClick={() => pjRef.current?.click()}
+                >
+                  <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden>
+                    <path
+                      fill="currentColor"
+                      d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 0 1 5 0v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5a2.5 2.5 0 0 0 5 0V5c0-1.93-1.57-3.5-3.5-3.5S8 3.07 8 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-2.5z"
+                    />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  className="wa-attach"
+                  title="Photo"
+                  aria-label="Photo"
+                  disabled={uploading}
+                  onClick={() => photoRef.current?.click()}
+                >
+                  <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden>
+                    <path
+                      fill="currentColor"
+                      d="M12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM4 5h3.1l1.8-2h6.2l1.8 2H20a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zm8 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10z"
+                    />
+                  </svg>
+                </button>
+                <div className="wa-input-wrap">
+                  <input
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    placeholder={
+                      uploading ? 'Envoi en cours…' : 'Écrire un message'
+                    }
+                    disabled={uploading}
+                    onKeyDown={(e) => e.key === 'Enter' && void send()}
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="wa-send"
+                  onClick={() => void send()}
+                  disabled={uploading || !text.trim()}
+                  aria-label="Envoyer"
+                >
+                  <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden>
+                    <path fill="currentColor" d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z" />
+                  </svg>
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="wa-empty-main">
+              <div className="wa-empty-mark">ST</div>
+              <h3>Messagerie SETRIM</h3>
+              <p>Choisissez une discussion dans la liste</p>
+            </div>
+          )}
+        </section>
       </div>
-      <p className="hint">
-        Survolez un message pour en faire une tâche. Les messages restent en historique.
-        Les décisions d’équipe se prennent ici — pas dans la boîte mail.{' '}
-        <AideTip text={AIDES.msgComposer} placement="top" />
-      </p>
 
       {showAdd ? (
         <>
@@ -583,52 +616,6 @@ export function MessagesView({
           </div>
         </>
       ) : null}
-
-      {showProfil ? (
-        <>
-          <div className="scrim on" onClick={() => setShowProfil(false)} />
-          <div className="add-collab-sheet profil-sheet">
-            <button type="button" className="sheet-close" onClick={() => setShowProfil(false)}>
-              ✕
-            </button>
-            <span className="eyebrow">Mon profil</span>
-            <h3>{meNom}</h3>
-            <p className="hint">Emoji visible dans la messagerie et auprès de l&apos;équipe.</p>
-            <div className="avatar-preview">
-              <AvatarBubble label={meInitiales} photo={meAvatarUrl} size={88} />
-            </div>
-            <p className="eyebrow" style={{ marginTop: 14 }}>
-              Ajouter un emoji
-            </p>
-            <div className="emoji-grid" role="listbox" aria-label="Choisir un emoji">
-              {AVATAR_EMOJIS.map((em) => (
-                <button
-                  key={em}
-                  type="button"
-                  className={`emoji-pick${meAvatarUrl === em ? ' on' : ''}`}
-                  disabled={avatarBusy}
-                  onClick={() => void saveEmoji(em)}
-                  aria-label={`Choisir ${em}`}
-                >
-                  {em}
-                </button>
-              ))}
-            </div>
-            <div className="profil-actions">
-              {meAvatarUrl ? (
-                <button
-                  type="button"
-                  className="btn-note"
-                  disabled={avatarBusy}
-                  onClick={() => void removeEmoji()}
-                >
-                  Retirer l&apos;emoji
-                </button>
-              ) : null}
-            </div>
-          </div>
-        </>
-      ) : null}
-    </>
+    </div>
   );
 }

@@ -56,12 +56,14 @@ export function EventBlock({
         <span className="agenda-evt-meta">
           {showTeam && event.resourceName ? `${event.resourceName} · ` : ''}
           {event.sourceType === 'contrat_entretien'
-            ? 'CE'
-            : event.sourceType === 'presta'
-              ? 'presta'
-              : event.allDay
-                ? 'journée'
-                : ''}
+            ? 'CE · ½–1 j'
+            : event.sourceType === 'chantier'
+              ? 'Chantier'
+              : event.sourceType === 'presta'
+                ? 'presta'
+                : event.allDay
+                  ? 'journée'
+                  : ''}
         </span>
       ) : null}
     </button>

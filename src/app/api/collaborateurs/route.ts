@@ -4,9 +4,9 @@ import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { Role } from '@prisma/client';
 import { ROLE_LABEL } from '@/lib/format';
-import { ensureBureauUsers, isBureauUser, sortUsersBureauFirst } from '@/lib/bureau-users';
+import { ensureBureauUsers, isBureauUser, sortUsersBureauFirst, COLLAB_PASSWORD } from '@/lib/bureau-users';
 
-const DEMO_PASSWORD = 'setrim2026';
+const DEMO_PASSWORD = COLLAB_PASSWORD;
 
 export async function GET() {
   const session = await auth();

@@ -4,6 +4,7 @@ import { signIn, useSession } from 'next-auth/react';
 import { useEffect, useMemo, useState } from 'react';
 import { isEmojiAvatar, isImageAvatar } from '@/lib/avatar';
 import { ROLE_LABEL } from '@/lib/format';
+import { BUREAU_ACCES, bureauPasswordFor } from '@/lib/bureau-acces';
 
 export type Collaborateur = {
   id: string;
@@ -16,15 +17,14 @@ export type Collaborateur = {
   avatarUrl?: string | null;
 };
 
-const DEMO_PASSWORD = 'setrim2026';
-
-const FALLBACK: Collaborateur[] = [
-  { id: 'audrey', initiales: 'AU', nom: 'Audrey', email: 'audrey@setrim.fr', role: 'assistante', terrain: false },
-  { id: 'melissa', initiales: 'ME', nom: 'Mélissa', email: 'melissa@setrim.fr', role: 'assistante', terrain: false },
-  { id: 'valerie', initiales: 'VA', nom: 'Valérie', email: 'valerie@setrim.fr', role: 'responsable', terrain: false },
-  { id: 'denis', initiales: 'DE', nom: 'Denis', email: 'denis@setrim.fr', role: 'dirigeant', terrain: true },
-  { id: 'philippe', initiales: 'PH', nom: 'Philippe', email: 'philippe@setrim.fr', role: 'conducteur', terrain: true },
-];
+const FALLBACK: Collaborateur[] = BUREAU_ACCES.map((u) => ({
+  id: u.id,
+  initiales: u.initiales,
+  nom: u.nom,
+  email: u.email,
+  role: u.role,
+  terrain: u.terrain,
+}));
 
 export function WhoSwitcher() {
   const { data } = useSession();
@@ -66,10 +66,17 @@ export function WhoSwitcher() {
 
   async function switchTo(email: string, initiales: string) {
     if (initiales === me || switching) return;
+    const password = bureauPasswordFor(email) ?? bureauPasswordFor(initiales);
+    if (!password) {
+      alert(
+        'Basculer vers ce compte nécessite son mot de passe individuel. Déconnectez-vous puis reconnectez-vous.',
+      );
+      return;
+    }
     setSwitching(initiales);
     const res = await signIn('credentials', {
       email,
-      password: DEMO_PASSWORD,
+      password,
       redirect: false,
     });
     setSwitching(null);
@@ -122,5 +129,5 @@ export function WhoSwitcher() {
   );
 }
 
-/** Export pour le login (5 comptes de base). */
+/** Export pour compat — 5 accès bureau. */
 export const COLLABORATEURS = FALLBACK;

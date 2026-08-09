@@ -32,14 +32,19 @@ export type PlanningEvent = {
   raw: unknown;
 };
 
-/** Couleurs alignées sur la légende planning existante */
+/** Couleurs planning — chantier (travaux) vs CE (½ j → 1 j) */
 export const PLANNING_COLORS: Record<PlanningSourceType, string> = {
-  chantier: '#2F7D4F',
-  contrat_entretien: '#126CB8',
+  chantier: '#1F7A45', // vert — travaux / multi-jours
+  contrat_entretien: '#0A6EA8', // bleu — CE, intervention courte (½ j à 1 j)
   presta: '#7B4B9A',
-  absent: '#B4BAB3',
+  absent: '#9AA19A',
   tache: '#D9A81F',
   ferie: '#8B948E',
+};
+
+export const PLANNING_TYPE_HINT: Partial<Record<PlanningSourceType, string>> = {
+  chantier: 'Travaux — plusieurs jours possibles',
+  contrat_entretien: 'Entretien — ½ journée à 1 journée',
 };
 
 export type SlotInput = {

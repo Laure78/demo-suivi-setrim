@@ -23,6 +23,14 @@ import { fr } from 'date-fns/locale';
 
 export const WEEK_STARTS_ON = 1 as const;
 
+/** Parse `yyyy-MM-dd` → midi UTC (évite le décalage fuseau sur le planning). */
+export function parsePlanningDate(iso: string): Date {
+  const s = String(iso).slice(0, 10);
+  const [y, m, d] = s.split('-').map(Number);
+  if (!y || !m || !d) return new Date(NaN);
+  return new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+}
+
 /** Exercice CE SETRIM : 1er juillet → 30 juin */
 export function startOfExercice(date: Date): Date {
   const y = date.getFullYear();

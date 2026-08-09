@@ -1,6 +1,11 @@
 'use client';
 
-import type { EquipeRowInput, PlanningSourceType } from '@/lib/planning/toCalendarEvents';
+import {
+  PLANNING_COLORS,
+  PLANNING_TYPE_HINT,
+  type EquipeRowInput,
+  type PlanningSourceType,
+} from '@/lib/planning/toCalendarEvents';
 
 const TYPE_LABEL: Record<PlanningSourceType, string> = {
   chantier: 'Chantier',
@@ -30,7 +35,27 @@ export function AgendaSidebar({
 }) {
   return (
     <aside className="agenda-sidebar">
-      <p className="eyebrow">Équipes / prestataires</p>
+      <p className="eyebrow">Code couleurs</p>
+      <ul className="agenda-legend" aria-label="Légende des couleurs">
+        <li>
+          <i style={{ background: PLANNING_COLORS.chantier }} aria-hidden />
+          <span>
+            <strong>Chantier</strong>
+            <small>{PLANNING_TYPE_HINT.chantier}</small>
+          </span>
+        </li>
+        <li>
+          <i style={{ background: PLANNING_COLORS.contrat_entretien }} aria-hidden />
+          <span>
+            <strong>Contrat d&apos;entretien</strong>
+            <small>{PLANNING_TYPE_HINT.contrat_entretien}</small>
+          </span>
+        </li>
+      </ul>
+
+      <p className="eyebrow" style={{ marginTop: 16 }}>
+        Équipes / prestataires
+      </p>
       <ul className="agenda-filters">
         {equipes.map((eq) => (
           <li key={eq.id}>
@@ -56,6 +81,11 @@ export function AgendaSidebar({
                 type="checkbox"
                 checked={sourceTypes.has(t)}
                 onChange={() => onToggleType(t)}
+              />
+              <i
+                className="agenda-type-swatch"
+                style={{ background: PLANNING_COLORS[t] }}
+                aria-hidden
               />
               {TYPE_LABEL[t]}
             </label>

@@ -2,15 +2,17 @@
 
 export const AIDES = {
   accueil:
-    'Tableau de bord : vue d’ensemble (tâches, chantiers, affaires, facturation). Cliquez le logo SETRIM pour y revenir.',
-  who: 'Changez de personne du bureau pour voir l’écran comme elle. Les 5 comptes sont Audrey, Mélissa, Valérie, Denis et Philippe.',
+    'Tableau de bord : vue d’ensemble (tâches, chantiers, affaires, clients, facturation). Cliquez le logo SETRIM pour y revenir.',
+  who: 'Les 5 accès individuels bureau. Cliquez une pastille pour basculer (chacun a son mot de passe). Pastille Connecté = session en cours.',
   messagerie:
-    'Messagerie interne : fil Équipe SETRIM et conversations privées. Les messages restent en historique.',
-  remarques: 'Notez une remarque sur l’écran en cours (idée, bug, point métier).',
-  tutoriel: 'Guide complet du fonctionnement de la plateforme. Mis à jour quand l’outil évolue.',
+    'Bouton vert du bandeau → messagerie type WhatsApp (discussions à gauche, conversation à droite). Avatars = initiales. Historique conservé.',
+  tutoriel: 'Guide complet du fonctionnement de la plateforme. Mis à jour quand l’outil évolue (dernière maj : Août 2026).',
   navAujourdhui: 'Vos tâches du jour et les chantiers planifiés aujourd’hui.',
   navPortefeuille: 'Toutes les affaires (commande → soldé). Cliquez une ligne pour ouvrir la fiche.',
-  navPlanning: 'Agenda des équipes chantier : vues Jour, Semaine, Mois, Année.',
+  navClients:
+    'Fiches clients : contact, téléphone, notes. Rattachez chaque chantier à un syndic / client. Touche 7.',
+  navPlanning:
+    'Agenda des équipes : Jour / Semaine / Mois / Année. Vert = chantier, bleu = CE (½–1 j).',
   navContrats: 'Contrats d’entretien sur l’exercice (juillet → juin).',
   navFacturation: 'Acomptes, soldes et impayés à suivre.',
   tachesJour:
@@ -19,18 +21,22 @@ export const AIDES = {
     'Créez une tâche pour vous. Vous pouvez la lier à une affaire du portefeuille.',
   chantiersJour: 'Cliquez un chantier pour ouvrir l’affaire dans le portefeuille.',
   planning:
-    'Changez de vue (Jour / Semaine / Mois / Année). Ajoutez une « Tâche à faire (post-it) » : elle passe sur la fiche chantier et dans Aujourd’hui / alertes.',
+    'Vert = chantier (travaux). Bleu = contrat d’entretien (½ j à 1 j). Cliquez un créneau pour changer les dates. + = tâche post-it.',
+  planDates:
+    'Chantier lié à une affaire : date de début + nombre de jours → Enregistrer les dates (toute la période se recalcule, week-ends exclus).',
   planTache:
     'Tâche = post-it numérique. Liée à une affaire → fiche chantier + alertes Aujourd’hui chez le responsable. Urgent = pastille rouge sur le planning.',
   portefeuille:
-    'Le devis validé = l’affaire. Onglets : commande, programmé, en cours, soldé. Onglet Planning de la fiche : modifier les créneaux met à jour l’agenda.',
+    'Le devis validé = l’affaire. Modifier : infos + fiche client. Onglet Planning : créneaux et recalage → agenda à jour.',
+  clients:
+    'Créez ou modifiez une fiche client (contact, tél., notes). Cliquez une ligne. Depuis un chantier → Modifier pour rattacher.',
   contrats:
-    'Mois contractuel = date anniversaire. Cliquez une ligne pour ouvrir l’affaire liée. Bouton « Lier exercice » pour générer planning et alertes.',
+    'Mois contractuel = date anniversaire. Cliquez une ligne pour ouvrir l’affaire. « Lier exercice » = planning + alertes.',
   facturation:
     'Suivi des acomptes et soldes. Cliquez une affaire pour ouvrir la fiche et facturer.',
-  msgProfil: 'Choisissez un emoji visible dans la messagerie et auprès de l’équipe.',
-  msgListe: 'Équipe SETRIM (tout le monde) ou un collègue en privé. Recherchez par nom.',
+  msgListe:
+    'Discussions : Équipe SETRIM ou un collègue en privé. Recherchez par nom. + = ajouter un collaborateur (bureau).',
   msgComposer:
-    'Texte, photo ou pièce jointe. Survolez un message pour en faire une tâche. Pas de suppression : historique conservé.',
+    'Saisie en bas : texte, photo ou pièce jointe. Bouton vert pour envoyer. Survolez un message → + tâche. Pas de suppression.',
   msgTache: 'Transforme ce message en tâche sur Aujourd’hui.',
 } as const;

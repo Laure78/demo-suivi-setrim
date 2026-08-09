@@ -2,6 +2,7 @@ import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { AffaireStatut } from '@prisma/client';
+import { parsePlanningDate } from '@/lib/planning/dates';
 
 async function refreshAffaireFromSlots(affaireId: string) {
   const slots = await prisma.planningSlot.findMany({
@@ -44,7 +45,7 @@ export async function POST(req: Request) {
   const slot = await prisma.planningSlot.create({
     data: {
       equipeId,
-      date: new Date(date),
+      date: parsePlanningDate(date),
       type,
       label,
       affaireId,
@@ -73,7 +74,7 @@ export async function PATCH(req: Request) {
 
   const data: Record<string, unknown> = {};
   if (body.equipeId) data.equipeId = String(body.equipeId);
-  if (body.date) data.date = new Date(String(body.date));
+  if (body.date) data.date = parsePlanningDate(String(body.date));
   if (typeof body.label === 'string') data.label = body.label;
   if (body.type) data.type = String(body.type);
   if (body.affaireId === null) data.affaireId = null;

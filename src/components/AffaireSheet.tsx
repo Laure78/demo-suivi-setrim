@@ -20,6 +20,14 @@ export type AffaireDetail = {
   id: string;
   numeroDevis: string;
   client: string;
+  clientId?: string | null;
+  ficheClient?: {
+    id: string;
+    nom: string;
+    contact: string;
+    telephone: string;
+    email: string;
+  } | null;
   adresse: string;
   montantHt: number;
   acompteHt: number;
@@ -124,6 +132,7 @@ export function AffaireSheet({
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({
     client: '',
+    clientId: '',
     adresse: '',
     montantHt: '',
     acompteHt: '',
@@ -132,6 +141,10 @@ export function AffaireSheet({
     note: '',
     dateDevis: '',
   });
+  const [clientOptions, setClientOptions] = useState<
+    { id: string; nom: string; telephone?: string; contact?: string }[]
+  >([]);
+  const [newClientNom, setNewClientNom] = useState('');
 
   useEffect(() => {
     void fetch('/api/collaborateurs')
@@ -191,6 +204,7 @@ export function AffaireSheet({
   function startEdit() {
     setForm({
       client: a.client,
+      clientId: a.clientId ?? a.ficheClient?.id ?? '',
       adresse: a.adresse,
       montantHt: String(a.montantHt),
       acompteHt: String(a.acompteHt || ''),
@@ -199,27 +213,59 @@ export function AffaireSheet({
       note: a.note ?? '',
       dateDevis: a.dateDevis ? a.dateDevis.slice(0, 10) : '',
     });
+    setNewClientNom('');
     setEditing(true);
+    void fetch('/api/clients')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { clients?: { id: string; nom: string; telephone?: string; contact?: string }[] } | null) => {
+        if (j?.clients) setClientOptions(j.clients);
+      })
+      .catch(() => {});
   }
 
   async function saveEdit() {
     setBusy(true);
+    let clientId = form.clientId || null;
+    let clientNom = form.client.trim();
+
+    if (newClientNom.trim()) {
+      const r = await fetch('/api/clients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nom: newClientNom.trim(),
+          adresse: form.adresse,
+          affaireId: a.id,
+        }),
+      });
+      if (r.ok) {
+        const c = await r.json();
+        clientId = c.id;
+        clientNom = c.nom;
+      }
+    } else if (clientId) {
+      const picked = clientOptions.find((c) => c.id === clientId);
+      if (picked) clientNom = picked.nom;
+    }
+
     await fetch(`/api/affaires/${a.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        client: form.client,
+        client: clientNom,
+        clientId,
         adresse: form.adresse,
         montantHt: Number(form.montantHt) || 0,
         acompteHt: form.acompteHt === '' ? 0 : Number(form.acompteHt),
         joursCharge: Number(form.joursCharge) || 0,
         statut: form.statut,
         note: form.note,
-        dateDevis: form.dateDevis || undefined,
+        dateDevis: form.dateDevis || null,
       }),
     });
     setBusy(false);
     setEditing(false);
+    setNewClientNom('');
     onRefresh();
   }
 
@@ -1020,7 +1066,39 @@ export function AffaireSheet({
               }}
             >
               <label>
-                Client
+                Fiche client
+                <select
+                  value={form.clientId}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    const picked = clientOptions.find((c) => c.id === id);
+                    setForm({
+                      ...form,
+                      clientId: id,
+                      client: picked?.nom ?? form.client,
+                    });
+                    setNewClientNom('');
+                  }}
+                >
+                  <option value="">— choisir une fiche —</option>
+                  {clientOptions.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nom}
+                      {c.contact ? ` (${c.contact})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Ou créer une nouvelle fiche
+                <input
+                  value={newClientNom}
+                  onChange={(e) => setNewClientNom(e.target.value)}
+                  placeholder="Nom du client (laisse vide pour utiliser la liste)"
+                />
+              </label>
+              <label>
+                Libellé affiché
                 <input
                   value={form.client}
                   onChange={(e) => setForm({ ...form, client: e.target.value })}
@@ -1099,6 +1177,29 @@ export function AffaireSheet({
             <>
               <h3>{a.client}</h3>
               <div className="adr">{a.adresse}</div>
+              {a.ficheClient ? (
+                <p className="hint" style={{ marginTop: 8 }}>
+                  Fiche client : <strong>{a.ficheClient.nom}</strong>
+                  {a.ficheClient.contact ? ` · ${a.ficheClient.contact}` : ''}
+                  {a.ficheClient.telephone ? (
+                    <>
+                      {' · '}
+                      <a href={`tel:${a.ficheClient.telephone.replace(/\s/g, '')}`}>
+                        {a.ficheClient.telephone}
+                      </a>
+                    </>
+                  ) : null}
+                  {' · '}
+                  <a href="/clients">Voir les clients</a>
+                </p>
+              ) : (
+                <p className="hint" style={{ marginTop: 8 }}>
+                  Pas encore de fiche client.{' '}
+                  <button type="button" className="btn-note" onClick={startEdit}>
+                    Rattacher / créer
+                  </button>
+                </p>
+              )}
               <dl className="kv">
                 <dt>Montant HT</dt>
                 <dd>{eur(a.montantHt)}</dd>

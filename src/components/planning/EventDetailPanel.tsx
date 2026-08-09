@@ -9,12 +9,21 @@ import { AideTip } from '@/components/AideTip';
 import { AIDES } from '@/lib/aides';
 
 const SLOT_TYPES = [
-  { value: 'chantier', label: 'Chantier' },
-  { value: 'ce', label: "Contrat d'entretien" },
+  { value: 'chantier', label: 'Chantier (travaux)' },
+  { value: 'ce', label: "Contrat d'entretien (½ j à 1 j)" },
   { value: 'presta', label: 'Prestataire' },
   { value: 'absent', label: 'Absence / congés' },
   { value: 'tache', label: 'Tâche à faire (post-it)' },
 ] as const;
+
+type AffaireOption = {
+  id: string;
+  numeroDevis: string;
+  client: string;
+  adresse: string;
+  joursCharge?: number;
+  dateDebut?: string | null;
+};
 
 type Mode =
   | { kind: 'create'; equipeId: string; date: string }
@@ -55,27 +64,38 @@ export function EventDetailPanel({
     equipeId: isCreate ? mode.equipeId : (ev?.resourceId ?? ''),
     date: isCreate ? mode.date : toIsoDay(ev!.start),
   });
+  const [jours, setJours] = useState('1');
   const [taskNiveau, setTaskNiveau] = useState(raw?.slot?.niveau ?? 2);
   const [taskResp, setTaskResp] = useState('');
   const [bureau, setBureau] = useState<{ id: string; nom: string }[]>([]);
   const [affairePick, setAffairePick] = useState(
     isCreate ? '' : (ev?.affaireId ?? raw?.slot?.affaireId ?? ''),
   );
-  const [affaires, setAffaires] = useState<
-    { id: string; numeroDevis: string; client: string; adresse: string }[]
-  >([]);
+  const [affaires, setAffaires] = useState<AffaireOption[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [sheetId, setSheetId] = useState<string | null>(null);
   const [detail, setDetail] = useState<AffaireDetail | null>(null);
 
   const isTaskForm = form.type === 'tache';
+  const isChantierLike = form.type === 'chantier' || form.type === 'ce';
+  /** Chantier / CE lié à une affaire → on reprogramme toute la période */
+  const reprogramMode = isChantierLike && !!affairePick;
 
   useEffect(() => {
     fetch('/api/affaires/liste')
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
-        if (j?.affaires) setAffaires(j.affaires);
+        if (!j?.affaires) return;
+        const list = j.affaires as AffaireOption[];
+        setAffaires(list);
+        const currentId = isCreate ? '' : (ev?.affaireId ?? raw?.slot?.affaireId ?? '');
+        const current = list.find((a) => a.id === currentId);
+        if (current?.joursCharge) setJours(String(Math.max(1, current.joursCharge)));
+        if (current?.dateDebut) {
+          const iso = String(current.dateDebut).slice(0, 10);
+          if (iso) setForm((f) => ({ ...f, date: iso }));
+        }
       })
       .catch(() => {});
     fetch('/api/collaborateurs')
@@ -87,7 +107,21 @@ export function EventDetailPanel({
         if (users[0]) setTaskResp(users[0].id);
       })
       .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- init once on open
   }, []);
+
+  function onPickAffaire(id: string) {
+    setAffairePick(id);
+    const aff = affaires.find((x) => x.id === id);
+    if (!aff) return;
+    setForm((f) => ({
+      ...f,
+      label: f.label || `${aff.client} · ${aff.adresse}`,
+      date: aff.dateDebut ? String(aff.dateDebut).slice(0, 10) : f.date,
+    }));
+    if (aff.joursCharge) setJours(String(Math.max(1, aff.joursCharge)));
+    if (form.type === 'ce') setJours((j) => (Number(j) > 1 ? '1' : j));
+  }
 
   async function save() {
     if (readOnlySlot || isTacheEvent) return;
@@ -120,31 +154,58 @@ export function EventDetailPanel({
           setErr(j.error ?? 'Impossible de créer la tâche');
           return;
         }
+      } else if (reprogramMode) {
+        const nJours = Math.max(1, Number(jours) || 1);
+        const r = await fetch(`/api/affaires/${affairePick}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'programmer',
+            dateDebut: form.date.slice(0, 10),
+            joursCharge: form.type === 'ce' ? Math.min(nJours, 1) : nJours,
+            equipeId: form.equipeId || undefined,
+          }),
+        });
+        if (!r.ok) {
+          const j = await r.json().catch(() => ({}));
+          setErr(j.error ?? 'Impossible de modifier les dates du chantier');
+          return;
+        }
       } else if (isCreate) {
-        await fetch('/api/planning/slots', {
+        const r = await fetch('/api/planning/slots', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             equipeId: form.equipeId,
-            date: form.date,
+            date: form.date.slice(0, 10),
             type: form.type === 'ce' ? 'ce' : form.type,
             label: form.label || null,
             affaireId: affairePick || null,
           }),
         });
+        if (!r.ok) {
+          const j = await r.json().catch(() => ({}));
+          setErr(j.error ?? 'Création impossible');
+          return;
+        }
       } else if (ev) {
-        await fetch('/api/planning/slots', {
+        const r = await fetch('/api/planning/slots', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             id: ev.id,
             equipeId: form.equipeId,
-            date: form.date,
+            date: form.date.slice(0, 10),
             type: form.type === 'ce' ? 'ce' : form.type,
             label: form.label,
             affaireId: affairePick || null,
           }),
         });
+        if (!r.ok) {
+          const j = await r.json().catch(() => ({}));
+          setErr(j.error ?? 'Enregistrement impossible');
+          return;
+        }
       }
       onClose();
       router.refresh();
@@ -170,11 +231,16 @@ export function EventDetailPanel({
     if (!confirm('Supprimer ce créneau du planning ?')) return;
     setBusy(true);
     try {
-      await fetch('/api/planning/slots', {
+      const r = await fetch('/api/planning/slots', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: ev.id }),
       });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        setErr(j.error ?? 'Suppression impossible');
+        return;
+      }
       onClose();
       router.refresh();
     } finally {
@@ -199,7 +265,7 @@ export function EventDetailPanel({
           </button>
           <span className="eyebrow">
             Planning{' '}
-            <AideTip text={AIDES.planTache} placement="bottom" />
+            <AideTip text={AIDES.planDates} placement="bottom" />
           </span>
           <h3>
             {isTacheEvent
@@ -210,7 +276,9 @@ export function EventDetailPanel({
                   : 'Ajouter un créneau'
                 : readOnlySlot
                   ? 'Détail'
-                  : 'Modifier le créneau'}
+                  : reprogramMode
+                    ? 'Modifier les dates du chantier'
+                    : 'Modifier le créneau'}
           </h3>
         </div>
         <div className="sheet-body">
@@ -273,7 +341,11 @@ export function EventDetailPanel({
                 Type
                 <select
                   value={form.type}
-                  onChange={(e) => setForm({ ...form, type: e.target.value })}
+                  onChange={(e) => {
+                    const type = e.target.value;
+                    setForm({ ...form, type });
+                    if (type === 'ce') setJours('1');
+                  }}
                 >
                   {SLOT_TYPES.map((t) => (
                     <option key={t.value} value={t.value}>
@@ -371,7 +443,7 @@ export function EventDetailPanel({
                     </select>
                   </label>
                   <label>
-                    Date
+                    {reprogramMode ? 'Date de début' : 'Date'}
                     <input
                       type="date"
                       value={form.date.slice(0, 10)}
@@ -379,17 +451,31 @@ export function EventDetailPanel({
                       required
                     />
                   </label>
+                  {reprogramMode ? (
+                    <label>
+                      Nombre de jours (ouvrés)
+                      <input
+                        type="number"
+                        min={1}
+                        max={form.type === 'ce' ? 1 : 60}
+                        value={jours}
+                        onChange={(e) => setJours(e.target.value)}
+                        required
+                      />
+                    </label>
+                  ) : null}
+                  {reprogramMode ? (
+                    <p className="hint">
+                      {form.type === 'ce'
+                        ? 'Contrat d’entretien : intervention courte (½ j à 1 j). La date repose le passage au planning.'
+                        : 'Enregistrer repose toutes les journées du chantier à partir de cette date (week-ends exclus).'}
+                    </p>
+                  ) : null}
                   <label>
                     Lier à une affaire
                     <select
                       value={affairePick}
-                      onChange={(e) => {
-                        setAffairePick(e.target.value);
-                        const aff = affaires.find((x) => x.id === e.target.value);
-                        if (aff && !form.label) {
-                          setForm({ ...form, label: `${aff.client} · ${aff.adresse}` });
-                        }
-                      }}
+                      onChange={(e) => onPickAffaire(e.target.value)}
                     >
                       <option value="">— aucune —</option>
                       {affaires.map((aff) => (
@@ -410,7 +496,13 @@ export function EventDetailPanel({
 
               <div className="edit-row" style={{ marginTop: 12 }}>
                 <button type="submit" className="btn-primary" disabled={busy}>
-                  {busy ? '…' : isTaskForm ? 'Créer la tâche' : 'Enregistrer'}
+                  {busy
+                    ? '…'
+                    : isTaskForm
+                      ? 'Créer la tâche'
+                      : reprogramMode
+                        ? 'Enregistrer les dates'
+                        : 'Enregistrer'}
                 </button>
                 {!isCreate && !isTaskForm ? (
                   <button

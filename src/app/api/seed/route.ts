@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { prisma } from '@/lib/prisma';
-import bcrypt from 'bcryptjs';
-import { Role, AffaireStatut, AffaireType, FactureType, PieceType } from '@prisma/client';
+import { AffaireStatut, AffaireType, FactureType, PieceType } from '@prisma/client';
 import { ensureBureauUsers, ensureValerieMessageEquipe } from '@/lib/bureau-users';
 
 function d(day: number, month: number, year = 2026) {
@@ -54,19 +53,7 @@ export async function POST() {
   }
 
   // Inline minimal seed (même données que prisma/seed.ts)
-  const DEMO_PASSWORD = 'setrim2026';
-  const hash = await bcrypt.hash(DEMO_PASSWORD, 10);
-
-  const users = [
-    { id: 'audrey', initiales: 'AU', nom: 'Audrey', email: 'audrey@setrim.fr', role: Role.assistante, terrain: false },
-    { id: 'melissa', initiales: 'ME', nom: 'Mélissa', email: 'melissa@setrim.fr', role: Role.assistante, terrain: false },
-    { id: 'valerie', initiales: 'VA', nom: 'Valérie', email: 'valerie@setrim.fr', role: Role.responsable, terrain: false },
-    { id: 'denis', initiales: 'DE', nom: 'Denis', email: 'denis@setrim.fr', role: Role.dirigeant, terrain: true },
-    { id: 'philippe', initiales: 'PH', nom: 'Philippe', email: 'philippe@setrim.fr', role: Role.conducteur, terrain: true },
-  ];
-  for (const u of users) {
-    await prisma.user.create({ data: { ...u, passwordHash: hash } });
-  }
+  // Les 5 accès individuels sont déjà créés par ensureBureauUsers() ci-dessus.
 
   const affairesData = [
     { numeroDevis: '40083', client: 'FONCIA', adresse: '74 Rue Mercadet, 75018 Paris', montantHt: 4530, acompteHt: 1993.2, joursCharge: 5, statut: AffaireStatut.programme, dateDevis: d(29, 7, 2025), note: '', fa: { ac: true, en: false } },
@@ -170,5 +157,8 @@ export async function POST() {
     await prisma.equipe.create({ data: e });
   }
 
-  return NextResponse.json({ ok: true, message: 'Seed OK — mdp setrim2026' });
+  return NextResponse.json({
+    ok: true,
+    message: 'Seed OK — 5 accès individuels (Audrey2026, Melissa2026, …)',
+  });
 }

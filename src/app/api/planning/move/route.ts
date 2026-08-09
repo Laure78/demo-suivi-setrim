@@ -1,6 +1,7 @@
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { parsePlanningDate } from '@/lib/planning/dates';
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -16,11 +17,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, skipped: true });
   }
 
+  const day = parsePlanningDate(String(date));
+
   const updated = await prisma.planningSlot.update({
     where: { id: slotId },
     data: {
       equipeId,
-      date: new Date(date),
+      date: day,
     },
   });
 
@@ -30,7 +33,7 @@ export async function POST(req: Request) {
     if (aff?.statut === 'commande') {
       await prisma.affaire.update({
         where: { id: aff.id },
-        data: { statut: 'programme', dateDebut: new Date(date) },
+        data: { statut: 'programme', dateDebut: day },
       });
     }
   }

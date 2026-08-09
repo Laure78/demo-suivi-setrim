@@ -21,7 +21,7 @@ export async function GET(req: Request) {
     where: affaire
       ? { OR: [{ threadKey: thread }, { affaireId: affaire.id }] }
       : { threadKey: thread },
-    include: { auteur: { select: { nom: true, initiales: true, avatarUrl: true } } },
+    include: { auteur: { select: { nom: true, initiales: true } } },
     orderBy: { createdAt: 'asc' },
   });
 

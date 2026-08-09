@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma';
 import { AffaireStatut, AffaireType, FactureType } from '@prisma/client';
 import { MODELES_TACHES } from '@/lib/format';
 import { syncChantiersAuPlanning, resyncAffaireSlots } from '@/lib/planning';
+import { assurerFichesClients } from '@/lib/clients';
 
 function addDaysUTC(d: Date, n: number) {
   const x = new Date(d);
@@ -93,7 +94,9 @@ export async function programmerAffaire(
   if (!a) throw new Error('Affaire introuvable');
 
   const jours = input.joursCharge ?? (a.joursCharge || 1);
-  let end = new Date(input.dateDebut);
+  const start = new Date(input.dateDebut);
+  start.setUTCHours(12, 0, 0, 0);
+  let end = new Date(start);
   let added = 0;
   while (added < Math.max(0, jours - 1)) {
     end = addDaysUTC(end, 1);
@@ -113,7 +116,7 @@ export async function programmerAffaire(
   const updated = await prisma.affaire.update({
     where: { id: affaireId },
     data: {
-      dateDebut: input.dateDebut,
+      dateDebut: start,
       dateFin: end,
       joursCharge: jours,
       equipeId,
@@ -128,7 +131,7 @@ export async function programmerAffaire(
   if (a.contratEntretienId) {
     await prisma.contratEntretien.update({
       where: { id: a.contratEntretienId },
-      data: { datePosee: input.dateDebut, etat: 'pose' },
+      data: { datePosee: start, etat: 'pose' },
     });
   }
 
@@ -145,7 +148,7 @@ export async function programmerAffaire(
     } else if (modele.titre.includes('acompte')) {
       continue; // garde l'échéance signature
     } else {
-      echeance = addDaysUTC(input.dateDebut, modele.offsetDays);
+      echeance = addDaysUTC(start, modele.offsetDays);
     }
     await prisma.tache.update({
       where: { id: t.id },
@@ -163,8 +166,8 @@ export async function programmerAffaire(
     data: { fait: true, faitAt: new Date() },
   });
 
-  const y = input.dateDebut.getUTCFullYear();
-  const m = input.dateDebut.getUTCMonth();
+  const y = start.getUTCFullYear();
+  const m = start.getUTCMonth();
   await resyncAffaireSlots(affaireId);
   // Mois voisin si la période déborde (sécurité agenda mensuel)
   await syncChantiersAuPlanning(y, m);
@@ -461,6 +464,7 @@ export async function genererLiensContratsExercice(exercice: string) {
 export async function assurerLiensGlobaux() {
   const exercice = '2026-2027';
   await genererLiensContratsExercice(exercice);
+  await assurerFichesClients();
 
   const sansTaches = await prisma.affaire.findMany({
     where: {

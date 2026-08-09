@@ -7,7 +7,6 @@ import { signOut, useSession } from 'next-auth/react';
 import { SCREENS, MESSAGES_HREF, ROLE_LABEL } from '@/lib/format';
 import { AIDES } from '@/lib/aides';
 import { AideTip } from '@/components/AideTip';
-import { RemarquesDrawer } from '@/components/RemarquesDrawer';
 import { WhoSwitcher } from '@/components/WhoSwitcher';
 import { SetrimFooter } from '@/components/SetrimFooter';
 import { useEffect, useState, type MouseEvent } from 'react';
@@ -16,6 +15,7 @@ import { enableWebPush } from '@/lib/web-push-client';
 const NAV_AIDES: Record<string, string> = {
   aujourdhui: AIDES.navAujourdhui,
   portefeuille: AIDES.navPortefeuille,
+  clients: AIDES.navClients,
   planning: AIDES.navPlanning,
   contrats: AIDES.navContrats,
   facturation: AIDES.navFacturation,
@@ -33,8 +33,6 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
   const pathname = usePathname();
   const { data } = useSession();
   const user = data?.user;
-  const [notesOpen, setNotesOpen] = useState(false);
-  const [noteCount, setNoteCount] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -148,19 +146,6 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
           <span className="nav-label">Messagerie</span>
           {unreadCount > 0 ? <span className="badge">{unreadCount}</span> : null}
         </Link>
-        <button
-          type="button"
-          className="nav-link"
-          title={AIDES.remarques}
-          onClick={() => {
-            setMenuOpen(false);
-            setNotesOpen(true);
-          }}
-        >
-          <span className="k">R</span>
-          <span className="nav-label">Remarques</span>
-          {noteCount > 0 ? <span className="badge">{noteCount}</span> : null}
-        </button>
       </>
     );
   }
@@ -232,27 +217,28 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
             <AideTip text={AIDES.who} placement="bottom" label="Aide — Je suis" />
           </span>
           <WhoSwitcher />
-          <span className="aide-label desk-only-inline">
+          <span className="aide-label btn-messages-wrap">
             <Link
               href={MESSAGES_HREF}
-              className={`btn-note btn-messages${pathname.startsWith(MESSAGES_HREF) ? ' on' : ''}`}
+              className={`btn-messages${pathname.startsWith(MESSAGES_HREF) ? ' on' : ''}`}
               title={AIDES.messagerie}
             >
-              Messagerie
-              {unreadCount > 0 ? <span className="mono"> ({unreadCount})</span> : null}
+              <span className="btn-messages-ico" aria-hidden>
+                <svg viewBox="0 0 24 24" width="18" height="18">
+                  <path
+                    fill="currentColor"
+                    d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.2L4 17.2V4h16v12z"
+                  />
+                </svg>
+              </span>
+              <span className="btn-messages-label">Messagerie</span>
+              {unreadCount > 0 ? (
+                <span className="btn-messages-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+              ) : null}
             </Link>
-            <AideTip text={AIDES.messagerie} placement="bottom" />
-          </span>
-          <span className="aide-label desk-only-inline">
-            <button
-              type="button"
-              className="btn-note"
-              title={AIDES.remarques}
-              onClick={() => setNotesOpen(true)}
-            >
-              Remarques <span className="mono">({noteCount})</span>
-            </button>
-            <AideTip text={AIDES.remarques} placement="bottom" />
+            <span className="desk-only-inline">
+              <AideTip text={AIDES.messagerie} placement="bottom" />
+            </span>
           </span>
         </header>
         <div className="content">{children}</div>
@@ -308,13 +294,6 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
           </aside>
         </>
       ) : null}
-
-      <RemarquesDrawer
-        open={notesOpen}
-        onClose={() => setNotesOpen(false)}
-        ecran={screenTitle}
-        onCount={setNoteCount}
-      />
     </div>
   );
 }

@@ -17,6 +17,8 @@ export async function GET() {
       client: true,
       adresse: true,
       statut: true,
+      joursCharge: true,
+      dateDebut: true,
     },
   });
 

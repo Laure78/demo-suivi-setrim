@@ -1,52 +1,21 @@
 import bcrypt from 'bcryptjs';
 import { Role } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { BUREAU_ACCES } from '@/lib/bureau-acces';
 
-const DEMO_PASSWORD = 'setrim2026';
+/** Mot de passe des collaborateurs ajoutés (hors les 5 accès bureau). */
+export const COLLAB_PASSWORD = 'setrim2026';
 
 /** Les 5 du bureau SETRIM — ordre fixe pour Messagerie / sélecteur. */
-export const BUREAU_USERS = [
-  {
-    id: 'audrey',
-    initiales: 'AU',
-    nom: 'Audrey',
-    email: 'audrey@setrim.fr',
-    role: Role.assistante,
-    terrain: false,
-  },
-  {
-    id: 'melissa',
-    initiales: 'ME',
-    nom: 'Mélissa',
-    email: 'melissa@setrim.fr',
-    role: Role.assistante,
-    terrain: false,
-  },
-  {
-    id: 'valerie',
-    initiales: 'VA',
-    nom: 'Valérie',
-    email: 'valerie@setrim.fr',
-    role: Role.responsable,
-    terrain: false,
-  },
-  {
-    id: 'denis',
-    initiales: 'DE',
-    nom: 'Denis',
-    email: 'denis@setrim.fr',
-    role: Role.dirigeant,
-    terrain: true,
-  },
-  {
-    id: 'philippe',
-    initiales: 'PH',
-    nom: 'Philippe',
-    email: 'philippe@setrim.fr',
-    role: Role.conducteur,
-    terrain: true,
-  },
-] as const;
+export const BUREAU_USERS = BUREAU_ACCES.map((u) => ({
+  id: u.id,
+  initiales: u.initiales,
+  nom: u.nom,
+  email: u.email,
+  role: Role[u.role],
+  terrain: u.terrain,
+  password: u.password,
+}));
 
 export const BUREAU_ORDER = BUREAU_USERS.map((u) => u.id);
 
@@ -54,13 +23,22 @@ export function isBureauUser(id: string): boolean {
   return (BUREAU_ORDER as readonly string[]).includes(id);
 }
 
-/** Garantit Valérie et les 4 autres comptes démo (idempotent). */
+/** Garantit les 5 accès individuels (email + mot de passe personnel). */
 export async function ensureBureauUsers() {
-  const hash = await bcrypt.hash(DEMO_PASSWORD, 10);
   for (const u of BUREAU_USERS) {
+    const passwordHash = await bcrypt.hash(u.password, 10);
     await prisma.user.upsert({
       where: { id: u.id },
-      create: { ...u, passwordHash: hash, actif: true },
+      create: {
+        id: u.id,
+        initiales: u.initiales,
+        nom: u.nom,
+        email: u.email,
+        role: u.role,
+        terrain: u.terrain,
+        passwordHash,
+        actif: true,
+      },
       update: {
         nom: u.nom,
         initiales: u.initiales,
@@ -68,6 +46,7 @@ export async function ensureBureauUsers() {
         role: u.role,
         terrain: u.terrain,
         actif: true,
+        passwordHash,
       },
     });
   }
