@@ -158,14 +158,14 @@ export const TUTORIEL_SECTIONS: TutorielSection[] = [
     id: 'messagerie',
     titre: 'Messagerie (style WhatsApp)',
     resume:
-      'Interface type WhatsApp Desktop : rail, liste, conversation. Équipe, directs et fils chantier.',
+      'Interface type WhatsApp Desktop : rail, liste, conversation. Équipe SETRIM et messages directs.',
     points: [
       'Accès : menu latéral « Messagerie » (touche 8), bouton vert du bandeau, onglet Messages (téléphone).',
-      'Rail : Messages / Chantiers / Archivées / Épinglées. Filtres : Tous / Chantiers / Directs / Non lus.',
-      'Liste : les discussions les plus récentes (messages reçus ou envoyés) remontent en haut ; les épinglées restent au-dessus. Faites défiler la liste pour tout voir.',
+      'Rail : Messages / Archivées / Épinglées. Filtres : Tous / Directs / Non lus.',
+      'Liste : Équipe SETRIM et discussions privées — les plus récentes remontent en haut ; les épinglées restent au-dessus.',
       'Nouveau message : bouton + en haut de la liste (ou sur l’écran vide) — choisissez un destinataire et envoyez.',
       'Conversation : bulles, séparateurs de date, pièces jointes, @mentions, « Créer une action ».',
-      'Fil chantier : lien « Fiche chantier » vers le portefeuille.',
+      'Les discussions de chantier (fil affaire) restent uniquement sur la fiche chantier du portefeuille — pas dans la messagerie.',
       'Sur téléphone : liste plein écran, puis conversation avec flèche retour.',
       'Épinglage, sourdine et archives sont mémorisés sur cet appareil.',
     ],

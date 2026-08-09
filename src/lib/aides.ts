@@ -8,7 +8,7 @@ export const AIDES = {
     'Messagerie type WhatsApp. Discussions les plus récentes en haut (reçus et envoyés). Aussi dans le menu à gauche (touche 8).',
   tutoriel: 'Guide complet du fonctionnement de la plateforme. Mis à jour quand l’outil évolue (dernière maj : Août 2026).',
   navAujourdhui: 'Vos tâches du jour et les chantiers planifiés aujourd’hui.',
-  navMessagerie: 'Équipe SETRIM et messages privés (style WhatsApp). Plus récents en haut. Touche 8.',
+  navMessagerie: 'Équipe SETRIM et messages privés (style WhatsApp). Fils chantier sur la fiche affaire. Touche 8.',
   navPortefeuille: 'Toutes les affaires (commande → soldé). Cliquez une ligne pour ouvrir la fiche.',
   navClients:
     'Fiches clients : contact, téléphone, notes. Rattachez chaque chantier à un syndic / client. Touche 7.',
@@ -43,7 +43,7 @@ export const AIDES = {
   facturation:
     'Suivi des acomptes et soldes. Cliquez une affaire pour ouvrir la fiche et facturer.',
   msgListe:
-    'Discussions : Équipe, directs, chantiers. Bouton + pour un nouveau message. Recherchez par nom.',
+    'Discussions : Équipe SETRIM et directs. Bouton + pour un nouveau message. Les fils chantier sont sur la fiche affaire.',
   msgComposer:
     'Saisie en bas : texte, photo ou pièce jointe. Bouton vert pour envoyer. Survolez un message → + tâche.',
   msgTache: 'Transforme ce message en tâche sur Aujourd’hui.',
