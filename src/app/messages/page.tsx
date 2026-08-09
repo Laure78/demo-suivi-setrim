@@ -3,12 +3,13 @@ import { prisma } from '@/lib/prisma';
 import { Shell } from '@/components/Shell';
 import { MessagesView } from '@/components/MessagesView';
 import { redirect } from 'next/navigation';
-import { ROLE_LABEL, STATUT_LABEL } from '@/lib/format';
+import { ROLE_LABEL } from '@/lib/format';
 import {
   ensureBureauUsers,
   ensureValerieMessageEquipe,
   sortUsersBureauFirst,
 } from '@/lib/bureau-users';
+import { isAdministrateur } from '@/lib/acces-labels';
 
 export const dynamic = 'force-dynamic';
 
@@ -78,20 +79,14 @@ export default async function MessagesPage({
 
   const userIds = new Set(users.map((u) => u.id));
 
-  const affaires = await prisma.affaire.findMany({
-    select: {
-      id: true,
-      numeroDevis: true,
-      client: true,
-      adresse: true,
-      type: true,
-      statut: true,
-    },
-  });
-  const affaireByDevis = new Map(affaires.map((a) => [a.numeroDevis, a]));
-  const affaireKeys = new Set(affaires.map((a) => a.numeroDevis));
+  // Métas affaire conservées pour le fil sur la fiche chantier (pas affichées ici)
+  const affaireKeys = new Set(
+    (
+      await prisma.affaire.findMany({ select: { numeroDevis: true } })
+    ).map((a) => a.numeroDevis),
+  );
 
-  // Garder gen + collabs + chantiers connus
+  // Garder gen + collabs + métas chantier (fiche affaire)
   const allThreads = await prisma.threadMeta.findMany({ select: { id: true } });
   const toDelete = allThreads
     .map((t) => t.id)
@@ -122,79 +117,36 @@ export default async function MessagesPage({
 
   const people = users.filter((u) => u.id !== session.user.id);
 
-  async function lastOf(threadKey: string, affaireId?: string | null) {
+  const meId = session.user.id;
+
+  /** Dernier message d’un fil (équipe ou DM avec l’autre personne). */
+  async function lastOf(threadKey: string, opts?: { peerId?: string }) {
+    const { peerId } = opts ?? {};
+    // DM : messages que j’ai envoyés vers peer + messages que peer m’a envoyés
+    if (peerId) {
+      return prisma.message.findFirst({
+        where: {
+          systeme: false,
+          OR: [
+            { threadKey: peerId },
+            { threadKey: meId, auteurId: peerId },
+          ],
+        },
+        orderBy: { createdAt: 'desc' },
+        include: { auteur: true },
+      });
+    }
     return prisma.message.findFirst({
-      where: affaireId
-        ? { OR: [{ threadKey }, { affaireId }], systeme: false }
-        : { threadKey, systeme: false },
+      where: { threadKey, systeme: false },
       orderBy: { createdAt: 'desc' },
       include: { auteur: true },
     });
   }
 
-  // Fils chantier (messages liés à une affaire)
-  const chantierThreadKeys = await prisma.message.findMany({
-    where: { affaireId: { not: null } },
-    select: { threadKey: true, affaireId: true },
-    distinct: ['threadKey'],
-  });
-
-  const chantierConvs = (
-    await Promise.all(
-      chantierThreadKeys.map(async ({ threadKey, affaireId }) => {
-        const aff =
-          (affaireId ? affaires.find((a) => a.id === affaireId) : null) ??
-          affaireByDevis.get(threadKey) ??
-          null;
-        if (!aff) return null;
-
-        const avatar = aff.type === 'contrat_entretien' ? 'CE' : 'CH';
-        const cls = aff.type === 'contrat_entretien' ? 'ce' : 'cha';
-        await prisma.threadMeta.upsert({
-          where: { id: threadKey },
-          create: {
-            id: threadKey,
-            titre: `${aff.client} · ${aff.numeroDevis}`,
-            sousTitre: aff.adresse.split(',')[0] ?? aff.adresse,
-            avatar,
-            cls,
-            ordre: 50,
-          },
-          update: {
-            titre: `${aff.client} · ${aff.numeroDevis}`,
-            sousTitre: aff.adresse.split(',')[0] ?? aff.adresse,
-            avatar,
-            cls,
-          },
-        });
-        const last = await lastOf(threadKey, aff.id);
-        const prev = lastPreview(last);
-        return {
-          id: threadKey,
-          kind: 'affaire' as const,
-          affaireId: aff.id,
-          affaireStatut: STATUT_LABEL[aff.statut] ?? aff.statut,
-          titre: `${aff.client} · ${aff.numeroDevis}`,
-          sousTitre: aff.adresse.split(',')[0] ?? aff.adresse,
-          avatar,
-          photo: null as string | null,
-          cls,
-          pinNote: '',
-          last: prev.last,
-          lastKind: prev.lastKind,
-          lastAuthor: prev.lastAuthor,
-          lastAt: last?.createdAt?.toISOString() ?? null,
-          sortAt: last?.createdAt?.getTime() ?? 0,
-        };
-      }),
-    )
-  )
-    .filter((x): x is NonNullable<typeof x> => !!x)
-    .sort((a, b) => b.sortAt - a.sortAt);
-
   const genLast = await lastOf('gen');
   const genPrev = lastPreview(genLast);
 
+  // Messagerie interne uniquement (Équipe + directs) — fils chantier sur la fiche affaire
   const convs = [
     {
       id: 'gen',
@@ -215,7 +167,6 @@ export default async function MessagesPage({
       lastAt: genLast?.createdAt?.toISOString() ?? null,
       sortAt: genLast?.createdAt?.getTime() ?? 0,
     },
-    ...chantierConvs,
     ...(await Promise.all(
       people.map(async (u) => {
         await prisma.threadMeta.upsert({
@@ -234,7 +185,7 @@ export default async function MessagesPage({
             avatar: u.initiales,
           },
         });
-        const last = await lastOf(u.id);
+        const last = await lastOf(u.id, { peerId: u.id });
         const prev = lastPreview(last);
         return {
           id: u.id,
@@ -275,7 +226,7 @@ export default async function MessagesPage({
         meId={session.user.id}
         meAvatar={me?.initiales ?? 'ME'}
         meNom={me?.nom ?? session.user.name ?? ''}
-        canAdd={['assistante', 'responsable', 'dirigeant'].includes(session.user.role)}
+        canAdd={isAdministrateur(session.user.acces)}
         mentionUsers={users.map((u) => ({
           id: u.id,
           nom: u.nom,

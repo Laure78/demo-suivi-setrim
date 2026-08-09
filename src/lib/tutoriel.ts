@@ -41,6 +41,7 @@ export const TUTORIEL_SECTIONS: TutorielSection[] = [
       '5 accès individuels : Audrey, Mélissa, Valérie, Denis, Philippe — chacun son email et son mot de passe.',
       'Sur l’écran de connexion, cliquez une personne ou saisissez ses identifiants.',
       'Le sélecteur « Je suis » (pastilles AU · ME · VA…) bascule entre les 5 comptes bureau ; la pastille « Connecté » rappelle qui est en session.',
+      'Rôles d’accès : Valérie et Denis = Administrateur ; Audrey, Mélissa, Philippe = Collaborateur (écriture métier complète).',
       'Sur téléphone : le sélecteur « Je suis » et la déconnexion sont dans l’écran Plus (barre du bas).',
       'Les équipes chantier du planning ne sont pas les comptes bureau : ce sont les équipes terrain.',
     ],
@@ -66,7 +67,7 @@ export const TUTORIEL_SECTIONS: TutorielSection[] = [
     points: [
       'Cinq onglets : Messages, Planning, Affaires, Contrats, Plus.',
       'L’onglet actif est en bleu (#0079C2) ; la barre est navy comme le menu bureau.',
-      'Plus regroupe Aujourd’hui, Clients, Facturation, Tutoriel, Accueil, « Je suis » et déconnexion.',
+      'Plus regroupe Aujourd’hui, Clients, Facturation, Tutoriel, Accueil, Paramètres, « Je suis » et déconnexion.',
       'En détail (ex. fiche via lien ?affaire=… ou conversation ?thread=…), une flèche retour apparaît à gauche de l’en-tête.',
     ],
     lien: { href: '/plus', label: 'Ouvrir Plus' },
@@ -161,6 +162,8 @@ export const TUTORIEL_SECTIONS: TutorielSection[] = [
     points: [
       'Accès : menu latéral « Messagerie » (touche 8), bouton vert du bandeau, onglet Messages (téléphone).',
       'Rail : Messages / Chantiers / Archivées / Épinglées. Filtres : Tous / Chantiers / Directs / Non lus.',
+      'Liste : les discussions les plus récentes (messages reçus ou envoyés) remontent en haut ; les épinglées restent au-dessus. Faites défiler la liste pour tout voir.',
+      'Nouveau message : bouton + en haut de la liste (ou sur l’écran vide) — choisissez un destinataire et envoyez.',
       'Conversation : bulles, séparateurs de date, pièces jointes, @mentions, « Créer une action ».',
       'Fil chantier : lien « Fiche chantier » vers le portefeuille.',
       'Sur téléphone : liste plein écran, puis conversation avec flèche retour.',
@@ -192,6 +195,23 @@ export const TUTORIEL_SECTIONS: TutorielSection[] = [
       '5 — Facturation',
       '6 — Tutoriel (cette page)',
       '7 — Clients',
+      '9 — Paramètres',
     ],
+  },
+  {
+    id: 'parametres',
+    titre: 'Paramètres',
+    resume:
+      'Profil, notifications et support pour tous. Utilisateurs, entreprise et abonnement pour Valérie et Denis.',
+    points: [
+      'Accès : menu « Paramètres » (touche 9) ou Plus sur téléphone.',
+      'Mon profil : prénom, nom, email, mobile, initiales, mot de passe, déconnexion de toutes les sessions. Rôle en lecture seule.',
+      'Notifications : canaux (push, email), types d’alertes, urgence minimum, plage de silence.',
+      'Support : coordonnées, formulaire « Signaler un problème » (n° de suivi), historique, 5 gestes de base.',
+      'Administrateurs : Utilisateurs (comptes + quota formule), Entreprise et facturation, Abonnement.',
+      'Changer de formule / ajouter des users / résilier = demande au support (pas de paiement en ligne).',
+      'Bandeau d’alerte admin si échéance à moins de 30 jours ou facture en attente.',
+    ],
+    lien: { href: '/parametres', label: 'Ouvrir les paramètres' },
   },
 ];

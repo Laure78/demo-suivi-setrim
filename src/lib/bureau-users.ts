@@ -1,10 +1,12 @@
 import bcrypt from 'bcryptjs';
-import { Role } from '@prisma/client';
+import { Acces, Role } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { BUREAU_ACCES } from '@/lib/bureau-acces';
 
 /** Mot de passe des collaborateurs ajoutés (hors les 5 accès bureau). */
 export const COLLAB_PASSWORD = 'setrim2026';
+
+const ADMIN_IDS = new Set(['valerie', 'denis']);
 
 /** Les 5 du bureau SETRIM — ordre fixe pour Messagerie / sélecteur. */
 export const BUREAU_USERS = BUREAU_ACCES.map((u) => ({
@@ -15,6 +17,7 @@ export const BUREAU_USERS = BUREAU_ACCES.map((u) => ({
   role: Role[u.role],
   terrain: u.terrain,
   password: u.password,
+  acces: ADMIN_IDS.has(u.id) ? Acces.administrateur : Acces.collaborateur,
 }));
 
 export const BUREAU_ORDER = BUREAU_USERS.map((u) => u.id);
@@ -23,30 +26,42 @@ export function isBureauUser(id: string): boolean {
   return (BUREAU_ORDER as readonly string[]).includes(id);
 }
 
-/** Garantit les 5 accès individuels (email + mot de passe personnel). */
+/** Garantit les 5 accès individuels (sans écraser un mot de passe déjà changé). */
 export async function ensureBureauUsers() {
   for (const u of BUREAU_USERS) {
-    const passwordHash = await bcrypt.hash(u.password, 10);
-    await prisma.user.upsert({
+    const existing = await prisma.user.findUnique({ where: { id: u.id } });
+    if (!existing) {
+      const passwordHash = await bcrypt.hash(u.password, 10);
+      await prisma.user.create({
+        data: {
+          id: u.id,
+          initiales: u.initiales,
+          nom: u.nom,
+          prenom: u.nom,
+          email: u.email,
+          role: u.role,
+          acces: u.acces,
+          terrain: u.terrain,
+          passwordHash,
+          actif: true,
+          mustChangePassword: false,
+        },
+      });
+      continue;
+    }
+    await prisma.user.update({
       where: { id: u.id },
-      create: {
-        id: u.id,
-        initiales: u.initiales,
+      data: {
         nom: u.nom,
-        email: u.email,
-        role: u.role,
-        terrain: u.terrain,
-        passwordHash,
-        actif: true,
-      },
-      update: {
-        nom: u.nom,
+        prenom: u.nom,
         initiales: u.initiales,
         email: u.email,
         role: u.role,
+        acces: u.acces,
         terrain: u.terrain,
-        actif: true,
-        passwordHash,
+        // Ne pas réactiver un compte volontairement désactivé par un admin
+        // sauf les admins de départ qu'on maintient actifs
+        ...(ADMIN_IDS.has(u.id) ? { actif: true } : {}),
       },
     });
   }

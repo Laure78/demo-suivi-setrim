@@ -6,6 +6,7 @@ import { SCREENS, PLUS_MENU_IDS, ROLE_LABEL } from '@/lib/format';
 import { AIDES } from '@/lib/aides';
 import { AideTip } from '@/components/AideTip';
 import { WhoSwitcher } from '@/components/WhoSwitcher';
+import { ACCES_LABEL } from '@/lib/acces-labels';
 
 const PLUS_SET = new Set<string>(PLUS_MENU_IDS);
 
@@ -29,6 +30,9 @@ export function PlusView() {
             {s.label}
           </Link>
         ))}
+        <Link href="/parametres" className="plus-link">
+          Paramètres
+        </Link>
       </nav>
 
       <div className="plus-who">
@@ -40,7 +44,8 @@ export function PlusView() {
         {user ? (
           <div className="plus-session">
             <strong>{user.name}</strong>
-            <span>{ROLE_LABEL[user.role] ?? user.role}</span>
+            <span>{ACCES_LABEL[user.acces] ?? 'Collaborateur'}</span>
+            <span className="hint">{ROLE_LABEL[user.role] ?? user.role}</span>
             <button type="button" onClick={() => signOut({ callbackUrl: '/login' })}>
               Se déconnecter
             </button>

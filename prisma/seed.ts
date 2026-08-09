@@ -1,4 +1,4 @@
-import { PrismaClient, Role, AffaireStatut, AffaireType, FactureType, PieceType } from '@prisma/client';
+import { PrismaClient, Role, Acces, AffaireStatut, AffaireType, FactureType, PieceType } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -18,6 +18,12 @@ async function main() {
   await prisma.notificationLog.deleteMany();
   await prisma.pushSubscription.deleteMany();
   await prisma.remarque.deleteMany();
+  await prisma.supportTicket.deleteMany();
+  await prisma.userNotifPrefs.deleteMany();
+  await prisma.facturePlateforme.deleteMany();
+  await prisma.abonnement.deleteMany();
+  await prisma.entreprise.deleteMany();
+  await prisma.adminAuditLog.deleteMany();
   await prisma.planningSlot.deleteMany();
   await prisma.message.deleteMany();
   await prisma.piece.deleteMany();
@@ -32,11 +38,11 @@ async function main() {
   const hash = await bcrypt.hash(DEMO_PASSWORD, 10);
 
   const users = [
-    { id: 'audrey', initiales: 'AU', nom: 'Audrey', email: 'audrey@setrim.fr', role: Role.assistante, terrain: false },
-    { id: 'melissa', initiales: 'ME', nom: 'Mélissa', email: 'melissa@setrim.fr', role: Role.assistante, terrain: false },
-    { id: 'valerie', initiales: 'VA', nom: 'Valérie', email: 'valerie@setrim.fr', role: Role.responsable, terrain: false },
-    { id: 'denis', initiales: 'DE', nom: 'Denis', email: 'denis@setrim.fr', role: Role.dirigeant, terrain: true },
-    { id: 'philippe', initiales: 'PH', nom: 'Philippe', email: 'philippe@setrim.fr', role: Role.conducteur, terrain: true },
+    { id: 'audrey', initiales: 'AU', nom: 'Audrey', prenom: 'Audrey', email: 'audrey@setrim.fr', role: Role.assistante, acces: Acces.collaborateur, terrain: false },
+    { id: 'melissa', initiales: 'ME', nom: 'Mélissa', prenom: 'Mélissa', email: 'melissa@setrim.fr', role: Role.assistante, acces: Acces.collaborateur, terrain: false },
+    { id: 'valerie', initiales: 'VA', nom: 'Valérie', prenom: 'Valérie', email: 'valerie@setrim.fr', role: Role.responsable, acces: Acces.administrateur, terrain: false },
+    { id: 'denis', initiales: 'DE', nom: 'Denis', prenom: 'Denis', email: 'denis@setrim.fr', role: Role.dirigeant, acces: Acces.administrateur, terrain: true },
+    { id: 'philippe', initiales: 'PH', nom: 'Philippe', prenom: 'Philippe', email: 'philippe@setrim.fr', role: Role.conducteur, acces: Acces.collaborateur, terrain: true },
   ];
 
   for (const u of users) {

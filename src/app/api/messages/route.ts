@@ -17,10 +17,23 @@ export async function GET(req: Request) {
       ? await prisma.affaire.findUnique({ where: { id: affaireIdParam } })
       : await prisma.affaire.findFirst({ where: { numeroDevis: thread } });
 
+  const meId = session.user.id;
+  const peer =
+    !affaire && thread !== 'gen'
+      ? await prisma.user.findUnique({ where: { id: thread } })
+      : null;
+
   const messages = await prisma.message.findMany({
     where: affaire
       ? { OR: [{ threadKey: thread }, { affaireId: affaire.id }] }
-      : { threadKey: thread },
+      : peer
+        ? {
+            OR: [
+              { threadKey: thread },
+              { threadKey: meId, auteurId: peer.id },
+            ],
+          }
+        : { threadKey: thread },
     include: { auteur: { select: { nom: true, initiales: true } } },
     orderBy: { createdAt: 'asc' },
   });

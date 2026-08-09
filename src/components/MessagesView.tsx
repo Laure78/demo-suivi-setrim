@@ -20,22 +20,20 @@ import {
   prenom,
   saveMsgPrefs,
   sameDay,
-  toggleInList,
   type MsgPrefs,
 } from '@/lib/messages-prefs';
 
 const BUREAU_IDS = new Set(['audrey', 'melissa', 'valerie', 'denis', 'philippe']);
 
-type ConvKind = 'gen' | 'user' | 'affaire';
+type ConvKind = 'gen' | 'user';
 type LastKind = 'text' | 'photo' | 'doc' | 'action' | 'empty';
-type RailMode = 'messages' | 'chantiers' | 'archived' | 'pinned';
-type ListFilter = 'tous' | 'chantiers' | 'directs' | 'nonlus';
+type RailMode = 'messages' | 'archived' | 'pinned';
+type ListFilter = 'tous' | 'directs' | 'nonlus';
 
 type Conv = {
   id: string;
   kind?: ConvKind;
   affaireId?: string | null;
-  affaireStatut?: string | null;
   titre: string;
   sousTitre: string;
   avatar: string;
@@ -88,9 +86,12 @@ export function MessagesView({
   const [listFilter, setListFilter] = useState<ListFilter>('tous');
   const [prefs, setPrefs] = useState<MsgPrefs>(() => loadMsgPrefs());
   const [mobileThread, setMobileThread] = useState(!!initialThread);
-  const [showAdd, setShowAdd] = useState(false);
-  const [addErr, setAddErr] = useState('');
-  const [adding, setAdding] = useState(false);
+  const [showCompose, setShowCompose] = useState(false);
+  const [composeTo, setComposeTo] = useState<string | null>(null);
+  const [composeText, setComposeText] = useState('');
+  const [composeQ, setComposeQ] = useState('');
+  const [composeBusy, setComposeBusy] = useState(false);
+  const [composeErr, setComposeErr] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [ctxMsg, setCtxMsg] = useState<Msg | null>(null);
@@ -105,13 +106,6 @@ export function MessagesView({
   const [actionBusy, setActionBusy] = useState(false);
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionQ, setMentionQ] = useState('');
-  const [form, setForm] = useState({
-    nom: '',
-    initiales: '',
-    email: '',
-    role: 'assistante',
-    terrain: false,
-  });
 
   const streamRef = useRef<HTMLDivElement>(null);
   const pjRef = useRef<HTMLInputElement>(null);
@@ -126,7 +120,7 @@ export function MessagesView({
 
   function canDeleteConv(id: string) {
     const c0 = convs.find((x) => x.id === id);
-    if (c0?.kind === 'affaire' || c0?.kind === 'gen') return false;
+    if (c0?.kind === 'gen') return false;
     return canAdd && id !== 'gen' && id !== meId && !BUREAU_IDS.has(id);
   }
 
@@ -149,14 +143,13 @@ export function MessagesView({
   }
 
   const filtered = useMemo(() => {
-    let list = [...convs];
+    // Messagerie interne seulement (pas les fils chantier de la fiche affaire)
+    let list = convs.filter((x) => x.kind === 'gen' || x.kind === 'user' || !x.kind);
 
-    if (rail === 'chantiers') list = list.filter((x) => x.kind === 'affaire');
-    else if (rail === 'archived') list = list.filter((x) => prefs.archived.includes(x.id));
+    if (rail === 'archived') list = list.filter((x) => prefs.archived.includes(x.id));
     else if (rail === 'pinned') list = list.filter((x) => prefs.pinned.includes(x.id));
     else list = list.filter((x) => !prefs.archived.includes(x.id));
 
-    if (listFilter === 'chantiers') list = list.filter((x) => x.kind === 'affaire');
     if (listFilter === 'directs') list = list.filter((x) => x.kind === 'user');
     if (listFilter === 'nonlus') list = list.filter((x) => unreadCount(x) > 0);
 
@@ -265,16 +258,34 @@ export function MessagesView({
     if (kind === 'photo') body = `📷 ${x.last}`;
     else if (kind === 'doc') body = `📎 ${x.last}`;
     else if (kind === 'action') body = `✓ ${x.last}`;
-    if ((x.kind === 'gen' || x.kind === 'affaire') && x.lastAuthor && kind !== 'empty') {
+    if (x.kind === 'gen' && x.lastAuthor && kind !== 'empty') {
       const p = prenom(x.lastAuthor);
       if (!body.startsWith(p)) return `${p} : ${body}`;
     }
     return body;
   }
 
+  function bumpConv(id: string, preview: string, kind: LastKind = 'text') {
+    const now = new Date().toISOString();
+    setConvs((prev) =>
+      prev.map((x) =>
+        x.id === id
+          ? {
+              ...x,
+              last: preview,
+              lastKind: kind,
+              lastAuthor: meNom,
+              lastAt: now,
+            }
+          : x,
+      ),
+    );
+  }
+
   async function send() {
     const v = text.trim();
     if (!v || !c) return;
+    bumpConv(conv!, v, 'text');
     await fetch('/api/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -303,6 +314,8 @@ export function MessagesView({
         return;
       }
       const isImg = /\.(jpe?g|png|webp|gif|heic)$/i.test(j.name ?? file.name);
+      const label = j.name ?? file.name;
+      bumpConv(conv, label, isImg ? 'photo' : 'doc');
       await fetch('/api/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -392,27 +405,6 @@ export function MessagesView({
     router.refresh();
   }
 
-  async function addCollaborateur(e: React.FormEvent) {
-    e.preventDefault();
-    setAdding(true);
-    setAddErr('');
-    const r = await fetch('/api/collaborateurs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    });
-    const j = await r.json();
-    setAdding(false);
-    if (!r.ok) {
-      setAddErr(j.error ?? 'Impossible d’ajouter');
-      return;
-    }
-    setShowAdd(false);
-    setForm({ nom: '', initiales: '', email: '', role: 'assistante', terrain: false });
-    router.refresh();
-    if (j.user?.id) selectConv(j.user.id);
-  }
-
   async function deleteCollaborateur(id: string, nom: string) {
     if (!canDeleteConv(id)) return;
     if (!confirm(`Retirer ${nom} de l’équipe ?`)) return;
@@ -440,16 +432,103 @@ export function MessagesView({
     router.refresh();
   }
 
-  function togglePin(id: string) {
-    persist({ ...prefs, pinned: toggleInList(prefs.pinned, id) });
+  const composeRecipients = useMemo(() => {
+    const s = composeQ.trim().toLowerCase();
+    let list = convs.filter(
+      (x) =>
+        (x.kind === 'gen' || x.kind === 'user' || !x.kind) &&
+        !prefs.archived.includes(x.id),
+    );
+    if (s) {
+      list = list.filter(
+        (x) =>
+          x.titre.toLowerCase().includes(s) ||
+          x.sousTitre.toLowerCase().includes(s) ||
+          x.avatar.toLowerCase().includes(s),
+      );
+    }
+    return list.sort((a, b) => {
+      const order = (k?: ConvKind) => (k === 'gen' ? 0 : 1);
+      const d = order(a.kind) - order(b.kind);
+      if (d !== 0) return d;
+      return a.titre.localeCompare(b.titre, 'fr');
+    });
+  }, [convs, composeQ, prefs.archived]);
+
+  function openCompose() {
+    setComposeErr('');
+    setComposeText('');
+    setComposeQ('');
+    setComposeTo(null);
+    setShowCompose(true);
   }
-  function toggleMute(id: string) {
-    persist({ ...prefs, muted: toggleInList(prefs.muted, id) });
+
+  function openComposeTo(id: string) {
+    setComposeTo(id);
+    setComposeErr('');
   }
-  function toggleArchive(id: string) {
-    const nextArch = toggleInList(prefs.archived, id);
-    persist({ ...prefs, archived: nextArch });
-    if (nextArch.includes(id) && conv === id) clearConv();
+
+  async function submitCompose(e: React.FormEvent) {
+    e.preventDefault();
+    const targetId = composeTo;
+    const v = composeText.trim();
+    if (!targetId) {
+      setComposeErr('Choisissez un destinataire.');
+      return;
+    }
+    if (!v) {
+      setComposeErr('Écrivez un message.');
+      return;
+    }
+    const target = convs.find((x) => x.id === targetId);
+    if (!target) {
+      setComposeErr('Discussion introuvable.');
+      return;
+    }
+    setComposeBusy(true);
+    setComposeErr('');
+    const now = new Date().toISOString();
+    setConvs((prev) =>
+      prev.map((x) =>
+        x.id === targetId
+          ? {
+              ...x,
+              last: v,
+              lastKind: 'text' as const,
+              lastAuthor: meNom,
+              lastAt: now,
+            }
+          : x,
+      ),
+    );
+    const r = await fetch('/api/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        threadKey: targetId,
+        affaireId: target.affaireId ?? null,
+        texte: v,
+      }),
+    });
+    setComposeBusy(false);
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      setComposeErr(j.error ?? 'Envoi impossible');
+      return;
+    }
+    setShowCompose(false);
+    setComposeText('');
+    setComposeTo(null);
+    selectConv(targetId);
+    await load(targetId);
+    router.refresh();
+    requestAnimationFrame(() => taRef.current?.focus());
+  }
+
+  function openOnly(id: string) {
+    setShowCompose(false);
+    selectConv(id);
+    requestAnimationFrame(() => taRef.current?.focus());
   }
 
   return (
@@ -476,23 +555,6 @@ export function MessagesView({
             {totalUnread > 0 ? (
               <span className="wa-rail-badge">{totalUnread > 99 ? '99+' : totalUnread}</span>
             ) : null}
-          </button>
-          <button
-            type="button"
-            className={`wa-rail-btn${rail === 'chantiers' ? ' on' : ''}`}
-            title="Chantiers"
-            aria-label="Chantiers"
-            onClick={() => {
-              setRail('chantiers');
-              setListFilter('chantiers');
-            }}
-          >
-            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden>
-              <path
-                fill="currentColor"
-                d="M12 3 2 12h3v8h6v-6h2v6h6v-8h3L12 3z"
-              />
-            </svg>
           </button>
           <button
             type="button"
@@ -534,22 +596,20 @@ export function MessagesView({
             <AideLabel aide={AIDES.msgListe} as="div">
               <h2>Messages</h2>
             </AideLabel>
-            {canAdd ? (
-              <button
-                type="button"
-                className="wa-icon-btn"
-                title="Nouvelle discussion"
-                aria-label="Nouvelle discussion"
-                onClick={() => setShowAdd(true)}
-              >
-                <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden>
-                  <path
-                    fill="currentColor"
-                    d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
-                  />
-                </svg>
-              </button>
-            ) : null}
+            <button
+              type="button"
+              className="wa-icon-btn"
+              title="Nouveau message"
+              aria-label="Nouveau message"
+              onClick={openCompose}
+            >
+              <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden>
+                <path
+                  fill="currentColor"
+                  d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"
+                />
+              </svg>
+            </button>
           </header>
 
           <div className="wa-search">
@@ -574,7 +634,6 @@ export function MessagesView({
               {(
                 [
                   ['tous', 'Tous'],
-                  ['chantiers', 'Chantiers'],
                   ['directs', 'Directs'],
                   ['nonlus', 'Non lus'],
                 ] as const
@@ -667,48 +726,9 @@ export function MessagesView({
                 <AvatarBubble label={c.avatar} cls={`wa-av ${c.cls}`.trim()} size={40} />
                 <div className="wa-chat-head-txt">
                   <h3>{c.titre}</h3>
-                  <p>
-                    {c.kind === 'affaire' && c.affaireStatut
-                      ? `${c.affaireStatut} · ${c.sousTitre}`
-                      : c.sousTitre}
-                  </p>
+                  <p>{c.sousTitre}</p>
                 </div>
                 <div className="wa-head-actions">
-                  {c.kind === 'affaire' && c.affaireId ? (
-                    <Link
-                      href={`/portefeuille?affaire=${encodeURIComponent(c.affaireId)}`}
-                      className="wa-head-link"
-                    >
-                      Fiche chantier
-                    </Link>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="wa-icon-btn"
-                    title={prefs.pinned.includes(conv) ? 'Désépingler' : 'Épingler'}
-                    aria-label="Épingler"
-                    onClick={() => togglePin(conv)}
-                  >
-                    📌
-                  </button>
-                  <button
-                    type="button"
-                    className="wa-icon-btn"
-                    title={prefs.muted.includes(conv) ? 'Réactiver' : 'Sourdine'}
-                    aria-label="Sourdine"
-                    onClick={() => toggleMute(conv)}
-                  >
-                    🔔
-                  </button>
-                  <button
-                    type="button"
-                    className="wa-icon-btn"
-                    title={prefs.archived.includes(conv) ? 'Désarchiver' : 'Archiver'}
-                    aria-label="Archiver"
-                    onClick={() => toggleArchive(conv)}
-                  >
-                    📦
-                  </button>
                   {canDeleteConv(c.id) ? (
                     <button
                       type="button"
@@ -928,6 +948,9 @@ export function MessagesView({
                 height={40}
               />
               <p>Sélectionnez une discussion</p>
+              <button type="button" className="btn-primary" onClick={openCompose}>
+                Nouveau message
+              </button>
             </div>
           )}
         </section>
@@ -981,67 +1004,101 @@ export function MessagesView({
         </>
       ) : null}
 
-      {showAdd ? (
+      {showCompose ? (
         <>
-          <div className="scrim on" onClick={() => setShowAdd(false)} />
-          <div className="add-collab-sheet">
-            <button type="button" className="sheet-close" onClick={() => setShowAdd(false)}>
+          <div className="scrim on" onClick={() => !composeBusy && setShowCompose(false)} />
+          <div
+            className="add-collab-sheet wa-compose-sheet"
+            role="dialog"
+            aria-labelledby="wa-compose-title"
+          >
+            <button
+              type="button"
+              className="sheet-close"
+              onClick={() => setShowCompose(false)}
+              disabled={composeBusy}
+            >
               ✕
             </button>
-            <span className="eyebrow">Nouvelle discussion</span>
-            <h3>Ajouter un collaborateur</h3>
-            <p className="hint">Mot de passe démo : setrim2026.</p>
-            <form onSubmit={addCollaborateur} className="add-collab-form">
-              <label>
-                Nom
-                <input
-                  required
-                  value={form.nom}
-                  onChange={(e) => setForm({ ...form, nom: e.target.value })}
-                />
-              </label>
-              <label>
-                Initiales
-                <input
-                  value={form.initiales}
-                  maxLength={2}
-                  onChange={(e) =>
-                    setForm({ ...form, initiales: e.target.value.toUpperCase() })
-                  }
-                />
-              </label>
-              <label>
-                Email
-                <input
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                />
-              </label>
-              <label>
-                Rôle
-                <select
-                  value={form.role}
-                  onChange={(e) => setForm({ ...form, role: e.target.value })}
+            <span className="eyebrow">Messagerie</span>
+            <h3 id="wa-compose-title">Nouveau message</h3>
+            <p className="hint">Choisissez un destinataire, puis écrivez votre message.</p>
+
+            <label className="wa-compose-search">
+              Rechercher
+              <input
+                value={composeQ}
+                onChange={(e) => setComposeQ(e.target.value)}
+                placeholder="Nom, chantier…"
+                autoComplete="off"
+              />
+            </label>
+
+            <div className="wa-compose-list" role="listbox" aria-label="Destinataires">
+              {composeRecipients.map((x) => (
+                <button
+                  key={x.id}
+                  type="button"
+                  role="option"
+                  aria-selected={composeTo === x.id}
+                  className={`wa-compose-pick${composeTo === x.id ? ' on' : ''}`}
+                  onClick={() => openComposeTo(x.id)}
+                  onDoubleClick={() => openOnly(x.id)}
                 >
-                  <option value="assistante">Assistante travaux</option>
-                  <option value="responsable">Resp. administrative</option>
-                  <option value="dirigeant">Dirigeant</option>
-                  <option value="conducteur">Conducteur de travaux</option>
-                </select>
-              </label>
-              <label className="chk">
-                <input
-                  type="checkbox"
-                  checked={form.terrain}
-                  onChange={(e) => setForm({ ...form, terrain: e.target.checked })}
+                  <AvatarBubble label={x.avatar} cls={`wa-av ${x.cls}`.trim()} size={36} />
+                  <span>
+                    <strong>{x.titre}</strong>
+                    <small>
+                      {x.kind === 'gen'
+                        ? 'Équipe'
+                        : x.kind === 'affaire'
+                          ? 'Chantier'
+                          : 'Direct'}
+                      {x.sousTitre ? ` · ${x.sousTitre}` : ''}
+                    </small>
+                  </span>
+                </button>
+              ))}
+              {!composeRecipients.length ? (
+                <p className="hint">Aucun destinataire trouvé.</p>
+              ) : null}
+            </div>
+
+            <form onSubmit={(e) => void submitCompose(e)} className="add-collab-form">
+              <label>
+                Message
+                <textarea
+                  rows={3}
+                  value={composeText}
+                  onChange={(e) => setComposeText(e.target.value)}
+                  placeholder={
+                    composeTo
+                      ? 'Écrivez votre message…'
+                      : 'Choisissez d’abord un destinataire'
+                  }
+                  disabled={!composeTo || composeBusy}
                 />
-                Sur le terrain
               </label>
-              {addErr ? <p className="err">{addErr}</p> : null}
-              <button type="submit" className="btn-primary" disabled={adding}>
-                {adding ? 'Ajout…' : 'Ajouter'}
-              </button>
+              {composeErr ? <p className="err">{composeErr}</p> : null}
+              <div className="wa-compose-actions">
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={composeBusy || !composeTo}
+                >
+                  {composeBusy ? 'Envoi…' : 'Envoyer'}
+                </button>
+                {composeTo ? (
+                  <button
+                    type="button"
+                    className="btn-edit"
+                    disabled={composeBusy}
+                    onClick={() => openOnly(composeTo)}
+                  >
+                    Ouvrir sans envoyer
+                  </button>
+                ) : null}
+              </div>
             </form>
           </div>
         </>

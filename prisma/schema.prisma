@@ -15,6 +15,12 @@ enum Role {
   conducteur
 }
 
+/// Droit d’accès application (pas la fonction métier)
+enum Acces {
+  administrateur
+  collaborateur
+}
+
 enum AffaireStatut {
   commande
   programme
@@ -42,17 +48,27 @@ enum PieceType {
 }
 
 model User {
-  id           String   @id
-  initiales    String   @unique
-  nom          String
-  email        String   @unique
-  passwordHash String
-  role         Role
-  terrain      Boolean  @default(false)
-  actif        Boolean  @default(true)
-  /// Photo de profil (/uploads/... ou data URL)
-  avatarUrl    String?
-  createdAt    DateTime @default(now())
+  id                  String   @id
+  initiales           String   @unique
+  /// Affichage court (prénom ou nom complet historique)
+  nom                 String
+  prenom              String   @default("")
+  nomFamille          String   @default("")
+  telephone           String   @default("")
+  email               String   @unique
+  passwordHash        String
+  role                Role
+  /// Administrateur (Valérie, Denis) ou Collaborateur
+  acces               Acces    @default(collaborateur)
+  terrain             Boolean  @default(false)
+  actif               Boolean  @default(true)
+  /// Photo de profil (/uploads/... ou emoji)
+  avatarUrl           String?
+  lastLoginAt         DateTime?
+  mustChangePassword  Boolean  @default(false)
+  /// Incrémenté pour invalider les sessions JWT
+  tokenVersion        Int      @default(0)
+  createdAt           DateTime @default(now())
 
   taches          Tache[]            @relation("TacheResponsable")
   messages        Message[]
@@ -60,6 +76,140 @@ model User {
   notifications   NotificationLog[]
   piecesUploadees Piece[]            @relation("PieceAuteur")
   remarques       Remarque[]
+  adminAudits     AdminAuditLog[]    @relation("AdminAuteur")
+  notifPrefs      UserNotifPrefs?
+  supportTickets  SupportTicket[]
+}
+
+/// Préférences de notification (1 par utilisateur)
+model UserNotifPrefs {
+  userId         String  @id
+  pushEnabled    Boolean @default(true)
+  emailEnabled   Boolean @default(false)
+  alertMessages  Boolean @default(true)
+  alertActions   Boolean @default(true)
+  alertContrats  Boolean @default(true)
+  alertRelances  Boolean @default(true)
+  /// 1 = Info, 2 = À faire, 3 = Urgent (seuil minimum reçu)
+  urgenceMin     Int     @default(1)
+  silenceDebut   String  @default("22:00")
+  silenceFin     String  @default("07:00")
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum SupportStatut {
+  envoyee
+  en_cours
+  resolue
+}
+
+enum SupportUrgence {
+  basse
+  normale
+  haute
+}
+
+enum FactureAboStatut {
+  payee
+  en_attente
+}
+
+enum PeriodiciteAbo {
+  mensuelle
+  annuelle
+}
+
+enum ModeReglement {
+  prelevement
+  virement
+  cheque
+}
+
+/// Identité & facturation de l’entreprise abonnée (singleton démo)
+model Entreprise {
+  id                   String         @id @default("setrim")
+  raisonSociale        String
+  adresse              String         @default("")
+  siret                String         @default("")
+  tvaIntra             String         @default("")
+  logoUrl              String?
+  facturationAdresse   String         @default("")
+  facturationEmail     String         @default("")
+  referenceCommande    String         @default("")
+  modeReglement        ModeReglement  @default(prelevement)
+  periodicite          PeriodiciteAbo @default(mensuelle)
+  supportEmail         String         @default("support@bework.app")
+  supportTelephone     String         @default("01 89 71 00 20")
+  supportHoraires      String         @default("Lun–Ven 9h–18h")
+  updatedAt            DateTime       @updatedAt
+
+  abonnement Abonnement?
+  factures   FacturePlateforme[]
+}
+
+model Abonnement {
+  id                 String   @id @default(cuid())
+  entrepriseId       String   @unique
+  formule            String
+  usersInclus        Int      @default(5)
+  fonctionnalites    String   @default("")
+  dateDebut          DateTime
+  prochaineEcheance  DateTime
+  renouvellementAuto Boolean  @default(true)
+  updatedAt          DateTime @updatedAt
+
+  entreprise Entreprise @relation(fields: [entrepriseId], references: [id], onDelete: Cascade)
+}
+
+/// Factures de la plateforme (pas les factures chantier)
+model FacturePlateforme {
+  id            String           @id @default(cuid())
+  entrepriseId  String
+  numero        String
+  dateEmission  DateTime
+  periodeDebut  DateTime
+  periodeFin    DateTime
+  montantHt     Decimal          @db.Decimal(12, 2)
+  montantTtc    Decimal          @db.Decimal(12, 2)
+  statut        FactureAboStatut @default(en_attente)
+  pdfUrl        String?
+  createdAt     DateTime         @default(now())
+
+  entreprise Entreprise @relation(fields: [entrepriseId], references: [id], onDelete: Cascade)
+
+  @@index([entrepriseId, dateEmission])
+}
+
+model SupportTicket {
+  id          String         @id @default(cuid())
+  numero      String         @unique
+  auteurId    String
+  objet       String
+  description String
+  urgence     SupportUrgence @default(normale)
+  statut      SupportStatut  @default(envoyee)
+  captureUrl  String?
+  /// probleme | changer_formule | ajouter_users | resilier
+  kind        String         @default("probleme")
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  auteur User @relation(fields: [auteurId], references: [id], onDelete: Cascade)
+
+  @@index([auteurId, createdAt])
+}
+
+model AdminAuditLog {
+  id        String   @id @default(cuid())
+  auteurId  String
+  action    String
+  cibleId   String?
+  detail    String   @default("")
+  createdAt DateTime @default(now())
+
+  auteur User @relation("AdminAuteur", fields: [auteurId], references: [id], onDelete: Cascade)
 }
 
 model Affaire {

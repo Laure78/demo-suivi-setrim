@@ -1,6 +1,7 @@
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { AppShell } from '@/components/AppShell';
+import { AdminBillingBanner } from '@/components/AdminBillingBanner';
 import { daysLate } from '@/lib/format';
 
 export async function Shell({
@@ -24,6 +25,7 @@ export async function Shell({
 
   return (
     <AppShell lateCount={lateCount} unreadCount={0} title={title}>
+      <AdminBillingBanner />
       {children}
     </AppShell>
   );

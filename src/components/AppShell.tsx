@@ -23,6 +23,7 @@ import { AideTip } from '@/components/AideTip';
 import { WhoSwitcher } from '@/components/WhoSwitcher';
 import { SetrimFooter } from '@/components/SetrimFooter';
 import { enableWebPush } from '@/lib/web-push-client';
+import { ACCES_LABEL, isAdministrateur } from '@/lib/acces-labels';
 import { Suspense, useEffect, type MouseEvent, type ReactNode } from 'react';
 
 const NAV_AIDES: Record<string, string> = {
@@ -34,6 +35,8 @@ const NAV_AIDES: Record<string, string> = {
   contrats: AIDES.navContrats,
   facturation: AIDES.navFacturation,
   tutoriel: AIDES.tutoriel,
+  administration: AIDES.navAdministration,
+  parametres: AIDES.parametres,
 };
 
 const TAB_ICONS: Record<string, ReactNode> = {
@@ -47,6 +50,9 @@ const TAB_ICONS: Record<string, ReactNode> = {
 const PLUS_HREFS = new Set([
   '/plus',
   '/',
+  '/profil',
+  '/administration',
+  '/parametres',
   ...SCREENS.filter((s) => (PLUS_MENU_IDS as readonly string[]).includes(s.id)).map((s) => s.href),
 ]);
 
@@ -93,6 +99,7 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
   const pathname = usePathname();
   const { data } = useSession();
   const user = data?.user;
+  const isAdmin = isAdministrateur(user?.acces);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -102,12 +109,16 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (/INPUT|TEXTAREA/.test((e.target as HTMLElement)?.tagName ?? '')) return;
+      if (e.key === '9') {
+        window.location.href = '/parametres';
+        return;
+      }
       const s = SCREENS.find((x) => x.k === e.key);
       if (s) window.location.href = s.href;
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [isAdmin]);
 
   const screenTitle =
     title ??
@@ -115,9 +126,16 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
       ? 'Accueil'
       : pathname === '/plus'
         ? 'Plus'
-        : pathname.startsWith(MESSAGES_HREF)
-          ? 'Messagerie'
-          : SCREENS.find((s) => pathname === s.href || pathname.startsWith(s.href + '/'))?.label) ??
+        : pathname.startsWith('/parametres') ||
+            pathname.startsWith('/administration') ||
+            pathname.startsWith('/profil')
+          ? 'Paramètres'
+          : pathname.startsWith('/changer-mot-de-passe')
+            ? 'Mot de passe'
+            : pathname.startsWith(MESSAGES_HREF)
+              ? 'Messagerie'
+              : SCREENS.find((s) => pathname === s.href || pathname.startsWith(s.href + '/'))
+                  ?.label) ??
     'Accueil';
 
   const today = new Date().toLocaleDateString('fr-FR', {
@@ -174,6 +192,17 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
             </Link>
           );
         })}
+        <Link
+          href="/parametres"
+          className={`nav-link${pathname.startsWith('/parametres') || pathname.startsWith('/profil') || pathname.startsWith('/administration') ? ' on' : ''}`}
+          title={AIDES.parametres}
+        >
+          <span className="k">9</span>
+          <span className="nav-label">Paramètres</span>
+          <span className="aide-nav" onClick={stopAideClick} onKeyDown={(e) => e.stopPropagation()}>
+            <AideTip text={AIDES.parametres} placement="right" />
+          </span>
+        </Link>
       </>
     );
   }
@@ -207,7 +236,10 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
               <div className="rail-who">
                 <span className="rail-who-label">Connecté</span>
                 <strong>{user.name}</strong>
-                <span>{ROLE_LABEL[user.role] ?? user.role}</span>
+                <span>{ACCES_LABEL[user.acces] ?? 'Collaborateur'}</span>
+                <span className="hint" style={{ color: 'rgba(255,255,255,.55)', fontSize: 11 }}>
+                  {ROLE_LABEL[user.role] ?? user.role}
+                </span>
               </div>
               <button
                 type="button"

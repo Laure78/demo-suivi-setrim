@@ -9,9 +9,16 @@ import { assurerLiensGlobaux } from '@/lib/affaire-lifecycle';
 
 export const dynamic = 'force-dynamic';
 
-export default async function AccueilPage() {
+export default async function AccueilPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ erreur?: string }>;
+}) {
   const session = await auth();
   if (!session?.user) redirect('/login');
+
+  const sp = searchParams ? await searchParams : {};
+  const erreurAdmin = sp.erreur === 'admin';
 
   await assurerLiensGlobaux();
 
@@ -74,6 +81,20 @@ export default async function AccueilPage() {
 
   return (
     <Shell title="Accueil">
+      {erreurAdmin ? (
+        <p
+          className="err"
+          style={{
+            marginBottom: 14,
+            padding: '10px 12px',
+            background: 'rgba(196,70,40,.08)',
+            borderLeft: '3px solid var(--flamme)',
+          }}
+        >
+          L&apos;administration est réservée à Valérie et Denis. Vous avez été renvoyé à
+          l&apos;accueil.
+        </p>
+      ) : null}
       <DashboardView
         userName={session.user.name ?? 'SETRIM'}
         kpis={{

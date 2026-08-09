@@ -5,10 +5,10 @@ export const AIDES = {
     'Tableau de bord : vue d’ensemble (tâches, chantiers, affaires, clients, facturation). Cliquez le logo SETRIM pour y revenir.',
   who: 'Les 5 accès individuels bureau. Cliquez une pastille pour basculer (chacun a son mot de passe). Pastille Connecté = session en cours.',
   messagerie:
-    'Messagerie type WhatsApp. Équipe SETRIM et messages privés. Aussi dans le menu à gauche (touche 8).',
+    'Messagerie type WhatsApp. Discussions les plus récentes en haut (reçus et envoyés). Aussi dans le menu à gauche (touche 8).',
   tutoriel: 'Guide complet du fonctionnement de la plateforme. Mis à jour quand l’outil évolue (dernière maj : Août 2026).',
   navAujourdhui: 'Vos tâches du jour et les chantiers planifiés aujourd’hui.',
-  navMessagerie: 'Équipe SETRIM et messages privés (style WhatsApp). Touche 8.',
+  navMessagerie: 'Équipe SETRIM et messages privés (style WhatsApp). Plus récents en haut. Touche 8.',
   navPortefeuille: 'Toutes les affaires (commande → soldé). Cliquez une ligne pour ouvrir la fiche.',
   navClients:
     'Fiches clients : contact, téléphone, notes. Rattachez chaque chantier à un syndic / client. Touche 7.',
@@ -17,6 +17,10 @@ export const AIDES = {
   navContrats:
     'Contrats d’entretien (juillet → juin). Date ↔ planning synchronisés. Filtre par statut.',
   navFacturation: 'Acomptes, soldes et impayés à suivre.',
+  navAdministration:
+    'Comptes utilisateurs (onglet dans Paramètres). Réservé à Valérie et Denis.',
+  parametres:
+    'Profil, notifications, support. Administrateurs : utilisateurs, entreprise, abonnement. Touche 9.',
   navPlus:
     'Sur téléphone : autres écrans (Aujourd’hui, Clients, Facturation, Tutoriel), bascule « Je suis » et déconnexion.',
   tachesJour:
@@ -39,8 +43,8 @@ export const AIDES = {
   facturation:
     'Suivi des acomptes et soldes. Cliquez une affaire pour ouvrir la fiche et facturer.',
   msgListe:
-    'Discussions : Équipe SETRIM ou un collègue en privé. Recherchez par nom. + = ajouter un collaborateur (bureau).',
+    'Discussions : Équipe, directs, chantiers. Bouton + pour un nouveau message. Recherchez par nom.',
   msgComposer:
-    'Saisie en bas : texte, photo ou pièce jointe. Bouton vert pour envoyer. Survolez un message → + tâche. Pas de suppression.',
+    'Saisie en bas : texte, photo ou pièce jointe. Bouton vert pour envoyer. Survolez un message → + tâche.',
   msgTache: 'Transforme ce message en tâche sur Aujourd’hui.',
 } as const;
