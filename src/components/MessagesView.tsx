@@ -27,6 +27,39 @@ import {
 const BUREAU_IDS = new Set(['audrey', 'melissa', 'valerie', 'denis', 'philippe']);
 const REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'] as const;
 
+/** Couleurs de prénom type WhatsApp (groupes). */
+const AUTHOR_COLORS = [
+  '#06CF9C',
+  '#E56B6F',
+  '#53BDEB',
+  '#D452E8',
+  '#FFBC38',
+  '#02A698',
+  '#FF7A6B',
+  '#6B7CFF',
+];
+
+function authorColor(seed: string): string {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return AUTHOR_COLORS[h % AUTHOR_COLORS.length]!;
+}
+
+function parseReplyQuote(texte: string | null): {
+  quoteAuthor: string;
+  quoteText: string;
+  body: string;
+} | null {
+  if (!texte) return null;
+  const m = texte.match(/^↪\s*(.+?)\s*:\s*(.+?)\n([\s\S]*)$/);
+  if (!m) return null;
+  return {
+    quoteAuthor: m[1]!.trim(),
+    quoteText: m[2]!.trim(),
+    body: m[3] ?? '',
+  };
+}
+
 type ConvKind = 'gen' | 'user' | 'cha' | 'ext';
 type LastKind = 'text' | 'photo' | 'doc' | 'action' | 'empty';
 type ListFilter = 'tous' | 'directs' | 'nonlus';
@@ -1011,7 +1044,11 @@ export function MessagesView({
                 <AvatarBubble label={c.avatar} cls={`wa-av ${c.cls}`.trim()} size={40} />
                 <div className="wa-chat-head-txt">
                   <h3>{c.titre}</h3>
-                  <p>{c.sousTitre}</p>
+                  <p>
+                    {c.kind === 'user' || c.kind === 'ext'
+                      ? `Discussion avec ${c.titre}`
+                      : c.sousTitre}
+                  </p>
                 </div>
                 <div className="wa-head-actions">
                   {!isExterne ? (
@@ -1159,19 +1196,12 @@ export function MessagesView({
                   const showDay =
                     !prev || !sameDay(prev.createdAt, m.createdAt);
                   const mine = m.auteurId === meId;
-                  const isGroup = c.kind === 'gen';
                   const showAuthor =
-                    isGroup &&
-                    !mine &&
-                    (!prev ||
-                      prev.systeme ||
-                      prev.auteurId !== m.auteurId ||
-                      !sameDay(prev.createdAt, m.createdAt));
-                  const showTail =
                     !prev ||
                     prev.systeme ||
                     prev.auteurId !== m.auteurId ||
                     !sameDay(prev.createdAt, m.createdAt);
+                  const showTail = showAuthor;
                   const isImg =
                     m.fichier && /\.(jpe?g|png|webp|gif|heic)$/i.test(m.fichier);
                   const isPdf = m.fichier && /\.pdf$/i.test(m.fichier);
@@ -1179,13 +1209,31 @@ export function MessagesView({
                   const starred = prefs.starred.includes(m.id);
                   const reaction = prefs.reactions[m.id];
                   const isSelected = selected.includes(m.id);
+                  const quote = parseReplyQuote(m.texte);
+                  const displayText = quote ? quote.body : m.texte;
+                  const authorLabel = mine ? 'Vous' : m.auteur.nom;
+                  const authorHue = authorColor(m.auteurId || m.auteur.nom);
                   return (
                     <div key={m.id}>
                       {showDay ? (
                         <div className="wa-day-chip">{formatDaySeparator(m.createdAt)}</div>
                       ) : null}
                       <div
-                        className={`wa-bub${mine ? ' me' : ''}${showTail ? ' tail' : ''}${isSelected ? ' select-on' : ''}${reaction ? ' has-react' : ''}`}
+                        className={`wa-msg-row${mine ? ' me' : ''}${showTail ? ' tail' : ''}`}
+                      >
+                        {!mine ? (
+                          showTail ? (
+                            <AvatarBubble
+                              label={m.auteur.initiales}
+                              size={32}
+                              cls="wa-msg-av"
+                            />
+                          ) : (
+                            <span className="wa-msg-av-spacer" aria-hidden />
+                          )
+                        ) : null}
+                      <div
+                        className={`wa-bub${mine ? ' me' : ''}${showTail ? ' tail' : ''}${isSelected ? ' select-on' : ''}${reaction ? ' has-react' : ''}${m.interne ? ' interne-msg' : ''}`}
                         onContextMenu={(e) => {
                           e.preventDefault();
                           openMsgMenu(m, { clientX: e.clientX, clientY: e.clientY });
@@ -1234,9 +1282,13 @@ export function MessagesView({
                           </button>
                         ) : null}
                         {showAuthor ? (
-                          <span className="wa-bub-author">
-                            {m.auteur.nom}
-                            {m.auteur.acces === 'externe' || m.auteur.societe ? (
+                          <span
+                            className={`wa-bub-author${mine ? ' me' : ''}`}
+                            style={mine ? undefined : { color: authorHue }}
+                          >
+                            {authorLabel}
+                            {!mine &&
+                            (m.auteur.acces === 'externe' || m.auteur.societe) ? (
                               <span className="wa-ext-tag">
                                 {m.auteur.societe || 'Externe'}
                               </span>
@@ -1245,6 +1297,21 @@ export function MessagesView({
                         ) : null}
                         {m.interne ? (
                           <span className="wa-interne-badge">Note interne</span>
+                        ) : null}
+                        {quote ? (
+                          <div
+                            className="wa-quote"
+                            style={
+                              mine
+                                ? undefined
+                                : { borderLeftColor: authorColor(quote.quoteAuthor) }
+                            }
+                          >
+                            <b style={{ color: authorColor(quote.quoteAuthor) }}>
+                              {quote.quoteAuthor}
+                            </b>
+                            <span>{quote.quoteText}</span>
+                          </div>
                         ) : null}
                         {starred ? (
                           <span className="wa-bub-star" aria-label="Important">
@@ -1285,7 +1352,7 @@ export function MessagesView({
                         ) : m.photoLabel ? (
                           <div className="wa-pj">📷 {m.photoLabel}</div>
                         ) : null}
-                        {m.texte ? <p>{m.texte}</p> : null}
+                        {displayText ? <p>{displayText}</p> : null}
                         {hasAction ? (
                           <Link href="/aujourdhui" className="wa-action-badge">
                             Action créée
@@ -1307,6 +1374,7 @@ export function MessagesView({
                             {reaction}
                           </span>
                         ) : null}
+                      </div>
                       </div>
                     </div>
                   );

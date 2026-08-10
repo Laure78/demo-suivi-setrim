@@ -183,7 +183,7 @@ export const TUTORIEL_SECTIONS: TutorielSection[] = [
       'Nouveau message : bouton + en haut de la liste (ou sur l’écran vide) — choisissez un destinataire et envoyez.',
       'Conversation : clic droit / appui long → options WhatsApp. Bouton « Inviter un externe » pour syndics, MOE, fournisseurs.',
       'Fil avec externes : bandeau jaune permanent, pastille société, notes internes (invisible aux externes), rappel avant le 1er envoi.',
-      'Bulles vertes (vous) / blanches (autres), queues, ticks bleus, séparateurs de date, pièces jointes PDF, @mentions.',
+      'Chaque message affiche qui parle (prénom coloré ou « Vous ») ; avatar à gauche pour les autres ; les réponses citent le message d’origine.',
       'Les discussions de chantier (fil affaire) restent sur la fiche chantier ; elles apparaissent aussi ici dès qu’un externe y est invité.',
       'Sur téléphone : liste plein écran, puis conversation avec flèche retour.',
       'Épinglage discussion, sourdine, archives, importants / réactions / messages masqués : mémorisés sur cet appareil.',
