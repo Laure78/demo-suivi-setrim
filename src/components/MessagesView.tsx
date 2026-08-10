@@ -20,14 +20,15 @@ import {
   prenom,
   saveMsgPrefs,
   sameDay,
+  toggleInList,
   type MsgPrefs,
 } from '@/lib/messages-prefs';
 
 const BUREAU_IDS = new Set(['audrey', 'melissa', 'valerie', 'denis', 'philippe']);
+const REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'] as const;
 
-type ConvKind = 'gen' | 'user';
+type ConvKind = 'gen' | 'user' | 'cha' | 'ext';
 type LastKind = 'text' | 'photo' | 'doc' | 'action' | 'empty';
-type RailMode = 'messages' | 'archived' | 'pinned';
 type ListFilter = 'tous' | 'directs' | 'nonlus';
 
 type Conv = {
@@ -52,9 +53,16 @@ type Msg = {
   photoLabel: string | null;
   fichier?: string | null;
   systeme: boolean;
+  interne?: boolean;
   createdAt: string;
   auteurId: string;
-  auteur: { nom: string; initiales: string };
+  auteur: {
+    nom: string;
+    initiales: string;
+    societe?: string;
+    fonction?: string;
+    acces?: string;
+  };
 };
 
 type MentionUser = { id: string; nom: string; initiales: string };
@@ -67,6 +75,7 @@ export function MessagesView({
   meNom,
   canAdd,
   mentionUsers,
+  isExterne = false,
 }: {
   convs: Conv[];
   initialThread: string | null;
@@ -75,6 +84,7 @@ export function MessagesView({
   meNom: string;
   canAdd: boolean;
   mentionUsers: MentionUser[];
+  isExterne?: boolean;
 }) {
   const [convs, setConvs] = useState(initialConvs);
   const [conv, setConv] = useState<string | null>(initialThread);
@@ -82,7 +92,6 @@ export function MessagesView({
   const [pinNote, setPinNote] = useState('');
   const [text, setText] = useState('');
   const [q, setQ] = useState('');
-  const [rail, setRail] = useState<RailMode>('messages');
   const [listFilter, setListFilter] = useState<ListFilter>('tous');
   const [prefs, setPrefs] = useState<MsgPrefs>(() => loadMsgPrefs());
   const [mobileThread, setMobileThread] = useState(!!initialThread);
@@ -95,7 +104,41 @@ export function MessagesView({
   const [deleting, setDeleting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [ctxMsg, setCtxMsg] = useState<Msg | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const [reactPicker, setReactPicker] = useState(false);
+  const [replyTo, setReplyTo] = useState<{
+    id: string;
+    auteur: string;
+    texte: string;
+  } | null>(null);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [forwardOpen, setForwardOpen] = useState(false);
+  const [forwardIds, setForwardIds] = useState<string[]>([]);
+  const [forwardBusy, setForwardBusy] = useState(false);
+  const [toast, setToast] = useState('');
   const [actionModal, setActionModal] = useState<Msg | null>(null);
+  const [hasExternes, setHasExternes] = useState(false);
+  const [externes, setExternes] = useState<
+    { id: string; nom: string; societe: string; fonction: string; initiales: string }[]
+  >([]);
+  const [pendingInvites, setPendingInvites] = useState<
+    { id: string; email: string; nom: string; societe: string; expiresAt: string }[]
+  >([]);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteForm, setInviteForm] = useState({
+    email: '',
+    nom: '',
+    societe: '',
+    fonction: '',
+    message: '',
+    historyMode: 'from_now',
+    accessDuration: 'months_6',
+  });
+  const [inviteLink, setInviteLink] = useState('');
+  const [interneMode, setInterneMode] = useState(false);
+  const [extReminderAck, setExtReminderAck] = useState(false);
   const [actionTitre, setActionTitre] = useState('');
   const [actionResp, setActionResp] = useState(meId);
   const [actionEcheance, setActionEcheance] = useState(() => {
@@ -144,11 +187,15 @@ export function MessagesView({
 
   const filtered = useMemo(() => {
     // Messagerie interne seulement (pas les fils chantier de la fiche affaire)
-    let list = convs.filter((x) => x.kind === 'gen' || x.kind === 'user' || !x.kind);
-
-    if (rail === 'archived') list = list.filter((x) => prefs.archived.includes(x.id));
-    else if (rail === 'pinned') list = list.filter((x) => prefs.pinned.includes(x.id));
-    else list = list.filter((x) => !prefs.archived.includes(x.id));
+    let list = convs.filter(
+      (x) =>
+        x.kind === 'gen' ||
+        x.kind === 'user' ||
+        x.kind === 'cha' ||
+        x.kind === 'ext' ||
+        !x.kind,
+    );
+    list = list.filter((x) => !prefs.archived.includes(x.id));
 
     if (listFilter === 'directs') list = list.filter((x) => x.kind === 'user');
     if (listFilter === 'nonlus') list = list.filter((x) => unreadCount(x) > 0);
@@ -174,7 +221,7 @@ export function MessagesView({
     });
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [convs, q, rail, listFilter, prefs]);
+  }, [convs, q, listFilter, prefs]);
 
   const mentionHits = useMemo(() => {
     if (!mentionOpen) return [];
@@ -198,7 +245,11 @@ export function MessagesView({
     if (!r.ok) return;
     const j = await r.json();
     setMsgs(j.messages);
-    setPinNote(j.pin ?? '');
+    setHasExternes(!!j.hasExternes);
+    setExternes(j.externes ?? []);
+    setPendingInvites(j.pendingInvites ?? []);
+    const localPin = loadMsgPrefs().msgPins[id];
+    setPinNote(localPin || j.pin || '');
     setPrefs((prev) => {
       const next = {
         ...prev,
@@ -242,13 +293,18 @@ export function MessagesView({
   function selectConv(id: string) {
     setConv(id);
     setMobileThread(true);
-    setCtxMsg(null);
+    closeMsgMenu();
+    exitSelect();
+    setReplyTo(null);
     router.replace(`/messages?thread=${encodeURIComponent(id)}`, { scroll: false });
   }
 
   function clearConv() {
     setConv(null);
     setMobileThread(false);
+    closeMsgMenu();
+    exitSelect();
+    setReplyTo(null);
     router.replace('/messages', { scroll: false });
   }
 
@@ -285,6 +341,22 @@ export function MessagesView({
   async function send() {
     const v = text.trim();
     if (!v || !c) return;
+    if (!isExterne && hasExternes && !interneMode && !extReminderAck) {
+      const key = `ext-remind-${conv}`;
+      if (typeof window !== 'undefined' && !localStorage.getItem(key)) {
+        const ok = window.confirm(
+          'Ce que vous écrivez ici est lu à l’extérieur (participants externes). Continuer ?',
+        );
+        if (!ok) return;
+        localStorage.setItem(key, '1');
+        setExtReminderAck(true);
+      } else {
+        setExtReminderAck(true);
+      }
+    }
+    const payload = replyTo
+      ? `↪ ${replyTo.auteur} : ${replyTo.texte}\n${v}`
+      : v;
     bumpConv(conv!, v, 'text');
     await fetch('/api/messages', {
       method: 'POST',
@@ -292,10 +364,12 @@ export function MessagesView({
       body: JSON.stringify({
         threadKey: conv,
         affaireId: c.affaireId ?? null,
-        texte: v,
+        texte: payload,
+        interne: !isExterne && interneMode,
       }),
     });
     setText('');
+    setReplyTo(null);
     setMentionOpen(false);
     await load(conv!);
     router.refresh();
@@ -307,6 +381,7 @@ export function MessagesView({
     try {
       const fd = new FormData();
       fd.append('file', file);
+      if (conv) fd.append('threadKey', conv);
       const up = await fetch('/api/uploads', { method: 'POST', body: fd });
       const j = await up.json();
       if (!up.ok) {
@@ -362,13 +437,195 @@ export function MessagesView({
   }
 
   function openAction(m: Msg) {
-    setCtxMsg(null);
+    closeMsgMenu();
     setActionModal(m);
     setActionTitre((m.texte ?? '').slice(0, 120));
     setActionResp(meId);
     const d = new Date();
     d.setDate(d.getDate() + 1);
     setActionEcheance(d.toISOString().slice(0, 10));
+  }
+
+  function msgPreview(m: Msg): string {
+    if (m.texte?.trim()) return m.texte.trim();
+    if (m.photoLabel) return m.photoLabel;
+    if (m.fichier) return 'Pièce jointe';
+    return 'Message';
+  }
+
+  function showToast(t: string) {
+    setToast(t);
+    window.setTimeout(() => setToast(''), 2200);
+  }
+
+  function closeMsgMenu() {
+    setCtxMsg(null);
+    setMenuPos(null);
+    setReactPicker(false);
+  }
+
+  function openMsgMenu(m: Msg, e?: { clientX: number; clientY: number }) {
+    if (selectMode) {
+      toggleSelect(m.id);
+      return;
+    }
+    setReactPicker(false);
+    setCtxMsg(m);
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const w = 260;
+    const h = 420;
+    let left = e?.clientX ?? vw / 2 - w / 2;
+    let top = e?.clientY ?? vh / 2 - h / 2;
+    left = Math.max(8, Math.min(left, vw - w - 8));
+    top = Math.max(8, Math.min(top, vh - h - 8));
+    setMenuPos({ top, left });
+  }
+
+  function toggleSelect(id: string) {
+    setSelected((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  }
+
+  function startSelect(m?: Msg) {
+    closeMsgMenu();
+    setSelectMode(true);
+    setSelected(m ? [m.id] : []);
+  }
+
+  function exitSelect() {
+    setSelectMode(false);
+    setSelected([]);
+  }
+
+  function replyMessage(m: Msg) {
+    closeMsgMenu();
+    setReplyTo({
+      id: m.id,
+      auteur: m.auteurId === meId ? 'Vous' : m.auteur.nom,
+      texte: msgPreview(m).slice(0, 120),
+    });
+    taRef.current?.focus();
+  }
+
+  function reactTo(m: Msg, emoji: string) {
+    const next = { ...prefs.reactions };
+    if (next[m.id] === emoji) delete next[m.id];
+    else next[m.id] = emoji;
+    persist({ ...prefs, reactions: next });
+    closeMsgMenu();
+  }
+
+  function toggleImportant(m: Msg) {
+    persist({ ...prefs, starred: toggleInList(prefs.starred, m.id) });
+    closeMsgMenu();
+    showToast(
+      prefs.starred.includes(m.id)
+        ? 'Retiré des importants'
+        : 'Marqué comme important',
+    );
+  }
+
+  function pinMessage(m: Msg) {
+    if (!conv) return;
+    const preview = msgPreview(m).slice(0, 160);
+    const already = prefs.msgPins[conv];
+    const nextPins = { ...prefs.msgPins };
+    if (already === preview) {
+      delete nextPins[conv];
+      persist({ ...prefs, msgPins: nextPins });
+      setPinNote('');
+      showToast('Message désépinglé');
+    } else {
+      nextPins[conv] = preview;
+      persist({ ...prefs, msgPins: nextPins });
+      setPinNote(preview);
+      showToast('Message épinglé');
+    }
+    closeMsgMenu();
+  }
+
+  async function copyMessage(m: Msg) {
+    const t = msgPreview(m);
+    try {
+      await navigator.clipboard.writeText(t);
+      showToast('Message copié');
+    } catch {
+      showToast('Copie impossible');
+    }
+    closeMsgMenu();
+  }
+
+  function reportMessage() {
+    closeMsgMenu();
+    showToast('Signalement enregistré (démo)');
+  }
+
+  function deleteMessage(m: Msg) {
+    if (!confirm('Supprimer ce message pour vous ?')) return;
+    persist({
+      ...prefs,
+      hiddenMsgs: prefs.hiddenMsgs.includes(m.id)
+        ? prefs.hiddenMsgs
+        : [...prefs.hiddenMsgs, m.id],
+    });
+    closeMsgMenu();
+    showToast('Message supprimé pour vous');
+  }
+
+  function deleteSelected() {
+    if (!selected.length) return;
+    if (!confirm(`Supprimer ${selected.length} message(s) pour vous ?`)) return;
+    const set = new Set([...prefs.hiddenMsgs, ...selected]);
+    persist({ ...prefs, hiddenMsgs: [...set] });
+    exitSelect();
+    showToast('Messages supprimés pour vous');
+  }
+
+  async function copySelected() {
+    const texts = msgs
+      .filter((m) => selected.includes(m.id))
+      .map((m) => msgPreview(m))
+      .join('\n\n');
+    try {
+      await navigator.clipboard.writeText(texts);
+      showToast('Messages copiés');
+    } catch {
+      showToast('Copie impossible');
+    }
+  }
+
+  function openForward(ids: string[]) {
+    closeMsgMenu();
+    setForwardIds(ids);
+    setForwardOpen(true);
+  }
+
+  async function forwardTo(targetId: string) {
+    const target = convs.find((x) => x.id === targetId);
+    if (!target || !forwardIds.length) return;
+    setForwardBusy(true);
+    const toSend = msgs.filter((m) => forwardIds.includes(m.id));
+    for (const m of toSend) {
+      const body = `↪ Transféré\n${msgPreview(m)}`;
+      await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          threadKey: targetId,
+          affaireId: target.affaireId ?? null,
+          texte: body,
+        }),
+      });
+    }
+    bumpConv(targetId, `↪ ${msgPreview(toSend[0]!)}`.slice(0, 80), 'text');
+    setForwardBusy(false);
+    setForwardOpen(false);
+    setForwardIds([]);
+    exitSelect();
+    showToast('Message(s) transféré(s)');
+    router.refresh();
   }
 
   async function submitAction(e: React.FormEvent) {
@@ -403,6 +660,63 @@ export function MessagesView({
     setActionModal(null);
     await load(conv);
     router.refresh();
+  }
+
+  async function submitInvite(e: React.FormEvent) {
+    e.preventDefault();
+    if (!conv || !inviteForm.email.trim() || !inviteForm.nom.trim()) return;
+    setInviteBusy(true);
+    const r = await fetch('/api/messages/invites', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ threadKey: conv, ...inviteForm }),
+    });
+    const j = await r.json().catch(() => ({}));
+    setInviteBusy(false);
+    if (!r.ok) {
+      alert(j.error ?? 'Invitation impossible');
+      return;
+    }
+    setInviteLink(j.invite?.link ?? '');
+    showToast(
+      j.invite?.mailSent
+        ? 'Invitation envoyée par e-mail'
+        : 'Lien créé — à transmettre manuellement',
+    );
+    await load(conv);
+    router.refresh();
+  }
+
+  async function resendInvite(id: string) {
+    const r = await fetch(`/api/messages/invites/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'resend' }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      alert(j.error ?? 'Renvoi impossible');
+      return;
+    }
+    if (j.link) {
+      try {
+        await navigator.clipboard.writeText(j.link);
+        showToast('Nouveau lien copié');
+      } catch {
+        setInviteLink(j.link);
+        showToast('Lien renouvelé');
+      }
+    }
+  }
+
+  async function cancelInvite(id: string) {
+    if (!confirm('Annuler cette invitation ?')) return;
+    await fetch(`/api/messages/invites/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'cancel' }),
+    });
+    if (conv) await load(conv);
   }
 
   async function deleteCollaborateur(id: string, nom: string) {
@@ -538,13 +852,10 @@ export function MessagesView({
         <nav className="wa-rail" aria-label="Messagerie">
           <button
             type="button"
-            className={`wa-rail-btn${rail === 'messages' ? ' on' : ''}`}
+            className="wa-rail-btn on"
             title="Messages"
             aria-label="Messages"
-            onClick={() => {
-              setRail('messages');
-              setListFilter('tous');
-            }}
+            onClick={() => setListFilter('tous')}
           >
             <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden>
               <path
@@ -555,34 +866,6 @@ export function MessagesView({
             {totalUnread > 0 ? (
               <span className="wa-rail-badge">{totalUnread > 99 ? '99+' : totalUnread}</span>
             ) : null}
-          </button>
-          <button
-            type="button"
-            className={`wa-rail-btn${rail === 'archived' ? ' on' : ''}`}
-            title="Archivées"
-            aria-label="Archivées"
-            onClick={() => setRail('archived')}
-          >
-            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden>
-              <path
-                fill="currentColor"
-                d="M20.54 5.23 19.15 3.55A1.5 1.5 0 0 0 17.96 3H6.04c-.47 0-.92.22-1.19.55L3.46 5.23A2 2 0 0 0 3 6.5V19a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6.5c0-.47-.18-.92-.46-1.27zM12 17.5 6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12.14l.81 1H5.12z"
-              />
-            </svg>
-          </button>
-          <button
-            type="button"
-            className={`wa-rail-btn${rail === 'pinned' ? ' on' : ''}`}
-            title="Épinglées"
-            aria-label="Épinglées"
-            onClick={() => setRail('pinned')}
-          >
-            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden>
-              <path
-                fill="currentColor"
-                d="m16 12 2 2v2h-5v6l-1 1-1-1v-6H6v-2l2-2V5H7V3h10v2h-1v7z"
-              />
-            </svg>
           </button>
           <div className="wa-rail-spacer" />
           <div className="wa-rail-me" title={meNom}>
@@ -596,20 +879,22 @@ export function MessagesView({
             <AideLabel aide={AIDES.msgListe} as="div">
               <h2>Messages</h2>
             </AideLabel>
-            <button
-              type="button"
-              className="wa-icon-btn"
-              title="Nouveau message"
-              aria-label="Nouveau message"
-              onClick={openCompose}
-            >
-              <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden>
-                <path
-                  fill="currentColor"
-                  d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"
-                />
-              </svg>
-            </button>
+            {!isExterne ? (
+              <button
+                type="button"
+                className="wa-icon-btn"
+                title="Nouveau message"
+                aria-label="Nouveau message"
+                onClick={openCompose}
+              >
+                <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden>
+                  <path
+                    fill="currentColor"
+                    d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"
+                  />
+                </svg>
+              </button>
+            ) : null}
           </header>
 
           <div className="wa-search">
@@ -629,7 +914,7 @@ export function MessagesView({
             />
           </div>
 
-          {rail === 'messages' ? (
+          {!isExterne ? (
             <div className="wa-filters" role="tablist" aria-label="Filtres">
               {(
                 [
@@ -729,6 +1014,18 @@ export function MessagesView({
                   <p>{c.sousTitre}</p>
                 </div>
                 <div className="wa-head-actions">
+                  {!isExterne ? (
+                    <button
+                      type="button"
+                      className="wa-head-action"
+                      onClick={() => {
+                        setInviteLink('');
+                        setInviteOpen(true);
+                      }}
+                    >
+                      Inviter un externe
+                    </button>
+                  ) : null}
                   {canDeleteConv(c.id) ? (
                     <button
                       type="button"
@@ -742,6 +1039,47 @@ export function MessagesView({
                 </div>
               </header>
 
+              {hasExternes || pendingInvites.length ? (
+                <div className="wa-ext-banner" role="status">
+                  <strong>Discussion ouverte à des participants externes</strong>
+                  {externes.length ? (
+                    <span>
+                      {externes
+                        .map((e) => e.societe || e.nom)
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </span>
+                  ) : (
+                    <span>Invitation en cours</span>
+                  )}
+                </div>
+              ) : null}
+
+              {!isExterne && pendingInvites.length ? (
+                <div className="wa-ext-pending">
+                  {pendingInvites.map((p) => (
+                    <div key={p.id} className="wa-ext-pending-row">
+                      <span>
+                        En attente : <b>{p.nom}</b> ({p.email})
+                        {p.societe ? ` · ${p.societe}` : ''}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => void resendInvite(p.id)}
+                      >
+                        Renvoyer
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void cancelInvite(p.id)}
+                      >
+                        Annuler
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
               {pinNote ? (
                 <div className="wa-pinned">
                   <span className="wa-pin-ico" aria-hidden>
@@ -750,10 +1088,61 @@ export function MessagesView({
                   <span>
                     <b>Épinglé —</b> {pinNote}
                   </span>
+                  {conv && prefs.msgPins[conv] ? (
+                    <button
+                      type="button"
+                      className="wa-pinned-clear"
+                      onClick={() => {
+                        const next = { ...prefs.msgPins };
+                        delete next[conv];
+                        persist({ ...prefs, msgPins: next });
+                        void load(conv);
+                      }}
+                    >
+                      Retirer
+                    </button>
+                  ) : null}
                 </div>
               ) : null}
 
-              <div className="wa-stream" ref={streamRef}>
+              {selectMode ? (
+                <div className="wa-select-bar">
+                  <button type="button" onClick={exitSelect} aria-label="Annuler">
+                    ✕
+                  </button>
+                  <span>
+                    {selected.length
+                      ? `${selected.length} sélectionné${selected.length > 1 ? 's' : ''}`
+                      : 'Sélectionnez des messages'}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={!selected.length}
+                    onClick={() => void copySelected()}
+                  >
+                    Copier
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!selected.length}
+                    onClick={() => openForward(selected)}
+                  >
+                    Transférer
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!selected.length}
+                    onClick={deleteSelected}
+                  >
+                    Supprimer
+                  </button>
+                </div>
+              ) : null}
+
+              <div
+                className={`wa-stream${selectMode ? ' select-mode' : ''}`}
+                ref={streamRef}
+              >
                 {msgs.length === 0 ? (
                   <div className="wa-day-chip">Aucun message pour l’instant</div>
                 ) : null}
@@ -765,6 +1154,7 @@ export function MessagesView({
                       </div>
                     );
                   }
+                  if (prefs.hiddenMsgs.includes(m.id)) return null;
                   const prev = msgs[i - 1];
                   const showDay =
                     !prev || !sameDay(prev.createdAt, m.createdAt);
@@ -777,29 +1167,89 @@ export function MessagesView({
                       prev.systeme ||
                       prev.auteurId !== m.auteurId ||
                       !sameDay(prev.createdAt, m.createdAt));
+                  const showTail =
+                    !prev ||
+                    prev.systeme ||
+                    prev.auteurId !== m.auteurId ||
+                    !sameDay(prev.createdAt, m.createdAt);
                   const isImg =
                     m.fichier && /\.(jpe?g|png|webp|gif|heic)$/i.test(m.fichier);
+                  const isPdf = m.fichier && /\.pdf$/i.test(m.fichier);
                   const hasAction = prefs.actionMsgs.includes(m.id);
+                  const starred = prefs.starred.includes(m.id);
+                  const reaction = prefs.reactions[m.id];
+                  const isSelected = selected.includes(m.id);
                   return (
                     <div key={m.id}>
                       {showDay ? (
                         <div className="wa-day-chip">{formatDaySeparator(m.createdAt)}</div>
                       ) : null}
                       <div
-                        className={`wa-bub${mine ? ' me' : ''}`}
+                        className={`wa-bub${mine ? ' me' : ''}${showTail ? ' tail' : ''}${isSelected ? ' select-on' : ''}${reaction ? ' has-react' : ''}`}
                         onContextMenu={(e) => {
                           e.preventDefault();
-                          setCtxMsg(m);
+                          openMsgMenu(m, { clientX: e.clientX, clientY: e.clientY });
+                        }}
+                        onClick={() => {
+                          if (selectMode) toggleSelect(m.id);
                         }}
                         onTouchStart={() => {
-                          const t = window.setTimeout(() => setCtxMsg(m), 500);
+                          if (selectMode) return;
+                          const t = window.setTimeout(() => openMsgMenu(m), 500);
                           const clear = () => window.clearTimeout(t);
                           window.addEventListener('touchend', clear, { once: true });
                           window.addEventListener('touchmove', clear, { once: true });
                         }}
                       >
+                        {selectMode ? (
+                          <button
+                            type="button"
+                            className={`wa-bub-check${isSelected ? ' on' : ''}`}
+                            aria-label="Sélectionner"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleSelect(m.id);
+                            }}
+                          >
+                            ✓
+                          </button>
+                        ) : null}
+                        {!selectMode ? (
+                          <button
+                            type="button"
+                            className="wa-bub-menu-btn"
+                            aria-label="Options du message"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                              openMsgMenu(m, {
+                                clientX: r.left,
+                                clientY: r.bottom + 4,
+                              });
+                            }}
+                          >
+                            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden>
+                              <path fill="currentColor" d="M7 10l5 5 5-5z" />
+                            </svg>
+                          </button>
+                        ) : null}
                         {showAuthor ? (
-                          <span className="wa-bub-author">{m.auteur.nom}</span>
+                          <span className="wa-bub-author">
+                            {m.auteur.nom}
+                            {m.auteur.acces === 'externe' || m.auteur.societe ? (
+                              <span className="wa-ext-tag">
+                                {m.auteur.societe || 'Externe'}
+                              </span>
+                            ) : null}
+                          </span>
+                        ) : null}
+                        {m.interne ? (
+                          <span className="wa-interne-badge">Note interne</span>
+                        ) : null}
+                        {starred ? (
+                          <span className="wa-bub-star" aria-label="Important">
+                            ★
+                          </span>
                         ) : null}
                         {m.fichier && isImg ? (
                           <a
@@ -807,6 +1257,7 @@ export function MessagesView({
                             target="_blank"
                             rel="noreferrer"
                             className="wa-photo-link"
+                            onClick={(e) => selectMode && e.preventDefault()}
                           >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
@@ -821,13 +1272,14 @@ export function MessagesView({
                             target="_blank"
                             rel="noreferrer"
                             className="wa-doc-card"
+                            onClick={(e) => selectMode && e.preventDefault()}
                           >
                             <span className="wa-doc-ico" aria-hidden>
-                              📄
+                              {isPdf ? 'PDF' : 'DOC'}
                             </span>
                             <span className="wa-doc-meta">
                               <strong>{m.photoLabel ?? 'Document'}</strong>
-                              <small>Pièce jointe</small>
+                              <small>{isPdf ? 'pdf' : 'Pièce jointe'}</small>
                             </span>
                           </a>
                         ) : m.photoLabel ? (
@@ -850,26 +1302,41 @@ export function MessagesView({
                             </span>
                           ) : null}
                         </span>
-                        <div className="wa-bub-actions">
-                          <button type="button" onClick={() => openAction(m)}>
-                            Créer une action
-                          </button>
-                        </div>
+                        {reaction ? (
+                          <span className="wa-bub-react" aria-label="Réaction">
+                            {reaction}
+                          </span>
+                        ) : null}
                       </div>
-                      {ctxMsg?.id === m.id ? (
-                        <div className="wa-ctx">
-                          <button type="button" onClick={() => openAction(m)}>
-                            Créer une action
-                          </button>
-                          <button type="button" onClick={() => setCtxMsg(null)}>
-                            Fermer
-                          </button>
-                        </div>
-                      ) : null}
                     </div>
                   );
                 })}
               </div>
+
+              {replyTo && !selectMode ? (
+                <div className="wa-reply-bar">
+                  <div className="wa-reply-bar-body">
+                    <b>Répondre à {replyTo.auteur}</b>
+                    <span>{replyTo.texte}</span>
+                  </div>
+                  <button type="button" aria-label="Annuler" onClick={() => setReplyTo(null)}>
+                    ✕
+                  </button>
+                </div>
+              ) : null}
+
+              {!isExterne && hasExternes ? (
+                <div className="wa-interne-toggle">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={interneMode}
+                      onChange={(e) => setInterneMode(e.target.checked)}
+                    />
+                    Note interne (invisible aux externes)
+                  </label>
+                </div>
+              ) : null}
 
               <div className="wa-composer">
                 <input
@@ -948,9 +1415,13 @@ export function MessagesView({
                 height={40}
               />
               <p>Sélectionnez une discussion</p>
-              <button type="button" className="btn-primary" onClick={openCompose}>
-                Nouveau message
-              </button>
+              {!isExterne ? (
+                <button type="button" className="btn-primary" onClick={openCompose}>
+                  Nouveau message
+                </button>
+              ) : (
+                <p className="hint">Vos discussions invitées apparaissent à gauche.</p>
+              )}
             </div>
           )}
         </section>
@@ -1098,6 +1569,302 @@ export function MessagesView({
             </form>
           </div>
         </>
+      ) : null}
+
+      {ctxMsg && menuPos ? (
+        <>
+          <div className="wa-msg-menu-scrim" onClick={closeMsgMenu} />
+          <div
+            className="wa-msg-menu"
+            role="menu"
+            style={{ top: menuPos.top, left: menuPos.left }}
+          >
+            {reactPicker ? (
+              <div className="wa-react-bar">
+                {REACTIONS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => reactTo(ctxMsg, emoji)}
+                    aria-label={`Réagir ${emoji}`}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            <button type="button" role="menuitem" onClick={() => replyMessage(ctxMsg)}>
+              <span className="wa-menu-ico" aria-hidden>
+                <svg viewBox="0 0 24 24" width="20" height="20">
+                  <path
+                    fill="currentColor"
+                    d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"
+                  />
+                </svg>
+              </span>
+              Répondre
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => setReactPicker((v) => !v)}
+            >
+              <span className="wa-menu-ico" aria-hidden>
+                🙂
+              </span>
+              Réagir
+            </button>
+            <button type="button" role="menuitem" onClick={() => toggleImportant(ctxMsg)}>
+              <span className="wa-menu-ico" aria-hidden>
+                ★
+              </span>
+              {prefs.starred.includes(ctxMsg.id) ? 'Retirer important' : 'Important'}
+            </button>
+            <button type="button" role="menuitem" onClick={() => pinMessage(ctxMsg)}>
+              <span className="wa-menu-ico" aria-hidden>
+                📌
+              </span>
+              {conv && prefs.msgPins[conv] === msgPreview(ctxMsg).slice(0, 160)
+                ? 'Désépingler'
+                : 'Épingler'}
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => openForward([ctxMsg.id])}
+            >
+              <span className="wa-menu-ico" aria-hidden>
+                <svg viewBox="0 0 24 24" width="20" height="20">
+                  <path
+                    fill="currentColor"
+                    d="M14 9V5l7 7-7 7v-4.1c-5 0-8.5 1.6-11 5.1 1-5 4-10 11-11z"
+                  />
+                </svg>
+              </span>
+              Transférer
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => void copyMessage(ctxMsg)}
+            >
+              <span className="wa-menu-ico" aria-hidden>
+                <svg viewBox="0 0 24 24" width="20" height="20">
+                  <path
+                    fill="currentColor"
+                    d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"
+                  />
+                </svg>
+              </span>
+              Copier
+            </button>
+            <div className="wa-msg-menu-sep" />
+            <button type="button" role="menuitem" onClick={reportMessage}>
+              <span className="wa-menu-ico" aria-hidden>
+                ⚠
+              </span>
+              Signaler
+            </button>
+            <div className="wa-msg-menu-sep" />
+            <button
+              type="button"
+              role="menuitem"
+              className="danger"
+              onClick={() => deleteMessage(ctxMsg)}
+            >
+              <span className="wa-menu-ico" aria-hidden>
+                🗑
+              </span>
+              Supprimer
+            </button>
+            <div className="wa-msg-menu-sep" />
+            <button type="button" role="menuitem" onClick={() => startSelect(ctxMsg)}>
+              <span className="wa-menu-ico" aria-hidden>
+                ✓
+              </span>
+              Sélectionner des messages
+            </button>
+            <div className="wa-msg-menu-sep" />
+            {!isExterne ? (
+              <button type="button" role="menuitem" onClick={() => openAction(ctxMsg)}>
+                <span className="wa-menu-ico" aria-hidden>
+                  ✓
+                </span>
+                Créer une action
+              </button>
+            ) : null}
+          </div>
+        </>
+      ) : null}
+
+      {forwardOpen ? (
+        <>
+          <div
+            className="scrim on"
+            onClick={() => !forwardBusy && setForwardOpen(false)}
+          />
+          <div
+            className="add-collab-sheet wa-compose-sheet"
+            role="dialog"
+            aria-labelledby="wa-forward-title"
+          >
+            <button
+              type="button"
+              className="sheet-close"
+              disabled={forwardBusy}
+              onClick={() => setForwardOpen(false)}
+            >
+              ✕
+            </button>
+            <span className="eyebrow">Messagerie</span>
+            <h3 id="wa-forward-title">Transférer vers…</h3>
+            <p className="hint">
+              {forwardIds.length} message
+              {forwardIds.length > 1 ? 's' : ''} à envoyer dans une autre discussion.
+            </p>
+            <div className="wa-compose-list">
+              {convs
+                .filter((x) => x.id !== conv && !prefs.archived.includes(x.id))
+                .map((x) => (
+                  <button
+                    key={x.id}
+                    type="button"
+                    className="wa-compose-pick"
+                    disabled={forwardBusy}
+                    onClick={() => void forwardTo(x.id)}
+                  >
+                    <AvatarBubble label={x.avatar} cls={`wa-av ${x.cls}`.trim()} size={36} />
+                    <span>
+                      <strong>{x.titre}</strong>
+                      <small>{x.kind === 'gen' ? 'Équipe' : 'Direct'}</small>
+                    </span>
+                  </button>
+                ))}
+            </div>
+          </div>
+        </>
+      ) : null}
+
+      {inviteOpen ? (
+        <>
+          <div className="scrim on" onClick={() => !inviteBusy && setInviteOpen(false)} />
+          <div
+            className="add-collab-sheet wa-compose-sheet"
+            role="dialog"
+            aria-labelledby="wa-invite-title"
+          >
+            <button
+              type="button"
+              className="sheet-close"
+              disabled={inviteBusy}
+              onClick={() => setInviteOpen(false)}
+            >
+              ✕
+            </button>
+            <span className="eyebrow">Messagerie</span>
+            <h3 id="wa-invite-title">Inviter un participant externe</h3>
+            <p className="hint">
+              Syndic, maîtrise d’œuvre, fournisseur ou sous-traitant — accès limité à ce
+              fil.
+            </p>
+            <form onSubmit={(e) => void submitInvite(e)} className="add-collab-form">
+              <label>
+                E-mail
+                <input
+                  type="email"
+                  required
+                  value={inviteForm.email}
+                  onChange={(e) =>
+                    setInviteForm({ ...inviteForm, email: e.target.value })
+                  }
+                />
+              </label>
+              <label>
+                Nom
+                <input
+                  required
+                  value={inviteForm.nom}
+                  onChange={(e) => setInviteForm({ ...inviteForm, nom: e.target.value })}
+                />
+              </label>
+              <label>
+                Société
+                <input
+                  value={inviteForm.societe}
+                  onChange={(e) =>
+                    setInviteForm({ ...inviteForm, societe: e.target.value })
+                  }
+                />
+              </label>
+              <label>
+                Fonction
+                <input
+                  value={inviteForm.fonction}
+                  onChange={(e) =>
+                    setInviteForm({ ...inviteForm, fonction: e.target.value })
+                  }
+                />
+              </label>
+              <label>
+                Message d’accompagnement
+                <textarea
+                  rows={2}
+                  value={inviteForm.message}
+                  onChange={(e) =>
+                    setInviteForm({ ...inviteForm, message: e.target.value })
+                  }
+                />
+              </label>
+              <label>
+                Historique visible
+                <select
+                  value={inviteForm.historyMode}
+                  onChange={(e) =>
+                    setInviteForm({ ...inviteForm, historyMode: e.target.value })
+                  }
+                >
+                  <option value="from_now">À partir de maintenant (recommandé)</option>
+                  <option value="share_all">Tout l’historique du fil</option>
+                </select>
+              </label>
+              <label>
+                Durée d’accès
+                <select
+                  value={inviteForm.accessDuration}
+                  onChange={(e) =>
+                    setInviteForm({ ...inviteForm, accessDuration: e.target.value })
+                  }
+                >
+                  <option value="days_30">30 jours</option>
+                  <option value="months_6">6 mois</option>
+                  <option value="chantier">Durée du chantier</option>
+                  <option value="unlimited">Sans limite</option>
+                </select>
+              </label>
+              {inviteLink ? (
+                <p className="hint">
+                  Lien à transmettre :{' '}
+                  <button
+                    type="button"
+                    className="linkish"
+                    onClick={() => void navigator.clipboard.writeText(inviteLink)}
+                  >
+                    Copier le lien
+                  </button>
+                </p>
+              ) : null}
+              <button type="submit" className="btn-primary" disabled={inviteBusy}>
+                {inviteBusy ? 'Envoi…' : 'Envoyer l’invitation'}
+              </button>
+            </form>
+          </div>
+        </>
+      ) : null}
+
+      {toast ? (
+        <div className="wa-toast" role="status">
+          {toast}
+        </div>
       ) : null}
     </div>
   );

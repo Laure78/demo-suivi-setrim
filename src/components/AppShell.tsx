@@ -23,7 +23,7 @@ import { AideTip } from '@/components/AideTip';
 import { WhoSwitcher } from '@/components/WhoSwitcher';
 import { SetrimFooter } from '@/components/SetrimFooter';
 import { registerServiceWorker } from '@/lib/web-push-client';
-import { ACCES_LABEL, isAdministrateur } from '@/lib/acces-labels';
+import { ACCES_LABEL, isAdministrateur, isExterne } from '@/lib/acces-labels';
 import { UrgencesBell, UrgencesDuJour } from '@/components/UrgencesDuJour';
 import { InstallBanner } from '@/components/InstallBanner';
 import { Suspense, useCallback, useEffect, useState, type MouseEvent, type ReactNode } from 'react';
@@ -102,6 +102,7 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
   const { data } = useSession();
   const user = data?.user;
   const isAdmin = isAdministrateur(user?.acces);
+  const externe = isExterne(user?.acces);
   const [urgencesOpen, setUrgencesOpen] = useState(false);
   const [urgenceCount, setUrgenceCount] = useState(lateCount);
 
@@ -117,6 +118,7 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
   }, [lateCount]);
 
   useEffect(() => {
+    if (externe) return;
     const onKey = (e: KeyboardEvent) => {
       if (/INPUT|TEXTAREA/.test((e.target as HTMLElement)?.tagName ?? '')) return;
       if (e.key === '9') {
@@ -128,7 +130,7 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [isAdmin]);
+  }, [isAdmin, externe]);
 
   const screenTitle =
     title ??
@@ -174,6 +176,26 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
   }
 
   function DeskNav() {
+    if (externe) {
+      return (
+        <>
+          <Link
+            href={MESSAGES_HREF}
+            className={`nav-link${pathname.startsWith(MESSAGES_HREF) ? ' on' : ''}`}
+          >
+            <span className="k">8</span>
+            <span className="nav-label">Messagerie</span>
+          </Link>
+          <Link
+            href="/parametres?tab=profil"
+            className={`nav-link${pathname.startsWith('/parametres') ? ' on' : ''}`}
+          >
+            <span className="k">9</span>
+            <span className="nav-label">Mon profil</span>
+          </Link>
+        </>
+      );
+    }
     return (
       <>
         {SCREENS.map((s) => {
@@ -221,7 +243,12 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
     <div className="app">
       <aside className="rail desk-rail">
         <div className="brand">
-          <Link href="/" className="brand-link" title="Accueil — tableau de bord" aria-label="Accueil SETRIM">
+          <Link
+            href={externe ? MESSAGES_HREF : '/'}
+            className="brand-link"
+            title={externe ? 'Messagerie' : 'Accueil — tableau de bord'}
+            aria-label={externe ? 'Messagerie SETRIM' : 'Accueil SETRIM'}
+          >
             <Image
               src="/logo-setrim.png"
               alt="SETRIM étanchéité"
@@ -234,7 +261,7 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
           <p>
             Étanchéité · Aubervilliers
             <br />
-            Suivi d&apos;affaires
+            {externe ? 'Espace participant' : "Suivi d'affaires"}
           </p>
         </div>
         <nav className="nav" id="nav">
@@ -273,14 +300,12 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
             <div className="date">{today}</div>
           </div>
           <div className="spacer" />
-          <UrgencesBell
-            count={urgenceCount}
-            onOpen={() => setUrgencesOpen(true)}
-          />
-          <span className="aide-label desk-only-inline" style={{ marginRight: 4 }}>
-            <AideTip text={AIDES.who} placement="bottom" label="Aide — Je suis" />
-          </span>
-          <WhoSwitcher />
+          {!externe ? (
+            <UrgencesBell
+              count={urgenceCount}
+              onOpen={() => setUrgencesOpen(true)}
+            />
+          ) : null}
           <span className="aide-label btn-messages-wrap">
             <Link
               href={MESSAGES_HREF}
@@ -304,6 +329,18 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
               <AideTip text={AIDES.messagerie} placement="bottom" />
             </span>
           </span>
+          {!externe ? (
+            <>
+              <span className="aide-label desk-only-inline" style={{ marginRight: 4 }}>
+                <AideTip text={AIDES.who} placement="bottom" label="Aide — Je suis" />
+              </span>
+              <WhoSwitcher />
+            </>
+          ) : (
+            <Link href="/parametres?tab=profil" className="hint" style={{ marginLeft: 8 }}>
+              Mon profil
+            </Link>
+          )}
         </header>
 
         {/* En-tête mobile compact */}
@@ -312,7 +349,11 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
             <MobileBackSlot />
           </Suspense>
           <div className="mobile-bar-center">
-            <Link href="/" className="mobile-logo-link" aria-label="Accueil SETRIM">
+            <Link
+              href={externe ? MESSAGES_HREF : '/'}
+              className="mobile-logo-link"
+              aria-label={externe ? 'Messagerie SETRIM' : 'Accueil SETRIM'}
+            >
               <Image
                 src="/logo-setrim.png"
                 alt="SETRIM"
@@ -324,28 +365,64 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
             </Link>
             <p className="mobile-page-title">{screenTitle}</p>
           </div>
-          <span className="mobile-bar-slot mobile-bar-urgences">
-            <UrgencesBell
-              count={urgenceCount}
-              onOpen={() => setUrgencesOpen(true)}
-            />
-          </span>
+          <div className="mobile-bar-actions">
+            <Link
+              href={MESSAGES_HREF}
+              className={`mobile-bar-msg${pathname.startsWith(MESSAGES_HREF) ? ' on' : ''}`}
+              aria-label="Messagerie"
+              title={AIDES.messagerie}
+            >
+              <MessageSquare size={22} strokeWidth={1.75} aria-hidden />
+              {unreadCount > 0 ? (
+                <span className="mobile-bar-msg-badge">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              ) : null}
+            </Link>
+            {!externe ? (
+              <span className="mobile-bar-slot mobile-bar-urgences">
+                <UrgencesBell
+                  count={urgenceCount}
+                  onOpen={() => setUrgencesOpen(true)}
+                />
+              </span>
+            ) : (
+              <Link
+                href="/parametres?tab=profil"
+                className="mobile-bar-msg"
+                aria-label="Mon profil"
+              >
+                <span style={{ fontSize: 12, fontWeight: 700 }}>Profil</span>
+              </Link>
+            )}
+          </div>
         </header>
 
-        <InstallBanner />
-        <UrgencesDuJour
-          open={urgencesOpen}
-          onOpenChange={setUrgencesOpen}
-          onCountChange={onUrgenceCount}
-        />
+        {!externe ? <InstallBanner /> : null}
+        {!externe ? (
+          <UrgencesDuJour
+            open={urgencesOpen}
+            onOpenChange={setUrgencesOpen}
+            onCountChange={onUrgenceCount}
+          />
+        ) : null}
 
         <div className="content">{children}</div>
         <SetrimFooter />
       </div>
 
       <nav className="mobile-tabbar" aria-label="Navigation principale">
-        {MOBILE_TABS.map((tab) => {
-          const on = tabActive(tab.id, tab.href);
+        {(externe
+          ? [
+              { id: 'messages', href: MESSAGES_HREF, label: 'Messages' },
+              { id: 'profil', href: '/parametres?tab=profil', label: 'Profil' },
+            ]
+          : MOBILE_TABS
+        ).map((tab) => {
+          const on =
+            tab.id === 'profil'
+              ? pathname.startsWith('/parametres')
+              : tabActive(tab.id, tab.href);
           return (
             <Link
               key={tab.id}
@@ -355,7 +432,9 @@ export function AppShell({ children, lateCount = 0, unreadCount = 0, title }: Pr
               title={tab.id === 'plus' ? AIDES.navPlus : undefined}
             >
               <span className="mobile-tab-ico">
-                {TAB_ICONS[tab.id]}
+                {TAB_ICONS[tab.id] ?? (
+                  <span style={{ fontSize: 12, fontWeight: 700 }}>P</span>
+                )}
                 {tab.id === 'messages' && unreadCount > 0 ? (
                   <span className="mobile-tab-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
                 ) : null}

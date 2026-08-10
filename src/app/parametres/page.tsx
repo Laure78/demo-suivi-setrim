@@ -10,7 +10,7 @@ import { Suspense } from 'react';
 
 export const dynamic = 'force-dynamic';
 
-const ADMIN_TABS = new Set(['utilisateurs', 'entreprise', 'abonnement']);
+const ADMIN_TABS = new Set(['utilisateurs', 'externes', 'entreprise', 'abonnement']);
 
 export default async function ParametresPage({
   searchParams,

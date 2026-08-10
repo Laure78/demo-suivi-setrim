@@ -230,6 +230,29 @@ export function EventDetailPanel({
     }
   }
 
+  async function markCeRealise() {
+    if (!affairePick || form.type !== 'ce') return;
+    if (!confirm('Marquer cette intervention d’entretien comme réalisée ?')) return;
+    setBusy(true);
+    setErr('');
+    try {
+      const r = await fetch(`/api/affaires/${affairePick}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'ce-realise' }),
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        setErr(j.error ?? 'Impossible de marquer réalisé');
+        return;
+      }
+      onClose();
+      router.refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function remove() {
     if (!ev || isTacheEvent || readOnlySlot) return;
     if (!confirm('Supprimer ce créneau du planning ?')) return;
@@ -513,6 +536,16 @@ export function EventDetailPanel({
                         ? 'Enregistrer les dates'
                         : 'Enregistrer'}
                 </button>
+                {!isCreate && !isTaskForm && form.type === 'ce' && affairePick ? (
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={() => void markCeRealise()}
+                    disabled={busy}
+                  >
+                    Marquer réalisée
+                  </button>
+                ) : null}
                 {!isCreate && !isTaskForm ? (
                   <button
                     type="button"

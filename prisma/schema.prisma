@@ -13,12 +13,15 @@ enum Role {
   responsable
   dirigeant
   conducteur
+  externe
 }
 
 /// Droit d’accès application (pas la fonction métier)
 enum Acces {
   administrateur
   collaborateur
+  /// Syndic, MOE, fournisseur, sous-traitant — messagerie invitée uniquement
+  externe
 }
 
 enum AffaireStatut {
@@ -58,8 +61,12 @@ model User {
   email               String   @unique
   passwordHash        String
   role                Role
-  /// Administrateur (Valérie, Denis) ou Collaborateur
+  /// Administrateur, Collaborateur ou Participant externe
   acces               Acces    @default(collaborateur)
+  /// Société (surtout participants externes)
+  societe             String   @default("")
+  /// Fonction / titre chez l’externe
+  fonction            String   @default("")
   terrain             Boolean  @default(false)
   actif               Boolean  @default(true)
   /// Photo de profil (/uploads/... ou emoji)
@@ -80,6 +87,11 @@ model User {
   adminAudits     AdminAuditLog[]    @relation("AdminAuteur")
   notifPrefs      UserNotifPrefs?
   supportTickets  SupportTicket[]
+  threadMemberships ThreadMember[]
+  threadInvitesSent ThreadMember[]   @relation("ThreadMemberInviter")
+  invitesSent       ExternalInvite[] @relation("InviteAuteur")
+  filesUploaded     SecureFile[]
+  externalAudits    ExternalAuditLog[] @relation("ExtAuditAuteur")
 }
 
 /// Préférences de notification (1 par utilisateur)
@@ -286,13 +298,98 @@ model Message {
   auteurId   String
   texte      String?
   photoLabel String?
-  /// Chemin public /uploads/... (photo ou pièce jointe)
+  /// Chemin public /uploads/... ou /api/files/{id} (sécurisé)
   fichier    String?
+  /// Note interne : invisible aux participants externes
+  interne    Boolean  @default(false)
   systeme    Boolean  @default(false)
   createdAt  DateTime @default(now())
 
   affaire Affaire? @relation(fields: [affaireId], references: [id], onDelete: Cascade)
   auteur  User     @relation(fields: [auteurId], references: [id])
+
+  @@index([threadKey, createdAt])
+}
+
+/// Appartenance d’un participant externe à un fil
+model ThreadMember {
+  id               String    @id @default(cuid())
+  threadKey        String
+  userId           String
+  invitedById      String?
+  invitedAt        DateTime  @default(now())
+  /// null = tout l’historique ; sinon messages avec createdAt >= historyFrom
+  historyFrom      DateTime?
+  accessExpiresAt  DateTime?
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+
+  user      User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invitedBy User? @relation("ThreadMemberInviter", fields: [invitedById], references: [id], onDelete: SetNull)
+
+  @@unique([threadKey, userId])
+  @@index([userId])
+  @@index([threadKey])
+}
+
+/// Invitation en attente (lien à usage unique, 7 jours)
+model ExternalInvite {
+  id               String    @id @default(cuid())
+  token            String    @unique
+  threadKey        String
+  email            String
+  nom              String
+  societe          String    @default("")
+  fonction         String    @default("")
+  message          String    @default("")
+  /// share_all | from_now
+  historyMode      String    @default("from_now")
+  /// days_30 | months_6 | chantier | unlimited
+  accessDuration   String    @default("months_6")
+  accessExpiresAt  DateTime?
+  invitedById      String
+  /// Expiration du lien d’invitation
+  expiresAt        DateTime
+  acceptedAt       DateTime?
+  cancelledAt      DateTime?
+  createdAt        DateTime  @default(now())
+
+  invitedBy User @relation("InviteAuteur", fields: [invitedById], references: [id])
+
+  @@index([threadKey])
+  @@index([email])
+}
+
+/// Fichier servi via /api/files/[id] (pas d’URL publique devinable)
+model SecureFile {
+  id           String   @id @default(cuid())
+  threadKey    String
+  storageName  String
+  originalName String
+  mime         String   @default("application/octet-stream")
+  size         Int      @default(0)
+  uploadedById String
+  createdAt    DateTime @default(now())
+
+  uploadedBy User @relation(fields: [uploadedById], references: [id])
+
+  @@index([threadKey])
+}
+
+model ExternalAuditLog {
+  id           String   @id @default(cuid())
+  action       String
+  actorId      String?
+  targetUserId String?
+  targetEmail  String?
+  threadKey    String?
+  detail       String   @default("")
+  createdAt    DateTime @default(now())
+
+  actor User? @relation("ExtAuditAuteur", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([threadKey])
 }
 
 model Piece {

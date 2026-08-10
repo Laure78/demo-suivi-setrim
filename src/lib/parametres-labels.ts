@@ -31,6 +31,7 @@ export const PARAM_TABS = [
   { id: 'notifications', label: 'Notifications', admin: false },
   { id: 'support', label: 'Support', admin: false },
   { id: 'utilisateurs', label: 'Utilisateurs', admin: true },
+  { id: 'externes', label: 'Participants externes', admin: true },
   { id: 'entreprise', label: 'Entreprise et facturation', admin: true },
   { id: 'abonnement', label: 'Abonnement', admin: true },
 ] as const;

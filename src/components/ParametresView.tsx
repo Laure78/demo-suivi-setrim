@@ -5,10 +5,11 @@ import Link from 'next/link';
 import { signOut, useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AdministrationView } from '@/components/AdministrationView';
+import { ExternesAdminView } from '@/components/ExternesAdminView';
 import { AideLabel } from '@/components/AideTip';
 import { AIDES } from '@/lib/aides';
 import { PARAM_TABS, type ParamTabId, GESTES_BASE } from '@/lib/parametres-labels';
-import { isAdministrateur } from '@/lib/acces-labels';
+import { isAdministrateur, isExterne } from '@/lib/acces-labels';
 
 type Profil = {
   prenom: string;
@@ -20,6 +21,9 @@ type Profil = {
   roleLabel: string;
   accesLabel: string;
   displayName: string;
+  societe: string;
+  fonction: string;
+  acces: string;
 };
 
 type NotifPrefs = {
@@ -50,13 +54,19 @@ function isParamTab(v: string | null): v is ParamTabId {
 export function ParametresView() {
   const { data } = useSession();
   const isAdmin = isAdministrateur(data?.user?.acces);
+  const externe = isExterne(data?.user?.acces);
   const search = useSearchParams();
   const router = useRouter();
   const tabParam = search.get('tab');
 
   const tabs = useMemo(
-    () => PARAM_TABS.filter((t) => !t.admin || isAdmin),
-    [isAdmin],
+    () =>
+      PARAM_TABS.filter((t) => {
+        if (externe) return t.id === 'profil';
+        if (t.admin) return isAdmin;
+        return true;
+      }),
+    [isAdmin, externe],
   );
 
   const tab: ParamTabId = useMemo(() => {
@@ -98,6 +108,7 @@ export function ParametresView() {
         {tab === 'notifications' ? <TabNotifications /> : null}
         {tab === 'support' ? <TabSupport /> : null}
         {tab === 'utilisateurs' && isAdmin ? <AdministrationView /> : null}
+        {tab === 'externes' && isAdmin ? <ExternesAdminView /> : null}
         {tab === 'entreprise' && isAdmin ? <TabEntreprise /> : null}
         {tab === 'abonnement' && isAdmin ? <TabAbonnement onSupport={() => setTab('support')} /> : null}
       </div>
@@ -130,6 +141,9 @@ function TabProfil() {
       roleLabel: j.roleLabel,
       accesLabel: j.accesLabel,
       displayName: j.displayName,
+      societe: j.societe || '',
+      fonction: j.fonction || '',
+      acces: j.acces || '',
     });
   }, []);
 
@@ -232,12 +246,31 @@ function TabProfil() {
           </label>
           <label>
             Fonction
-            <input value={profil.roleLabel} readOnly className="readonly" />
+            <input
+              value={
+                profil.acces === 'externe' ? profil.fonction : profil.roleLabel
+              }
+              readOnly={profil.acces !== 'externe'}
+              className={profil.acces !== 'externe' ? 'readonly' : undefined}
+              onChange={(e) =>
+                setProfil({ ...profil, fonction: e.target.value })
+              }
+            />
           </label>
-          <label>
-            Rôle d&apos;accès
-            <input value={profil.accesLabel} readOnly className="readonly" />
-          </label>
+          {profil.acces === 'externe' ? (
+            <label>
+              Société
+              <input
+                value={profil.societe}
+                onChange={(e) => setProfil({ ...profil, societe: e.target.value })}
+              />
+            </label>
+          ) : (
+            <label>
+              Rôle d&apos;accès
+              <input value={profil.accesLabel} readOnly className="readonly" />
+            </label>
+          )}
           <label>
             Email
             <input

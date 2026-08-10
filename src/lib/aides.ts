@@ -5,24 +5,25 @@ export const AIDES = {
     'Tableau de bord : vue d’ensemble (tâches, chantiers, affaires, clients, facturation). Cliquez le logo SETRIM pour y revenir.',
   who: 'Les 5 accès individuels bureau. Cliquez une pastille pour basculer (chacun a son mot de passe). Pastille Connecté = session en cours.',
   messagerie:
-    'Messagerie type WhatsApp. Discussions les plus récentes en haut (reçus et envoyés). Aussi dans le menu à gauche (touche 8).',
+    'Messagerie type WhatsApp. Inviter un externe depuis l’en-tête du fil. Menu message (répondre, réagir…). Touche 8.',
   urgences:
     'Cloche : urgences du jour (en retard, aujourd’hui, à anticiper). S’ouvre à la 1ʳᵉ connexion du jour. Fait / Reporter / Ouvrir la fiche.',
   tutoriel: 'Guide complet du fonctionnement de la plateforme. Mis à jour quand l’outil évolue (dernière maj : Août 2026).',
   navAujourdhui: 'Vos tâches du jour et les chantiers planifiés aujourd’hui.',
-  navMessagerie: 'Équipe SETRIM et messages privés (style WhatsApp). Fils chantier sur la fiche affaire. Touche 8.',
+  navMessagerie:
+    'Équipe SETRIM, directs, fils ouverts aux externes. Invitation depuis l’en-tête. Touche 8.',
   navPortefeuille: 'Toutes les affaires (commande → soldé). Cliquez une ligne pour ouvrir la fiche.',
   navClients:
     'Fiches clients : contact, téléphone, notes. Rattachez chaque chantier à un syndic / client. Touche 7.',
   navPlanning:
     'Agenda des équipes : Jour / Semaine / Mois / Année. Vert = chantier, bleu = CE (½–1 j).',
   navContrats:
-    'Contrats d’entretien (juillet → juin). Date ↔ planning synchronisés. Filtre par statut.',
+    'Contrats d’entretien (juillet → juin). Statuts calculés. Date ↔ planning synchronisés.',
   navFacturation: 'Acomptes, soldes et impayés à suivre.',
   navAdministration:
     'Comptes utilisateurs (onglet dans Paramètres). Réservé à Valérie et Denis.',
   parametres:
-    'Profil, notifications, support. Administrateurs : utilisateurs, entreprise, abonnement. Touche 9.',
+    'Profil, notifications, support. Administrateurs : utilisateurs, participants externes, entreprise, abonnement. Touche 9.',
   navPlus:
     'Sur téléphone : autres écrans (Aujourd’hui, Clients, Facturation, Tutoriel), bascule « Je suis » et déconnexion.',
   tachesJour:
@@ -41,7 +42,7 @@ export const AIDES = {
   clients:
     'Fiche client : contact, tél., notes. Section Chantiers liés : Lier / Retirer un chantier du portefeuille.',
   contrats:
-    'Mois contractuel = obligation. Posez la date sur la fiche → créneau bleu au planning. Statuts : À programmer / Programmé / Réalisé. Filtre + alerte si mois en cours/passé sans date.',
+    'Mois contractuel = obligation. Statut calculé (À programmer / Programmé / Réalisé / En retard / Hors mois). Programmer → créneau bleu au planning.',
   facturation:
     'Suivi des acomptes et soldes. Cliquez une affaire pour ouvrir la fiche et facturer.',
   msgListe:

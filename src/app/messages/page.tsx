@@ -9,7 +9,7 @@ import {
   ensureValerieMessageEquipe,
   sortUsersBureauFirst,
 } from '@/lib/bureau-users';
-import { isAdministrateur } from '@/lib/acces-labels';
+import { isAdministrateur, isExterne } from '@/lib/acces-labels';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,7 +19,12 @@ function lastPreview(last: {
   photoLabel: string | null;
   fichier: string | null;
   systeme: boolean;
-} | null): { last: string; lastKind: 'text' | 'photo' | 'doc' | 'action' | 'empty'; lastAt: string | null; lastAuthor: string | null } {
+} | null): {
+  last: string;
+  lastKind: 'text' | 'photo' | 'doc' | 'action' | 'empty';
+  lastAt: string | null;
+  lastAuthor: string | null;
+} {
   if (!last) {
     return { last: 'Aucun message', lastKind: 'empty', lastAt: null, lastAuthor: null };
   }
@@ -65,28 +70,118 @@ export default async function MessagesPage({
   const session = await auth();
   if (!session?.user) redirect('/login');
 
-  await ensureBureauUsers();
-  await ensureValerieMessageEquipe();
+  const externe = isExterne(session.user.acces);
+  if (!externe) {
+    await ensureBureauUsers();
+    await ensureValerieMessageEquipe();
+  }
 
   const sp = searchParams ? await searchParams : {};
   const initialFromUrl = sp.thread?.trim() || null;
+  const meId = session.user.id;
+
+  if (externe) {
+    const memberships = await prisma.threadMember.findMany({
+      where: {
+        userId: meId,
+        revokedAt: null,
+        OR: [{ accessExpiresAt: null }, { accessExpiresAt: { gt: new Date() } }],
+      },
+      orderBy: { invitedAt: 'desc' },
+    });
+    const keys = memberships.map((m) => m.threadKey);
+    const metas = await prisma.threadMeta.findMany({ where: { id: { in: keys } } });
+    const metaById = new Map(metas.map((m) => [m.id, m]));
+
+    const convs = await Promise.all(
+      memberships.map(async (m) => {
+        const meta = metaById.get(m.threadKey);
+        const last = await prisma.message.findFirst({
+          where: {
+            threadKey: m.threadKey,
+            systeme: false,
+            interne: false,
+            ...(m.historyFrom ? { createdAt: { gte: m.historyFrom } } : {}),
+          },
+          orderBy: { createdAt: 'desc' },
+          include: { auteur: true },
+        });
+        const prev = lastPreview(last);
+        return {
+          id: m.threadKey,
+          kind: 'ext' as const,
+          titre: meta?.titre ?? m.threadKey,
+          sousTitre: meta?.sousTitre || 'Discussion invitée',
+          avatar: meta?.avatar || 'EX',
+          photo: null as string | null,
+          cls: meta?.cls || 'cha',
+          pinNote: meta?.pin ?? '',
+          last: prev.last,
+          lastKind: prev.lastKind,
+          lastAuthor: prev.lastAuthor,
+          lastAt: last?.createdAt?.toISOString() ?? null,
+        };
+      }),
+    );
+
+    const me = await prisma.user.findUnique({ where: { id: meId } });
+    const initialThread =
+      initialFromUrl && convs.some((c) => c.id === initialFromUrl)
+        ? initialFromUrl
+        : convs[0]?.id ?? null;
+
+    const mentionPool = await prisma.user.findMany({
+      where: {
+        OR: [
+          { acces: { in: ['administrateur', 'collaborateur'] }, actif: true },
+          {
+            id: {
+              in: (
+                await prisma.threadMember.findMany({
+                  where: {
+                    threadKey: { in: keys },
+                    revokedAt: null,
+                    user: { acces: 'externe', actif: true },
+                  },
+                  select: { userId: true },
+                })
+              ).map((x) => x.userId),
+            },
+          },
+        ],
+      },
+      select: { id: true, nom: true, initiales: true },
+    });
+
+    return (
+      <Shell title="Messagerie">
+        <MessagesView
+          convs={convs}
+          initialThread={initialThread}
+          meId={meId}
+          meAvatar={me?.initiales ?? 'EX'}
+          meNom={me?.nom ?? session.user.name ?? ''}
+          canAdd={false}
+          isExterne
+          mentionUsers={mentionPool}
+        />
+      </Shell>
+    );
+  }
 
   const users = sortUsersBureauFirst(
     await prisma.user.findMany({
-      where: { actif: true },
+      where: { actif: true, acces: { in: ['administrateur', 'collaborateur'] } },
     }),
   );
 
   const userIds = new Set(users.map((u) => u.id));
-
-  // Métas affaire conservées pour le fil sur la fiche chantier (pas affichées ici)
   const affaireKeys = new Set(
-    (
-      await prisma.affaire.findMany({ select: { numeroDevis: true } })
-    ).map((a) => a.numeroDevis),
+    (await prisma.affaire.findMany({ select: { numeroDevis: true } })).map(
+      (a) => a.numeroDevis,
+    ),
   );
 
-  // Garder gen + collabs + métas chantier (fiche affaire)
   const allThreads = await prisma.threadMeta.findMany({ select: { id: true } });
   const toDelete = allThreads
     .map((t) => t.id)
@@ -117,20 +212,13 @@ export default async function MessagesPage({
 
   const people = users.filter((u) => u.id !== session.user.id);
 
-  const meId = session.user.id;
-
-  /** Dernier message d’un fil (équipe ou DM avec l’autre personne). */
   async function lastOf(threadKey: string, opts?: { peerId?: string }) {
     const { peerId } = opts ?? {};
-    // DM : messages que j’ai envoyés vers peer + messages que peer m’a envoyés
     if (peerId) {
       return prisma.message.findFirst({
         where: {
           systeme: false,
-          OR: [
-            { threadKey: peerId },
-            { threadKey: meId, auteurId: peerId },
-          ],
+          OR: [{ threadKey: peerId }, { threadKey: meId, auteurId: peerId }],
         },
         orderBy: { createdAt: 'desc' },
         include: { auteur: true },
@@ -146,7 +234,26 @@ export default async function MessagesPage({
   const genLast = await lastOf('gen');
   const genPrev = lastPreview(genLast);
 
-  // Messagerie interne uniquement (Équipe + directs) — fils chantier sur la fiche affaire
+  // Fils avec externes actifs : visibles aussi dans la messagerie
+  const extThreadKeys = [
+    ...new Set(
+      (
+        await prisma.threadMember.findMany({
+          where: {
+            revokedAt: null,
+            OR: [{ accessExpiresAt: null }, { accessExpiresAt: { gt: new Date() } }],
+            user: { acces: 'externe', actif: true },
+          },
+          select: { threadKey: true },
+        })
+      ).map((m) => m.threadKey),
+    ),
+  ].filter((k) => k !== 'gen' && !userIds.has(k));
+
+  const extMetas = await prisma.threadMeta.findMany({
+    where: { id: { in: extThreadKeys } },
+  });
+
   const convs = [
     {
       id: 'gen',
@@ -204,9 +311,31 @@ export default async function MessagesPage({
         };
       }),
     )),
-  ].map(({ sortAt: _s, ...c }) => c);
+    ...(await Promise.all(
+      extMetas.map(async (meta) => {
+        const last = await lastOf(meta.id);
+        const prev = lastPreview(last);
+        return {
+          id: meta.id,
+          kind: 'cha' as const,
+          titre: meta.titre,
+          sousTitre: `Ouvert aux externes · ${meta.sousTitre}`,
+          avatar: meta.avatar || 'CH',
+          photo: null as string | null,
+          cls: meta.cls || 'cha',
+          pinNote: meta.pin,
+          last: prev.last,
+          lastKind: prev.lastKind,
+          lastAuthor: prev.lastAuthor,
+          lastAt: last?.createdAt?.toISOString() ?? null,
+          sortAt: last?.createdAt?.getTime() ?? 0,
+        };
+      }),
+    )),
+  ]
+    .sort((a, b) => b.sortAt - a.sortAt)
+    .map(({ sortAt: _s, ...c }) => c);
 
-  // URL ?thread= ouvre le fil ; sinon état vide (desktop WhatsApp)
   const initialThread =
     initialFromUrl && convs.some((c) => c.id === initialFromUrl)
       ? initialFromUrl
@@ -223,6 +352,7 @@ export default async function MessagesPage({
         meAvatar={me?.initiales ?? 'ME'}
         meNom={me?.nom ?? session.user.name ?? ''}
         canAdd={isAdministrateur(session.user.acces)}
+        isExterne={false}
         mentionUsers={users.map((u) => ({
           id: u.id,
           nom: u.nom,

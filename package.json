@@ -10,6 +10,7 @@
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:reset": "prisma db push --force-reset && tsx prisma/seed.ts",
+    "reprise:ce-planning": "tsx scripts/reprise-ce-planning.ts",
     "postinstall": "prisma generate",
     "generate:devis-exemple": "node scripts/generate-devis-exemple.mjs"
   },

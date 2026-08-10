@@ -111,6 +111,7 @@ export const ROLE_LABEL: Record<string, string> = {
   responsable: 'Resp. administrative et financière',
   dirigeant: 'Dirigeant · conducteur de travaux',
   conducteur: 'Conducteur de travaux',
+  externe: 'Participant externe',
 };
 
 export const SCREENS = [

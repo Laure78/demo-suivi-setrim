@@ -1,6 +1,9 @@
 /**
  * Statuts d’affichage des contrats d’entretien (exercice 1er juil. → 30 juin).
  * moisContractuel 0 = juillet … 11 = juin.
+ *
+ * Source de vérité unique : calcul à partir de datePosee + réalisation (etat « done »)
+ * + mois contractuel + date du jour. Ne pas recalculer autrement dans l’UI.
  */
 
 export const MOIS_CE_LABELS = [
@@ -18,15 +21,29 @@ export const MOIS_CE_LABELS = [
   'juin',
 ] as const;
 
-export type CeStatutCle = 'a_programmer' | 'programme' | 'realise';
+/** Pastilles : 5 états distincts (liste, fiche, planning, tableau de bord). */
+export type CeStatutCle =
+  | 'a_programmer'
+  | 'programme'
+  | 'realise'
+  | 'en_retard'
+  | 'hors_mois';
 
 export type CeStatutAffichage = {
   cle: CeStatutCle;
   label: string;
-  /** Date d’intervention hors du mois contractuel (obligation) */
+  /** Date d’intervention hors du mois contractuel */
   horsMois: boolean;
-  /** Non programmé et mois contractuel en cours ou déjà passé */
+  /** Mois contractuel dépassé sans intervention */
   alerteRetard: boolean;
+};
+
+export const CE_STATUT_LABEL: Record<CeStatutCle, string> = {
+  a_programmer: 'À programmer',
+  programme: 'Programmé',
+  realise: 'Réalisé',
+  en_retard: 'En retard',
+  hors_mois: 'Hors mois contractuel',
 };
 
 /** Mois calendaire (0–11) correspondant à l’index exercice. */
@@ -69,78 +86,108 @@ export function moisContractuelCourant(now = new Date(), exercice = '2026-2027')
   const [startYear] = exercice.split('-').map(Number);
   const y0 = Number.isFinite(startYear) ? startYear : now.getUTCFullYear();
   const y = now.getUTCFullYear();
-  const m = now.getUTCMonth(); // 0–11
-  // Exercice : juil. y0 → juin y0+1
-  if (y === y0 && m >= 6) return m - 6; // juil=0 … déc=5
-  if (y === y0 + 1 && m <= 5) return m + 6; // janv=6 … juin=11
+  const m = now.getUTCMonth();
+  if (y === y0 && m >= 6) return m - 6;
+  if (y === y0 + 1 && m <= 5) return m + 6;
   return null;
 }
 
+/**
+ * Calcul unique du statut CE.
+ * Ordre :
+ * 1. Réalisé (etat done ou flag realise)
+ * 2. Date posée → Programmé, ou Hors mois contractuel
+ * 3. Pas de date + mois contractuel dépassé → En retard
+ * 4. Sinon → À programmer
+ */
 export function statutContratAffichage(input: {
-  etat: string;
-  datePosee: string | Date | null;
+  /** Seul usage : « done » = réalisé. Autres valeurs ignorées pour l’affichage. */
+  etat?: string | null;
+  datePosee: string | Date | null | undefined;
   moisContractuel: number;
   exercice?: string;
   now?: Date;
+  /** Ex. affaire au statut soldé */
+  realise?: boolean;
 }): CeStatutAffichage {
   const exercice = input.exercice ?? '2026-2027';
   const now = input.now ?? new Date();
-  const etat = input.etat;
-  const hasDate = !!input.datePosee;
-  const horsMois = hasDate
-    ? isHorsMoisContractuel(input.datePosee, input.moisContractuel, exercice)
-    : false;
+  const realise = Boolean(input.realise) || input.etat === 'done';
 
-  if (etat === 'done') {
+  if (realise) {
     return {
       cle: 'realise',
-      label: 'Réalisé',
-      horsMois,
+      label: CE_STATUT_LABEL.realise,
+      horsMois: false,
       alerteRetard: false,
     };
   }
 
-  if (etat === 'pose' || hasDate) {
+  if (input.datePosee) {
+    const horsMois = isHorsMoisContractuel(
+      input.datePosee,
+      input.moisContractuel,
+      exercice,
+    );
+    if (horsMois) {
+      return {
+        cle: 'hors_mois',
+        label: CE_STATUT_LABEL.hors_mois,
+        horsMois: true,
+        alerteRetard: false,
+      };
+    }
     return {
       cle: 'programme',
-      label: 'Programmé',
-      horsMois,
+      label: CE_STATUT_LABEL.programme,
+      horsMois: false,
       alerteRetard: false,
     };
   }
 
   const courant = moisContractuelCourant(now, exercice);
-  const alerteRetard =
-    courant != null && input.moisContractuel <= courant;
+  const enRetard = courant != null && input.moisContractuel <= courant;
+  if (enRetard) {
+    return {
+      cle: 'en_retard',
+      label: CE_STATUT_LABEL.en_retard,
+      horsMois: false,
+      alerteRetard: true,
+    };
+  }
 
   return {
     cle: 'a_programmer',
-    label: 'À programmer',
+    label: CE_STATUT_LABEL.a_programmer,
     horsMois: false,
-    alerteRetard: alerteRetard || etat === 'alert',
+    alerteRetard: false,
   };
 }
 
+/** @deprecated Prefer statut.label / CeStatutPill — conservé pour imports existants. */
 export function labelStatutListe(s: CeStatutAffichage): string {
-  if (s.cle === 'realise') return 'Réalisé';
-  if (s.cle === 'programme') {
-    return s.horsMois ? 'Programmé · Hors mois contractuel' : 'Programmé';
-  }
-  return s.alerteRetard ? 'À programmer · En retard' : 'À programmer';
+  return s.label;
 }
 
-/** Libellé créneau planning CE. */
+/**
+ * Libellé stocké sur le créneau (minimal) — immeuble / syndic lus via affaireId.
+ */
 export function labelSlotCe(opts: {
-  client: string;
-  adresse: string;
+  client?: string;
+  adresse?: string;
   nbCompagnons?: number;
   duree?: 'demi' | 'jour';
 }) {
-  const dureeTxt = opts.duree === 'demi' ? '½ j' : opts.duree === 'jour' ? '1 j' : '½–1 j';
+  const immeuble =
+    opts.adresse?.split(',')[0]?.trim() ||
+    opts.client?.trim() ||
+    'Immeuble';
+  const dureeTxt =
+    opts.duree === 'jour' ? '1 j' : opts.duree === 'demi' ? '½ j' : '';
   const n = opts.nbCompagnons ?? 0;
-  const gars =
-    n > 0 ? ` · ${n} compagnon${n > 1 ? 's' : ''}` : '';
-  return `${opts.client} · ${opts.adresse} · Contrat d'entretien · ${dureeTxt}${gars}`;
+  const gars = n > 0 ? ` · ${n} compagnon${n > 1 ? 's' : ''}` : '';
+  const dureePart = dureeTxt ? ` · ${dureeTxt}` : '';
+  return `Contrat d'entretien · ${immeuble}${dureePart}${gars}`;
 }
 
 export function parseDureeCeFromNote(note: string | null | undefined): 'demi' | 'jour' {

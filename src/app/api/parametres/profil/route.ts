@@ -22,6 +22,8 @@ export async function GET() {
       initiales: true,
       role: true,
       acces: true,
+      societe: true,
+      fonction: true,
       avatarUrl: true,
       terrain: true,
     },
@@ -84,6 +86,8 @@ export async function PATCH(req: Request) {
   const email = String(body.email ?? '')
     .trim()
     .toLowerCase();
+  const societe = String(body.societe ?? '').trim();
+  const fonction = String(body.fonction ?? '').trim();
   let initiales = String(body.initiales ?? '')
     .trim()
     .toUpperCase()
@@ -132,6 +136,8 @@ export async function PATCH(req: Request) {
       telephone,
       email,
       initiales,
+      societe,
+      fonction,
       ...(avatarUrl !== undefined ? { avatarUrl } : {}),
     },
     select: {
@@ -144,6 +150,8 @@ export async function PATCH(req: Request) {
       initiales: true,
       role: true,
       acces: true,
+      societe: true,
+      fonction: true,
       avatarUrl: true,
     },
   });

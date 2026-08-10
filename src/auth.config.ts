@@ -9,7 +9,13 @@ export const authConfig = {
   callbacks: {
     authorized({ auth, request }) {
       const { pathname } = request.nextUrl;
-      if (pathname.startsWith('/api/') || pathname.startsWith('/login')) return true;
+      if (
+        pathname.startsWith('/api/') ||
+        pathname.startsWith('/login') ||
+        pathname.startsWith('/invitation/')
+      ) {
+        return true;
+      }
       return !!auth;
     },
     async jwt({ token, user, trigger, session }) {

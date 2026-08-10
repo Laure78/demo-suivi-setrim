@@ -10,10 +10,28 @@ export type MsgPrefs = {
   lastRead: Record<string, string>;
   /** messageIds pour lesquels une action a été créée */
   actionMsgs: string[];
+  /** Messages marqués importants (★) */
+  starred: string[];
+  /** Réactions emoji par messageId */
+  reactions: Record<string, string>;
+  /** Messages masqués « pour moi » */
+  hiddenMsgs: string[];
+  /** threadId → aperçu du message épinglé dans le fil */
+  msgPins: Record<string, string>;
 };
 
 function empty(): MsgPrefs {
-  return { pinned: [], muted: [], archived: [], lastRead: {}, actionMsgs: [] };
+  return {
+    pinned: [],
+    muted: [],
+    archived: [],
+    lastRead: {},
+    actionMsgs: [],
+    starred: [],
+    reactions: {},
+    hiddenMsgs: [],
+    msgPins: {},
+  };
 }
 
 export function loadMsgPrefs(): MsgPrefs {
@@ -28,6 +46,11 @@ export function loadMsgPrefs(): MsgPrefs {
       archived: Array.isArray(j.archived) ? j.archived : [],
       lastRead: j.lastRead && typeof j.lastRead === 'object' ? j.lastRead : {},
       actionMsgs: Array.isArray(j.actionMsgs) ? j.actionMsgs : [],
+      starred: Array.isArray(j.starred) ? j.starred : [],
+      reactions:
+        j.reactions && typeof j.reactions === 'object' ? j.reactions : {},
+      hiddenMsgs: Array.isArray(j.hiddenMsgs) ? j.hiddenMsgs : [],
+      msgPins: j.msgPins && typeof j.msgPins === 'object' ? j.msgPins : {},
     };
   } catch {
     return empty();

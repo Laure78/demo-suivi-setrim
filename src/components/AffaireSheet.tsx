@@ -21,7 +21,9 @@ import {
   labelMoisContractuel,
   messageHorsMois,
   parseDureeCeFromNote,
+  statutContratAffichage,
 } from '@/lib/ce-statut';
+import { CeStatutPill } from '@/components/CeStatutPill';
 
 export type AffaireDetail = {
   id: string;
@@ -121,6 +123,9 @@ export function AffaireSheet({
   initialTab?: AffaireSheetTab;
 }) {
   const [tab, setTab] = useState<AffaireSheetTab>(initialTab);
+  useEffect(() => {
+    setTab(initialTab);
+  }, [initialTab, detail?.id]);
   const [newTask, setNewTask] = useState('');
   const [taskNiveau, setTaskNiveau] = useState(2);
   const [taskEcheance, setTaskEcheance] = useState(() => {
@@ -915,6 +920,15 @@ export function AffaireSheet({
         })()
       : '/planning';
     const ceRealise = a.contratEntretien?.etat === 'done';
+    const ceStatut = a.contratEntretien
+      ? statutContratAffichage({
+          etat: a.contratEntretien.etat,
+          datePosee: a.contratEntretien.datePosee,
+          moisContractuel: a.contratEntretien.moisContractuel,
+          exercice: a.contratEntretien.exercice,
+          realise: ceRealise || a.statut === 'solde',
+        })
+      : null;
 
     body = (
       <>
@@ -951,13 +965,13 @@ export function AffaireSheet({
               </dd>
               <dt>Compagnons</dt>
               <dd>{a.contratEntretien.nbCompagnons ?? '—'}</dd>
-              <dt>Statut CE</dt>
+              <dt>Statut</dt>
               <dd>
-                {ceRealise
-                  ? 'Réalisé pour l’exercice'
-                  : a.contratEntretien.datePosee || a.contratEntretien.etat === 'pose'
-                    ? 'Programmé'
-                    : 'À programmer'}
+                {ceStatut ? <CeStatutPill statut={ceStatut} /> : '—'}
+                <span className="hint" style={{ display: 'block', marginTop: 4 }}>
+                  Calculé automatiquement (date posée / réalisation / mois contractuel) —
+                  non modifiable à la main.
+                </span>
               </dd>
             </>
           ) : null}
@@ -1158,9 +1172,7 @@ export function AffaireSheet({
                 Retirer du planning
               </button>
             ) : null}
-            {ceRealise ? (
-              <span className="pill ok">Réalisé pour l’exercice</span>
-            ) : null}
+            {ceRealise ? <CeStatutPill cle="realise" /> : null}
             {(a.contratEntretien?.datePosee || slots.length > 0) ? (
               <a href={planningHref} className="hint" style={{ margin: 0 }}>
                 Voir dans le planning →

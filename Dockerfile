@@ -32,8 +32,8 @@ COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/prisma ./prisma
 COPY scripts/railway-start.sh ./railway-start.sh
 RUN chmod +x railway-start.sh \
-  && mkdir -p public/uploads/avatars public/uploads/devis \
-  && chown -R nextjs:nodejs /app/prisma public/uploads
+  && mkdir -p public/uploads/avatars public/uploads/devis storage/secure \
+  && chown -R nextjs:nodejs /app/prisma public/uploads storage
 
 USER nextjs
 EXPOSE 3000

@@ -87,17 +87,13 @@ function mapSlotType(type: string): PlanningSourceType {
 
 function slotTitle(slot: SlotInput, sourceType: PlanningSourceType): string {
   if (sourceType === 'contrat_entretien') {
-    // Titre court : syndic / immeuble (le détail CE est dans le meta)
-    if (slot.affaire?.client) {
-      const adr = slot.affaire.adresse?.split(',')[0]?.trim();
-      return adr ? `${slot.affaire.client} · ${adr}` : slot.affaire.client;
-    }
-    if (slot.label) {
-      // « Client · Adresse · Contrat d'entretien · … »
-      const parts = slot.label.split('·').map((p) => p.trim());
-      if (parts.length >= 2) return `${parts[0]} · ${parts[1]}`;
-      return parts[0] || slot.label;
-    }
+    const immeuble =
+      slot.affaire?.adresse?.split(',')[0]?.trim() ||
+      slot.affaire?.client ||
+      null;
+    if (immeuble) return `Contrat d'entretien · ${immeuble}`;
+    if (slot.label?.includes("Contrat d'entretien")) return slot.label.split('·').slice(0, 2).join(' · ').trim();
+    return slot.label || "Contrat d'entretien";
   }
   if (slot.affaire?.client) {
     return slot.affaire.client;

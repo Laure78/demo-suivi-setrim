@@ -2,26 +2,29 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { eur, MOIS_EXERCICE, formatDateFr } from '@/lib/format';
+import { eur, formatDateFr } from '@/lib/format';
 import { AIDES } from '@/lib/aides';
 import { AideLabel } from '@/components/AideTip';
 import { AffaireSheet, type AffaireDetail } from '@/components/AffaireSheet';
+import { CeStatutPill } from '@/components/CeStatutPill';
 import {
-  labelStatutListe,
-  statutContratAffichage,
+  labelMoisContractuel,
+  type CeStatutAffichage,
   type CeStatutCle,
 } from '@/lib/ce-statut';
 
-type ContratRow = {
+export type ContratRow = {
   id: string;
   immeuble: string;
   syndic: string;
   montantHt: number;
   nbCompagnons: number;
   moisContractuel: number;
-  etat: string;
   note: string;
   datePosee: string | null;
+  exercice: string;
+  /** Calculé côté serveur — ne pas recalculer ici */
+  statut: CeStatutAffichage;
   affaire: {
     id: string;
     numeroDevis: string;
@@ -30,50 +33,99 @@ type ContratRow = {
   } | null;
 };
 
-type FiltreStatut = 'tous' | CeStatutCle | 'hors_mois';
+type FiltreStatut = 'tous' | CeStatutCle | 'exercice';
 
 export function ContratsView({ contrats }: { contrats: ContratRow[] }) {
   const [sheetId, setSheetId] = useState<string | null>(null);
   const [detail, setDetail] = useState<AffaireDetail | null>(null);
+  const [initialTab, setInitialTab] = useState<'plan' | 'taches'>('plan');
   const [busy, setBusy] = useState(false);
-  const [filtre, setFiltre] = useState<FiltreStatut>('tous');
+  const [filtre, setFiltre] = useState<FiltreStatut>('exercice');
+  const [q, setQ] = useState('');
+  const [filtreMois, setFiltreMois] = useState<number | 'tous'>('tous');
+  const [filtreSyndic, setFiltreSyndic] = useState('tous');
   const router = useRouter();
 
+  const syndics = useMemo(() => {
+    const s = [...new Set(contrats.map((c) => c.syndic).filter(Boolean))];
+    return s.sort((a, b) => a.localeCompare(b, 'fr'));
+  }, [contrats]);
+
+  const kpis = useMemo(() => {
+    const total = contrats.length;
+    const aProgrammer = contrats.filter((c) => c.statut.cle === 'a_programmer').length;
+    const programmes = contrats.filter(
+      (c) => c.statut.cle === 'programme' || c.statut.cle === 'hors_mois',
+    ).length;
+    const realises = contrats.filter((c) => c.statut.cle === 'realise').length;
+    const enRetard = contrats.filter((c) => c.statut.cle === 'en_retard').length;
+    return { total, aProgrammer, programmes, realises, enRetard };
+  }, [contrats]);
+
   const rows = useMemo(() => {
-    const enriched = contrats.map((c) => {
-      const st = statutContratAffichage({
-        etat: c.etat,
-        datePosee: c.datePosee,
-        moisContractuel: c.moisContractuel,
-        exercice: '2026-2027',
-      });
-      return { ...c, st, statutLabel: labelStatutListe(st) };
-    });
-    enriched.sort((a, b) => {
+    let list = [...contrats];
+
+    if (filtre === 'a_programmer') {
+      list = list.filter((c) => c.statut.cle === 'a_programmer');
+    } else if (filtre === 'programme') {
+      list = list.filter(
+        (c) => c.statut.cle === 'programme' || c.statut.cle === 'hors_mois',
+      );
+    } else if (filtre === 'realise') {
+      list = list.filter((c) => c.statut.cle === 'realise');
+    } else if (filtre === 'en_retard') {
+      list = list.filter((c) => c.statut.cle === 'en_retard');
+    } else if (filtre === 'hors_mois') {
+      list = list.filter((c) => c.statut.cle === 'hors_mois');
+    }
+
+    if (filtreMois !== 'tous') {
+      list = list.filter((c) => c.moisContractuel === filtreMois);
+    }
+    if (filtreSyndic !== 'tous') {
+      list = list.filter((c) => c.syndic === filtreSyndic);
+    }
+
+    const needle = q.trim().toLowerCase();
+    if (needle) {
+      list = list.filter(
+        (c) =>
+          c.immeuble.toLowerCase().includes(needle) ||
+          c.syndic.toLowerCase().includes(needle) ||
+          c.note.toLowerCase().includes(needle) ||
+          (c.affaire?.numeroDevis ?? '').toLowerCase().includes(needle),
+      );
+    }
+
+    list.sort((a, b) => {
       if (a.moisContractuel !== b.moisContractuel) {
         return a.moisContractuel - b.moisContractuel;
       }
       return a.syndic.localeCompare(b.syndic, 'fr');
     });
-    if (filtre === 'tous') return enriched;
-    if (filtre === 'hors_mois') return enriched.filter((c) => c.st.horsMois);
-    return enriched.filter((c) => c.st.cle === filtre);
-  }, [contrats, filtre]);
+    return list;
+  }, [contrats, filtre, filtreMois, filtreSyndic, q]);
 
-  const nbAlerte = useMemo(
-    () =>
-      contrats.filter((c) => {
-        const st = statutContratAffichage({
-          etat: c.etat,
-          datePosee: c.datePosee,
-          moisContractuel: c.moisContractuel,
-        });
-        return st.cle === 'a_programmer' && st.alerteRetard;
-      }).length,
-    [contrats],
-  );
+  const groups = useMemo(() => {
+    const map = new Map<
+      number,
+      { mois: number; rows: ContratRow[]; montant: number }
+    >();
+    for (const c of rows) {
+      const g = map.get(c.moisContractuel) ?? {
+        mois: c.moisContractuel,
+        rows: [],
+        montant: 0,
+      };
+      g.rows.push(c);
+      g.montant += c.montantHt;
+      map.set(c.moisContractuel, g);
+    }
+    return [...map.values()].sort((a, b) => a.mois - b.mois);
+  }, [rows]);
 
-  async function openAffaire(id: string) {
+  async function openAffaire(id: string, tab: 'plan' | 'taches' = 'plan') {
+    setInitialTab(tab);
     setSheetId(id);
     setDetail(null);
     const r = await fetch(`/api/affaires/${id}`);
@@ -98,7 +150,7 @@ export function ContratsView({ contrats }: { contrats: ContratRow[] }) {
     setBusy(false);
     alert(
       j.ok
-        ? `Exercice lié : ${j.created ?? 0} affaire(s) CE (planning synchronisé · alertes J-15).`
+        ? `Exercice lié : ${j.created ?? 0} affaire(s) CE (planning synchronisé).`
         : j.error ?? 'Échec',
     );
     router.refresh();
@@ -109,172 +161,225 @@ export function ContratsView({ contrats }: { contrats: ContratRow[] }) {
       <p className="hint" style={{ marginBottom: 12 }}>
         <AideLabel aide={AIDES.contrats}>
           <span>
-            Exercice du 1<sup>er</sup> juillet 2026 au 30 juin 2027. Posez la date sur la fiche :
-            le créneau apparaît au planning (bleu). Modifier le planning met à jour le contrat, et
-            l&apos;inverse aussi. Cliquez une ligne pour ouvrir l&apos;affaire.
+            Exercice du 1<sup>er</sup> juillet 2026 au 30 juin 2027. Programmer une date
+            crée le créneau bleu au planning. Déplacer le créneau met à jour le contrat.
           </span>
         </AideLabel>
       </p>
 
-      {nbAlerte > 0 ? (
-        <p
-          className="hint"
-          style={{
-            marginBottom: 12,
-            padding: '10px 12px',
-            background: 'rgba(196, 70, 40, 0.08)',
-            borderLeft: '3px solid var(--flamme)',
-            color: 'var(--flamme)',
-            fontWeight: 600,
-          }}
-        >
-          ▲ {nbAlerte} contrat{nbAlerte > 1 ? 's' : ''} non programmé
-          {nbAlerte > 1 ? 's' : ''} dont le mois contractuel est en cours ou passé.
-        </p>
-      ) : null}
-
-      <div className="import-bar" style={{ marginBottom: 12, flexWrap: 'wrap' }}>
+      <div className="ce-kpi" role="toolbar" aria-label="Synthèse contrats">
         <button
           type="button"
-          className="btn-primary"
-          onClick={genererExercice}
-          disabled={busy}
+          className={`ce-kpi-card${filtre === 'exercice' || filtre === 'tous' ? ' on' : ''}`}
+          onClick={() => setFiltre('exercice')}
         >
-          Lier exercice → affaires / planning / alertes
+          <span className="ce-kpi-n">{kpis.total}</span>
+          <span className="ce-kpi-l">Contrats exercice</span>
         </button>
-        <label className="filter-client" style={{ marginLeft: 'auto' }}>
-          <span className="eyebrow">Statut</span>
-          <select
-            value={filtre}
-            onChange={(e) => setFiltre(e.target.value as FiltreStatut)}
-            aria-label="Filtrer par statut"
+        <button
+          type="button"
+          className={`ce-kpi-card${filtre === 'a_programmer' ? ' on' : ''}`}
+          onClick={() => setFiltre('a_programmer')}
+        >
+          <span className="ce-kpi-n">{kpis.aProgrammer}</span>
+          <span className="ce-kpi-l">À programmer</span>
+        </button>
+        <button
+          type="button"
+          className={`ce-kpi-card${filtre === 'programme' ? ' on' : ''}`}
+          onClick={() => setFiltre('programme')}
+        >
+          <span className="ce-kpi-n">{kpis.programmes}</span>
+          <span className="ce-kpi-l">Programmés</span>
+        </button>
+        <button
+          type="button"
+          className={`ce-kpi-card${filtre === 'realise' ? ' on' : ''}`}
+          onClick={() => setFiltre('realise')}
+        >
+          <span className="ce-kpi-n">{kpis.realises}</span>
+          <span className="ce-kpi-l">Réalisés</span>
+        </button>
+        {kpis.enRetard > 0 ? (
+          <button
+            type="button"
+            className={`ce-kpi-card ce-kpi-retard${filtre === 'en_retard' ? ' on' : ''}`}
+            onClick={() => setFiltre('en_retard')}
           >
-            <option value="tous">Tous</option>
-            <option value="a_programmer">À programmer</option>
-            <option value="programme">Programmé</option>
-            <option value="realise">Réalisé</option>
-            <option value="hors_mois">Hors mois contractuel</option>
-          </select>
-        </label>
+            <span className="ce-kpi-n">{kpis.enRetard}</span>
+            <span className="ce-kpi-l">En retard</span>
+          </button>
+        ) : null}
       </div>
 
-      <div className="plan-wrap">
-        <table className="months">
-          <thead>
-            <tr>
-              <th className="lbl">Syndic / immeuble</th>
-              <th className="mnt" style={{ textAlign: 'right' }}>
-                Montant HT
-              </th>
-              <th className="gars">Compagnons</th>
-              <th>Affaire</th>
-              <th>Date programmée</th>
-              <th>Statut</th>
-              {MOIS_EXERCICE.map((m) => (
-                <th key={m}>{m}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((c) => (
-              <tr
-                key={c.id}
-                className="row"
-                style={{
-                  cursor: c.affaire ? 'pointer' : undefined,
-                  background: c.st.alerteRetard
-                    ? 'rgba(196, 74, 42, 0.06)'
-                    : c.st.horsMois
-                      ? 'rgba(245, 200, 66, 0.12)'
-                      : undefined,
-                }}
-                onClick={() => c.affaire && openAffaire(c.affaire.id)}
-              >
-                <td className="lbl">
-                  <span className="cli">{c.syndic}</span>
-                  <div className="adr">{c.immeuble}</div>
-                  {c.st.alerteRetard ? (
-                    <div className="adr" style={{ color: 'var(--flamme)' }}>
-                      ▲ Mois contractuel en cours ou passé — à programmer
-                    </div>
-                  ) : null}
-                  {c.note && !c.st.alerteRetard ? (
-                    <div className="adr" style={{ color: 'var(--zinc)' }}>
-                      {c.note}
-                    </div>
-                  ) : null}
-                </td>
-                <td className="num" style={{ textAlign: 'right' }}>
-                  {eur(c.montantHt)}
-                </td>
-                <td className="mono">{c.nbCompagnons}</td>
-                <td className="mono">
-                  {c.affaire ? (
-                    <span className="pill wait">{c.affaire.numeroDevis}</span>
-                  ) : (
-                    '—'
-                  )}
-                </td>
-                <td className="mono">
-                  {c.datePosee ? formatDateFr(c.datePosee) : '—'}
-                </td>
-                <td>
-                  <span
-                    className={`pill${
-                      c.st.cle === 'realise'
-                        ? ' ok'
-                        : c.st.alerteRetard || c.st.horsMois
-                          ? ' no'
-                          : c.st.cle === 'programme'
-                            ? ' wait'
-                            : ''
-                    }`}
-                  >
-                    {c.statutLabel}
-                  </span>
-                </td>
-                {MOIS_EXERCICE.map((_, i) => (
-                  <td key={i}>
-                    <span
-                      className={`mk ${
-                        i === c.moisContractuel
-                          ? c.st.cle === 'realise'
-                            ? 'done'
-                            : c.st.cle === 'programme'
-                              ? 'pose'
-                              : c.st.alerteRetard
-                                ? 'alert'
-                                : 'contract'
-                          : ''
-                      }`}
-                    />
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="ce-toolbar">
+        <input
+          type="search"
+          className="ce-search"
+          placeholder="Immeuble, adresse, syndic…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          aria-label="Rechercher un contrat"
+        />
+        <select
+          value={filtre}
+          onChange={(e) => setFiltre(e.target.value as FiltreStatut)}
+          aria-label="Filtrer par statut"
+        >
+          <option value="exercice">Tous les statuts</option>
+          <option value="a_programmer">À programmer</option>
+          <option value="programme">Programmé</option>
+          <option value="hors_mois">Hors mois contractuel</option>
+          <option value="en_retard">En retard</option>
+          <option value="realise">Réalisé</option>
+        </select>
+        <select
+          value={filtreMois === 'tous' ? 'tous' : String(filtreMois)}
+          onChange={(e) =>
+            setFiltreMois(e.target.value === 'tous' ? 'tous' : Number(e.target.value))
+          }
+          aria-label="Filtrer par mois"
+        >
+          <option value="tous">Tous les mois</option>
+          {Array.from({ length: 12 }, (_, i) => (
+            <option key={i} value={i}>
+              {labelMoisContractuel(i)}
+            </option>
+          ))}
+        </select>
+        <select
+          value={filtreSyndic}
+          onChange={(e) => setFiltreSyndic(e.target.value)}
+          aria-label="Filtrer par syndic"
+        >
+          <option value="tous">Tous les syndics</option>
+          {syndics.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          className="btn-note"
+          onClick={() => void genererExercice()}
+          disabled={busy}
+        >
+          Lier exercice
+        </button>
       </div>
-      {!rows.length ? (
-        <p className="hint">Aucun contrat pour ce filtre.</p>
-      ) : null}
-      <div className="legend">
-        <span>
-          <i style={{ background: 'var(--bleu)' }} />
-          Mois contractuel
-        </span>
-        <span>
-          <i style={{ background: '#F5C842' }} />
-          Date posée au planning
-        </span>
-        <span>
-          <i style={{ background: 'var(--vert)' }} />
-          Intervention réalisée
-        </span>
-        <span>
-          <i style={{ background: 'var(--flamme)' }} />
-          À programmer (mois en cours / passé)
-        </span>
+
+      <div className="ce-list">
+        {groups.map((g) => (
+          <section key={g.mois} className="ce-month-group">
+            <header className="ce-month-head">
+              <strong>{labelMoisContractuel(g.mois)}</strong>
+              <span>
+                {g.rows.length} contrat{g.rows.length > 1 ? 's' : ''}
+              </span>
+              <span className="ce-month-ht">{eur(g.montant)}</span>
+            </header>
+
+            {/* Desktop table */}
+            <div className="ce-table-wrap desk-only">
+              <table className="ce-table">
+                <thead>
+                  <tr>
+                    <th>Immeuble</th>
+                    <th>Syndic</th>
+                    <th>Mois</th>
+                    <th>Date prog.</th>
+                    <th className="num">Comp.</th>
+                    <th className="num">Montant HT</th>
+                    <th>Statut</th>
+                    <th className="ce-actions-col" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {g.rows.map((c) => (
+                    <tr
+                      key={c.id}
+                      className={`ce-row${c.statut.cle === 'en_retard' ? ' late' : ''}`}
+                      onClick={() => c.affaire && void openAffaire(c.affaire.id, 'taches')}
+                    >
+                      <td>
+                        <strong className="ce-immeuble">{c.immeuble}</strong>
+                        {c.affaire ? (
+                          <small className="ce-devis">{c.affaire.numeroDevis}</small>
+                        ) : null}
+                      </td>
+                      <td>{c.syndic}</td>
+                      <td>{labelMoisContractuel(c.moisContractuel)}</td>
+                      <td className="mono">
+                        {c.datePosee ? formatDateFr(c.datePosee) : '—'}
+                      </td>
+                      <td className="num mono">{c.nbCompagnons}</td>
+                      <td className="num mono">{eur(c.montantHt)}</td>
+                      <td>
+                        <CeStatutPill statut={c.statut} />
+                      </td>
+                      <td className="ce-actions-col" onClick={(e) => e.stopPropagation()}>
+                        <div className="ce-row-actions">
+                          {c.affaire ? (
+                            <>
+                              <button
+                                type="button"
+                                className="btn-edit"
+                                onClick={() => void openAffaire(c.affaire!.id, 'plan')}
+                              >
+                                Programmer
+                              </button>
+                              <button
+                                type="button"
+                                className="btn-note"
+                                onClick={() => void openAffaire(c.affaire!.id, 'taches')}
+                              >
+                                Fiche
+                              </button>
+                            </>
+                          ) : (
+                            <span className="hint">Pas d’affaire</span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile cards */}
+            <ul className="ce-cards mobile-only">
+              {g.rows.map((c) => (
+                <li key={c.id}>
+                  <button
+                    type="button"
+                    className="ce-card"
+                    onClick={() => c.affaire && void openAffaire(c.affaire.id, 'plan')}
+                  >
+                    <div className="ce-card-top">
+                      <strong>{c.immeuble}</strong>
+                      <CeStatutPill statut={c.statut} />
+                    </div>
+                    <span className="ce-card-sub">{c.syndic}</span>
+                    <span className="ce-card-meta">
+                      {c.datePosee ? formatDateFr(c.datePosee) : 'Non programmé'}
+                      {' · '}
+                      {c.nbCompagnons} compagnon{c.nbCompagnons > 1 ? 's' : ''}
+                      {' · '}
+                      {eur(c.montantHt)}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+        {!rows.length ? (
+          <p className="hint" style={{ padding: 16 }}>
+            Aucun contrat pour ces filtres.
+          </p>
+        ) : null}
       </div>
 
       {sheetId ? (
@@ -286,7 +391,7 @@ export function ContratsView({ contrats }: { contrats: ContratRow[] }) {
             router.refresh();
           }}
           onRefresh={refreshDetail}
-          initialTab="plan"
+          initialTab={initialTab}
         />
       ) : null}
     </>
